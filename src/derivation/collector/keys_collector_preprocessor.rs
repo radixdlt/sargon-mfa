@@ -13,25 +13,27 @@ impl KeysCollectorPreprocessor {
     pub(crate) fn preprocess(
         &self,
         all_factor_sources_in_profile: IndexSet<HDFactorSource>,
-    ) -> (KeysCollectorState, IndexSet<FactorSourcesOfKind>) {
+    ) -> Result<(KeysCollectorState, IndexSet<FactorSourcesOfKind>)> {
         let all_factor_sources_in_profile = all_factor_sources_in_profile
             .into_iter()
             .map(|f| (f.factor_source_id(), f))
             .collect::<HashMap<FactorSourceIDFromHash, HDFactorSource>>();
 
-        let factor_sources_of_kind = sort_group_factors(
-            self.derivation_paths
-                .clone()
-                .keys()
-                .map(|id| {
-                    all_factor_sources_in_profile
-                        .get(id)
-                        .expect("Should have all factor sources")
-                        .clone()
-                })
-                .collect::<HashSet<_>>(),
-        );
+        let unsorted = self
+            .derivation_paths
+            .clone()
+            .keys()
+            .map(|id| {
+                all_factor_sources_in_profile
+                    .get(id)
+                    .cloned()
+                    .ok_or(CommonError::UnknownFactorSource)
+            })
+            .collect::<Result<HashSet<_>>>()?;
+
+        let factor_sources_of_kind = sort_group_factors(unsorted);
         let state = KeysCollectorState::new(self.derivation_paths.clone());
-        (state, factor_sources_of_kind)
+
+        Ok((state, factor_sources_of_kind))
     }
 }

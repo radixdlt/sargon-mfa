@@ -158,6 +158,7 @@ impl KeysCollector {
             derivation_paths.into_iter().collect(),
             Arc::new(TestDerivationInteractors::default()),
         )
+        .unwrap()
     }
 
     pub fn new_test(

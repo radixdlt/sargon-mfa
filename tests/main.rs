@@ -39,7 +39,25 @@ mod key_derivation_tests {
     use super::*;
 
     #[actix_rt::test]
-    async fn failure() {
+    async fn failure_unknown_factor() {
+        let res = KeysCollector::new(
+            IndexSet::new(),
+            IndexMap::from_iter([(
+                FactorSourceIDFromHash::fs0(),
+                IndexSet::from_iter([DerivationPath::new(
+                    Mainnet,
+                    Account,
+                    T9n,
+                    HDPathComponent::securified(0),
+                )]),
+            )]),
+            Arc::new(TestDerivationInteractors::default()),
+        );
+        assert!(matches!(res, Err(CommonError::UnknownFactorSource)));
+    }
+
+    #[actix_rt::test]
+    async fn failure_from_interactor() {
         let factor_source = fs_at(0);
         let paths = [0, 1, 2]
             .into_iter()
@@ -51,9 +69,9 @@ mod key_derivation_tests {
                 .into_iter()
                 .collect::<IndexMap<FactorSourceIDFromHash, IndexSet<DerivationPath>>>(),
             Arc::new(TestDerivationInteractors::fail()),
-        );
+        )
+        .unwrap();
         let outcome = collector.collect_keys().await;
-        println!("{:#?}", outcome);
         assert!(outcome.all_factors().is_empty())
     }
 

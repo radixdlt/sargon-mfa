@@ -23,23 +23,23 @@ impl KeysCollector {
         all_factor_sources_in_profile: impl Into<IndexSet<HDFactorSource>>,
         interactors: Arc<dyn KeysCollectingInteractors>,
         preprocessor: KeysCollectorPreprocessor,
-    ) -> Self {
+    ) -> Result<Self> {
         let all_factor_sources_in_profile = all_factor_sources_in_profile.into();
-        let (state, factors) = preprocessor.preprocess(all_factor_sources_in_profile);
+        let (state, factors) = preprocessor.preprocess(all_factor_sources_in_profile)?;
 
         let dependencies = KeysCollectorDependencies::new(interactors, factors);
 
-        Self {
+        Ok(Self {
             dependencies,
             state: RefCell::new(state),
-        }
+        })
     }
 
     pub fn new(
         all_factor_sources_in_profile: IndexSet<HDFactorSource>,
         derivation_paths: IndexMap<FactorSourceIDFromHash, IndexSet<DerivationPath>>,
         interactors: Arc<dyn KeysCollectingInteractors>,
-    ) -> Self {
+    ) -> Result<Self> {
         let preprocessor = KeysCollectorPreprocessor::new(derivation_paths);
         Self::with_preprocessor(all_factor_sources_in_profile, interactors, preprocessor)
     }
