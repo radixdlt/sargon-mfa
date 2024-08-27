@@ -238,10 +238,7 @@ impl SignaturesCollector {
             .collect::<IndexSet<_>>()
     }
 
-    fn process_batch_response(
-        &self,
-        response: SignWithFactorSourceOrSourcesOutcome<BatchSigningResponse>,
-    ) {
+    fn process_batch_response(&self, response: SignWithFactorSourceOrSourcesOutcome) {
         let state = self.state.borrow_mut();
         let petitions = state.petitions.borrow_mut();
         petitions.process_batch_response(response)

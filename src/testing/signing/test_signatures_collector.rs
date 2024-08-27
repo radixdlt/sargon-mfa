@@ -1,12 +1,21 @@
 use crate::prelude::*;
 
 impl SignaturesCollector {
+    /// Used by our tests. But Sargon will typically wanna use `SignaturesCollector::new` and passing
+    /// it a
+    pub fn new_test_with(
+        all_factor_sources_in_profile: IndexSet<HDFactorSource>,
+        transactions: IndexSet<TXToSign>,
+        interactors: Arc<dyn SignatureCollectingInteractors>,
+    ) -> Self {
+        Self::with(all_factor_sources_in_profile, transactions, interactors)
+    }
     pub fn new_test(
         all_factor_sources_in_profile: impl IntoIterator<Item = HDFactorSource>,
         transactions: impl IntoIterator<Item = TXToSign>,
         simulated_user: SimulatedUser,
     ) -> Self {
-        Self::with(
+        Self::new_test_with(
             all_factor_sources_in_profile.into_iter().collect(),
             transactions.into_iter().collect(),
             Arc::new(TestSignatureCollectingInteractors::new(simulated_user)),

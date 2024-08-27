@@ -22,7 +22,7 @@ impl SignWithFactorSerialInteractor for TestSigningSerialInteractor {
     async fn sign(
         &self,
         request: SerialBatchSigningRequest,
-    ) -> Result<SignWithFactorSourceOrSourcesOutcome<BatchSigningResponse>> {
+    ) -> Result<SignWithFactorSourceOrSourcesOutcome> {
         if self.should_simulate_failure(IndexSet::from_iter([request.input.factor_source_id])) {
             return Err(CommonError::Failure);
         }

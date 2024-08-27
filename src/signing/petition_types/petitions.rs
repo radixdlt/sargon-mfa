@@ -127,7 +127,7 @@ impl Petitions {
 
     pub(crate) fn process_batch_response(
         &self,
-        response: SignWithFactorSourceOrSourcesOutcome<BatchSigningResponse>,
+        response: SignWithFactorSourceOrSourcesOutcome,
     ) {
         match response {
             SignWithFactorSourceOrSourcesOutcome::Signed {

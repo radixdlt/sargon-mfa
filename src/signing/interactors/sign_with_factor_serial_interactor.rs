@@ -19,5 +19,5 @@ pub trait SignWithFactorSerialInteractor {
     async fn sign(
         &self,
         request: SerialBatchSigningRequest,
-    ) -> Result<SignWithFactorSourceOrSourcesOutcome<BatchSigningResponse>>;
+    ) -> Result<SignWithFactorSourceOrSourcesOutcome>;
 }

@@ -51,6 +51,11 @@ impl HDFactorSource {
         Self::security_question()
     }
 
+    /// DeviceFactorSource
+    pub fn fs10() -> Self {
+        Self::device()
+    }
+
     pub fn all() -> IndexSet<Self> {
         IndexSet::from_iter(ALL_FACTOR_SOURCES.clone())
     }
@@ -66,7 +71,7 @@ impl UuidStepper {
     }
 }
 
-pub static ALL_FACTOR_SOURCES: Lazy<[HDFactorSource; 10]> = Lazy::new(|| {
+pub static ALL_FACTOR_SOURCES: Lazy<[HDFactorSource; 11]> = Lazy::new(|| {
     [
         HDFactorSource::fs0(),
         HDFactorSource::fs1(),
@@ -78,6 +83,7 @@ pub static ALL_FACTOR_SOURCES: Lazy<[HDFactorSource; 10]> = Lazy::new(|| {
         HDFactorSource::fs7(),
         HDFactorSource::fs8(),
         HDFactorSource::fs9(),
+        HDFactorSource::fs10(),
     ]
 });
 
@@ -138,6 +144,11 @@ impl FactorSourceIDFromHash {
     /// Security Questions
     pub fn fs9() -> Self {
         fs_id_at(9)
+    }
+
+    /// Device
+    pub fn fs10() -> Self {
+        fs_id_at(10)
     }
 }
 
@@ -279,6 +290,11 @@ impl Account {
                 idx,
             ))
         })
+    }
+
+    /// Jenny | 8 | Unsecurified { Device } (fs10)
+    pub fn a8() -> Self {
+        Self::unsecurified_mainnet(8, "Jenny", FactorSourceIDFromHash::fs10())
     }
 }
 

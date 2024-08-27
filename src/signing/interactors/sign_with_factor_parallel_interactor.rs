@@ -23,5 +23,5 @@ pub trait SignWithFactorParallelInteractor {
     async fn sign(
         &self,
         request: ParallelBatchSigningRequest,
-    ) -> Result<SignWithFactorSourceOrSourcesOutcome<BatchSigningResponse>>;
+    ) -> Result<SignWithFactorSourceOrSourcesOutcome>;
 }
