@@ -128,21 +128,56 @@ impl SignaturesCollector {
             .continue_if_necessary()
     }
 
-    fn get_interactor(&self, kind: FactorSourceKind) -> SigningInteractor {
-        self.dependencies.interactors.interactor_for(kind)
+    async fn use_factor_sources(&self, factor_sources_of_kind: &FactorSourcesOfKind) -> Result<()> {
+        let interactor = self
+            .dependencies
+            .interactors
+            .interactor_for(factor_sources_of_kind.kind);
+        let factor_sources = factor_sources_of_kind.factor_sources();
+        match interactor {
+            // Parallel Interactor: Many Factor Sources at once
+            SigningInteractor::Parallel(interactor) => {
+                // Prepare the request for the interactor
+                let request = self.request_for_parallel_interactor(
+                    factor_sources
+                        .into_iter()
+                        .map(|f| f.factor_source_id())
+                        .collect(),
+                );
+                let response = interactor.sign(request).await?;
+                self.process_batch_response(response);
+            }
+
+            // Serial Interactor: One Factor Sources at a time
+            // After each factor source we pass the result to the collector
+            // updating its internal state so that we state about being able
+            // to skip the next factor source or not.
+            SigningInteractor::Serial(interactor) => {
+                for factor_source in factor_sources {
+                    // Prepare the request for the interactor
+                    let request =
+                        self.request_for_serial_interactor(&factor_source.factor_source_id());
+
+                    // Produce the results from the interactor
+                    let response = interactor.sign(request).await?;
+
+                    // Report the results back to the collector
+                    self.process_batch_response(response);
+
+                    if !self.continue_if_necessary()? {
+                        break;
+                    }
+                }
+            }
+        }
+        Ok(())
     }
 
     async fn sign_with_factors_of_kind(
         &self,
         factor_sources_of_kind: FactorSourcesOfKind,
     ) -> Result<()> {
-        let interactor = self.get_interactor(factor_sources_of_kind.kind);
-
-        let client = SignWithFactorClient::new(interactor);
-
-        let result = client
-            .use_factor_sources(factor_sources_of_kind.factor_sources(), self)
-            .await;
+        let result = self.use_factor_sources(&factor_sources_of_kind).await;
 
         match result {
             Ok(_) => {}
