@@ -50,13 +50,46 @@ impl KeysCollector {
         self.dependencies.interactors.interactor_for(kind)
     }
 
+    async fn use_factor_sources(
+        &self,
+        interactor: KeyDerivationInteractor,
+        factor_sources: IndexSet<HDFactorSource>,
+    ) -> Result<()> {
+        match interactor {
+            KeyDerivationInteractor::Parallel(interactor) => {
+                // Prepare the request for the interactor
+                let request = self.request_for_parallel_interactor(
+                    factor_sources
+                        .into_iter()
+                        .map(|f| f.factor_source_id())
+                        .collect(),
+                )?;
+                let response = interactor.derive(request).await?;
+                self.process_batch_response(response)?;
+            }
+
+            KeyDerivationInteractor::Serial(interactor) => {
+                for factor_source in factor_sources {
+                    // Prepare the request for the interactor
+                    let request =
+                        self.request_for_serial_interactor(&factor_source.factor_source_id())?;
+
+                    // Produce the results from the interactor
+                    let response = interactor.derive(request).await?;
+
+                    // Report the results back to the collector
+                    self.process_batch_response(response)?;
+                }
+            }
+        }
+        Ok(())
+    }
+
     /// In decreasing "friction order"
     async fn derive_with_factors(&self) -> Result<()> {
         for factors_of_kind in self.dependencies.factors_of_kind.iter() {
             let interactor = self.get_interactor(factors_of_kind.kind);
-            let client = KeysCollectingClient::new(interactor);
-            client
-                .use_factor_sources(factors_of_kind.factor_sources(), self)
+            self.use_factor_sources(interactor, factors_of_kind.factor_sources())
                 .await?;
         }
         Ok(())
