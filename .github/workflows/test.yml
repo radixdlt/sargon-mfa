@@ -19,10 +19,10 @@ jobs:
   check-formatting:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: RDXWorks-actions/checkout@main
 
       - name: Install Rust Toolchain
-        uses: actions-rs/toolchain@v1
+        uses: RDXWorks-actions/toolchain@master
         with:
           toolchain: ${{ env.RUST_TOOLCHAIN }}
           default: true
@@ -35,10 +35,10 @@ jobs:
   check-clippy:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: RDXWorks-actions/checkout@main
 
       - name: Install Rust Toolchain
-        uses: actions-rs/toolchain@v1
+        uses: RDXWorks-actions/toolchain@master
         with:
           toolchain: ${{ env.RUST_TOOLCHAIN }}
           default: true
@@ -51,10 +51,10 @@ jobs:
   test-rust:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: RDXWorks-actions/checkout@main
 
       - name: Install Rust Toolchain
-        uses: actions-rs/toolchain@v1
+        uses: RDXWorks-actions/toolchain@master
         with:
           toolchain: ${{ env.RUST_TOOLCHAIN }}
           default: true
@@ -66,16 +66,16 @@ jobs:
   code-coverage:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: RDXWorks-actions/checkout@main
 
       - name: Install Rust Toolchain
-        uses: actions-rs/toolchain@v1
+        uses: RDXWorks-actions/toolchain@master
         with:
           toolchain: ${{ env.RUST_TOOLCHAIN }}
           default: true
 
       - name: Install cargo tarpaulin
-        uses: actions-rs/install@v0.1
+        uses: RDXWorks-actions/cargo-install@main
         with:
           crate: cargo-tarpaulin
           tag: 0.30.0
@@ -85,7 +85,7 @@ jobs:
         run: cargo tarpaulin --out xml
 
       - name: Code Coverage - Upload to CodeCov.io
-        uses: codecov/codecov-action@v4
+        uses: RDXWorks-actions/codecov-action@main
         with:
           token: ${{ secrets.CODECOV }}
           fail_ci_if_error: true
