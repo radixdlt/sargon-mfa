@@ -41,11 +41,14 @@ impl KeysCollectorState {
             .ok_or(CommonError::UnknownFactorSource)
     }
 
-    pub(crate) fn process_batch_response(&self, response: BatchDerivationResponse) {
+    pub(crate) fn process_batch_response(&self, response: BatchDerivationResponse) -> Result<()> {
         for (factor_source_id, factors) in response.per_factor_source.into_iter() {
             let mut rings = self.keyrings.borrow_mut();
-            let keyring = rings.get_mut(&factor_source_id).unwrap();
+            let keyring = rings
+                .get_mut(&factor_source_id)
+                .ok_or(CommonError::UnknownFactorSource)?;
             keyring.process_response(factors)
         }
+        Ok(())
     }
 }

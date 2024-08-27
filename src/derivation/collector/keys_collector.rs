@@ -100,7 +100,7 @@ impl KeysCollector {
         self.input_for_interactor(factor_source_id)
     }
 
-    pub(crate) fn process_batch_response(&self, response: BatchDerivationResponse) {
+    pub(crate) fn process_batch_response(&self, response: BatchDerivationResponse) -> Result<()> {
         self.state.borrow_mut().process_batch_response(response)
     }
 }

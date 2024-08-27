@@ -24,7 +24,7 @@ impl KeysCollectingClient {
                         .collect(),
                 )?;
                 let response = interactor.derive(request).await?;
-                collector.process_batch_response(response);
+                collector.process_batch_response(response)?;
             }
 
             KeyDerivationInteractor::Serial(interactor) => {
@@ -37,7 +37,7 @@ impl KeysCollectingClient {
                     let response = interactor.derive(request).await?;
 
                     // Report the results back to the collector
-                    collector.process_batch_response(response);
+                    collector.process_batch_response(response)?;
                 }
             }
         }
