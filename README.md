@@ -1,4 +1,4 @@
-[![codecov](https://codecov.io/github/Sajjon/one-does-not-simply-sign/branch/main/graph/badge.svg?token=PTFupnAjyZ)](https://codecov.io/github/Sajjon/one-does-not-simply-sign)
+[![codecov](https://codecov.io/gh/radixdlt/sargon-mfa/graph/badge.svg?token=eEDogQ4iku)](https://codecov.io/gh/radixdlt/sargon-mfa)
 
 "Coordinators" for collecting and accumulating signatures and public keys from multiple `FactorSources` in one "session" or one "process".
 
