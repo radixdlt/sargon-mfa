@@ -76,7 +76,7 @@ impl SignaturesCollector {
     }
 }
 
-/// === PUBLIC ===
+// === PUBLIC ===
 impl SignaturesCollector {
     pub async fn collect_signatures(self) -> SignaturesOutcome {
         _ = self
@@ -88,7 +88,7 @@ impl SignaturesCollector {
     }
 }
 
-/// === PRIVATE ===
+// === PRIVATE ===
 impl SignaturesCollector {
     /// If all transactions already would fail, or if all transactions already are done, then
     /// no point in continuing.

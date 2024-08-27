@@ -45,16 +45,25 @@ impl KeysCollector {
     }
 }
 
+// === PUBLIC ===
 impl KeysCollector {
-    fn get_interactor(&self, kind: FactorSourceKind) -> KeyDerivationInteractor {
-        self.dependencies.interactors.interactor_for(kind)
+    pub async fn collect_keys(self) -> KeyDerivationOutcome {
+        _ = self
+            .derive_with_factors() // in decreasing "friction order"
+            .await
+            .inspect_err(|e| eprintln!("Failed to use factor sources: {:#?}", e));
+        self.state.into_inner().outcome()
     }
+}
 
-    async fn use_factor_sources(
-        &self,
-        interactor: KeyDerivationInteractor,
-        factor_sources: IndexSet<HDFactorSource>,
-    ) -> Result<()> {
+// === PRIVATE ===
+impl KeysCollector {
+    async fn use_factor_sources(&self, factor_sources_of_kind: &FactorSourcesOfKind) -> Result<()> {
+        let interactor = self
+            .dependencies
+            .interactors
+            .interactor_for(factor_sources_of_kind.kind);
+        let factor_sources = factor_sources_of_kind.factor_sources();
         match interactor {
             KeyDerivationInteractor::Parallel(interactor) => {
                 // Prepare the request for the interactor
@@ -88,15 +97,11 @@ impl KeysCollector {
     /// In decreasing "friction order"
     async fn derive_with_factors(&self) -> Result<()> {
         for factors_of_kind in self.dependencies.factors_of_kind.iter() {
-            let interactor = self.get_interactor(factors_of_kind.kind);
-            self.use_factor_sources(interactor, factors_of_kind.factor_sources())
-                .await?;
+            self.use_factor_sources(factors_of_kind).await?;
         }
         Ok(())
     }
-}
 
-impl KeysCollector {
     fn input_for_interactor(
         &self,
         factor_source_id: &FactorSourceIDFromHash,
@@ -110,7 +115,7 @@ impl KeysCollector {
         ))
     }
 
-    pub(crate) fn request_for_parallel_interactor(
+    fn request_for_parallel_interactor(
         &self,
         factor_sources_ids: IndexSet<FactorSourceIDFromHash>,
     ) -> Result<ParallelBatchKeyDerivationRequest> {
@@ -126,49 +131,14 @@ impl KeysCollector {
         ))
     }
 
-    pub(crate) fn request_for_serial_interactor(
+    fn request_for_serial_interactor(
         &self,
         factor_source_id: &FactorSourceIDFromHash,
     ) -> Result<SerialBatchKeyDerivationRequest> {
         self.input_for_interactor(factor_source_id)
     }
 
-    pub(crate) fn process_batch_response(&self, response: BatchDerivationResponse) -> Result<()> {
+    fn process_batch_response(&self, response: BatchDerivationResponse) -> Result<()> {
         self.state.borrow_mut().process_batch_response(response)
-    }
-}
-
-impl KeysCollector {
-    pub async fn collect_keys(self) -> KeyDerivationOutcome {
-        _ = self
-            .derive_with_factors() // in decreasing "friction order"
-            .await
-            .inspect_err(|e| eprintln!("Failed to use factor sources: {:#?}", e));
-        self.state.into_inner().outcome()
-    }
-}
-
-#[derive(Debug, PartialEq, Eq, Clone)]
-pub struct KeyDerivationOutcome {
-    pub factors_by_source:
-        IndexMap<FactorSourceIDFromHash, IndexSet<HierarchicalDeterministicFactorInstance>>,
-}
-impl KeyDerivationOutcome {
-    pub fn new(
-        factors_by_source: IndexMap<
-            FactorSourceIDFromHash,
-            IndexSet<HierarchicalDeterministicFactorInstance>,
-        >,
-    ) -> Self {
-        Self { factors_by_source }
-    }
-
-    /// ALL factor instances derived by the KeysCollector
-    pub fn all_factors(&self) -> IndexSet<HierarchicalDeterministicFactorInstance> {
-        self.factors_by_source
-            .clone()
-            .into_iter()
-            .flat_map(|(_, v)| v)
-            .collect()
     }
 }
