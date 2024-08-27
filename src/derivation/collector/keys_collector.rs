@@ -67,29 +67,36 @@ impl KeysCollector {
     fn input_for_interactor(
         &self,
         factor_source_id: &FactorSourceIDFromHash,
-    ) -> SerialBatchKeyDerivationRequest {
-        let keyring = self.state.borrow().keyring_for(factor_source_id).unwrap();
+    ) -> Result<SerialBatchKeyDerivationRequest> {
+        let keyring = self.state.borrow().keyring_for(factor_source_id)?;
         assert_eq!(keyring.factors().len(), 0);
         let paths = keyring.paths.clone();
-        SerialBatchKeyDerivationRequest::new(*factor_source_id, paths)
+        Ok(SerialBatchKeyDerivationRequest::new(
+            *factor_source_id,
+            paths,
+        ))
     }
 
     pub(crate) fn request_for_parallel_interactor(
         &self,
         factor_sources_ids: IndexSet<FactorSourceIDFromHash>,
-    ) -> ParallelBatchKeyDerivationRequest {
-        ParallelBatchKeyDerivationRequest::new(
-            factor_sources_ids
+    ) -> Result<ParallelBatchKeyDerivationRequest> {
+        let per_factor_source = factor_sources_ids
+            .into_iter()
+            .map(|f| self.input_for_interactor(&f))
+            .collect::<Result<Vec<SerialBatchKeyDerivationRequest>>>()?;
+        Ok(ParallelBatchKeyDerivationRequest::new(
+            per_factor_source
                 .into_iter()
-                .map(|f| (f, self.input_for_interactor(&f)))
+                .map(|r| (r.factor_source_id, r))
                 .collect(),
-        )
+        ))
     }
 
     pub(crate) fn request_for_serial_interactor(
         &self,
         factor_source_id: &FactorSourceIDFromHash,
-    ) -> SerialBatchKeyDerivationRequest {
+    ) -> Result<SerialBatchKeyDerivationRequest> {
         self.input_for_interactor(factor_source_id)
     }
 

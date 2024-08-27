@@ -32,12 +32,13 @@ impl KeysCollectorState {
         )
     }
 
-    pub fn keyring_for(&self, factor_source_id: &FactorSourceIDFromHash) -> Option<Keyring> {
+    pub fn keyring_for(&self, factor_source_id: &FactorSourceIDFromHash) -> Result<Keyring> {
         self.keyrings
             .borrow()
             .get(factor_source_id)
             .cloned()
             .inspect(|k| assert_eq!(k.factor_source_id, *factor_source_id))
+            .ok_or(CommonError::UnknownFactorSource)
     }
 
     pub(crate) fn process_batch_response(&self, response: BatchDerivationResponse) {
