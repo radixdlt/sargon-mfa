@@ -76,51 +76,25 @@ impl SignaturesCollector {
     }
 }
 
-impl TXToSign {
-    pub fn extracting_from_intent_and_profile(
-        intent: &TransactionIntent,
-        profile: &Profile,
-    ) -> Result<Self> {
-        let intent_hash = intent.intent_hash.clone();
-        let summary = intent.manifest_summary();
-        let mut entities_requiring_auth: IndexSet<AccountOrPersona> = IndexSet::new();
+/// === PUBLIC ===
+impl SignaturesCollector {
+    pub async fn collect_signatures(self) -> SignaturesOutcome {
+        _ = self
+            .sign_with_factors() // in decreasing "friction order"
+            .await
+            .inspect_err(|e| eprintln!("Failed to use factor sources: {:#?}", e));
 
-        let accounts = summary
-            .addresses_of_accounts_requiring_auth
-            .into_iter()
-            .map(|a| profile.account_by_address(a))
-            .collect::<Result<Vec<_>>>()?;
-
-        entities_requiring_auth.extend(
-            accounts
-                .into_iter()
-                .map(AccountOrPersona::from)
-                .collect_vec(),
-        );
-
-        let personas = summary
-            .addresses_of_personas_requiring_auth
-            .into_iter()
-            .map(|a| profile.persona_by_address(a))
-            .collect::<Result<Vec<_>>>()?;
-
-        entities_requiring_auth.extend(
-            personas
-                .into_iter()
-                .map(AccountOrPersona::from)
-                .collect_vec(),
-        );
-
-        Ok(Self::with(intent_hash, entities_requiring_auth))
+        self.outcome()
     }
 }
 
+/// === PRIVATE ===
 impl SignaturesCollector {
     /// If all transactions already would fail, or if all transactions already are done, then
     /// no point in continuing.
     ///
     /// `Ok(true)` means "continue", `Ok(false)` means "stop, we are done". `Err(_)` means "stop, we have failed".
-    pub(crate) fn continue_if_necessary(&self) -> Result<bool> {
+    fn continue_if_necessary(&self) -> Result<bool> {
         self.state
             .borrow()
             .petitions
@@ -200,9 +174,7 @@ impl SignaturesCollector {
         }
         Ok(())
     }
-}
 
-impl SignaturesCollector {
     fn input_for_interactor(
         &self,
         factor_source_id: &FactorSourceIDFromHash,
@@ -214,7 +186,7 @@ impl SignaturesCollector {
             .input_for_interactor(factor_source_id)
     }
 
-    pub(crate) fn request_for_serial_interactor(
+    fn request_for_serial_interactor(
         &self,
         factor_source_id: &FactorSourceIDFromHash,
     ) -> SerialBatchSigningRequest {
@@ -228,7 +200,7 @@ impl SignaturesCollector {
         )
     }
 
-    pub(crate) fn request_for_parallel_interactor(
+    fn request_for_parallel_interactor(
         &self,
         factor_source_ids: IndexSet<FactorSourceIDFromHash>,
     ) -> ParallelBatchSigningRequest {
@@ -245,7 +217,7 @@ impl SignaturesCollector {
         ParallelBatchSigningRequest::new(per_factor_source, invalid_transactions_if_skipped)
     }
 
-    pub(super) fn invalid_transactions_if_skipped(
+    fn invalid_transactions_if_skipped(
         &self,
         factor_source_id: &FactorSourceIDFromHash,
     ) -> IndexSet<InvalidTransactionIfSkipped> {
@@ -266,7 +238,7 @@ impl SignaturesCollector {
             .collect::<IndexSet<_>>()
     }
 
-    pub(crate) fn process_batch_response(
+    fn process_batch_response(
         &self,
         response: SignWithFactorSourceOrSourcesOutcome<BatchSigningResponse>,
     ) {
@@ -290,31 +262,19 @@ impl SignaturesCollector {
     }
 }
 
-impl SignaturesCollector {
-    pub async fn collect_signatures(self) -> SignaturesOutcome {
-        _ = self
-            .sign_with_factors() // in decreasing "friction order"
-            .await
-            .inspect_err(|e| eprintln!("Failed to use factor sources: {:#?}", e));
-
-        self.outcome()
-    }
-}
-
-#[cfg(test)]
-impl SignaturesCollector {
-    /// Used by tests
-    pub(crate) fn petitions(self) -> Petitions {
-        self.state.into_inner().petitions.into_inner()
-    }
-}
-
 #[cfg(test)]
 mod tests {
 
     use std::iter;
 
     use super::*;
+
+    impl SignaturesCollector {
+        /// Used by tests
+        pub(crate) fn petitions(self) -> Petitions {
+            self.state.into_inner().petitions.into_inner()
+        }
+    }
 
     #[test]
     fn invalid_profile_unknown_account() {
