@@ -24,6 +24,7 @@ impl KeysCollector {
         interactors: Arc<dyn KeysCollectingInteractors>,
         preprocessor: KeysCollectorPreprocessor,
     ) -> Result<Self> {
+        debug!("Init KeysCollector");
         let all_factor_sources_in_profile = all_factor_sources_in_profile.into();
         let (state, factors) = preprocessor.preprocess(all_factor_sources_in_profile)?;
 
@@ -67,12 +68,14 @@ impl KeysCollector {
         match interactor {
             KeyDerivationInteractor::Parallel(interactor) => {
                 // Prepare the request for the interactor
+                debug!("Creating parallel request for interactor");
                 let request = self.request_for_parallel_interactor(
                     factor_sources
                         .into_iter()
                         .map(|f| f.factor_source_id())
                         .collect(),
                 )?;
+                debug!("Dispatching parallel request to interactor: {:?}", request);
                 let response = interactor.derive(request).await?;
                 self.process_batch_response(response)?;
             }
@@ -80,9 +83,11 @@ impl KeysCollector {
             KeyDerivationInteractor::Serial(interactor) => {
                 for factor_source in factor_sources {
                     // Prepare the request for the interactor
+                    debug!("Creating serial request for interactor");
                     let request =
                         self.request_for_serial_interactor(&factor_source.factor_source_id())?;
 
+                    debug!("Dispatching serial request to interactor: {:?}", request);
                     // Produce the results from the interactor
                     let response = interactor.derive(request).await?;
 
@@ -96,8 +101,13 @@ impl KeysCollector {
 
     /// In decreasing "friction order"
     async fn derive_with_factors(&self) -> Result<()> {
-        for factors_of_kind in self.dependencies.factors_of_kind.iter() {
-            self.use_factor_sources(factors_of_kind).await?;
+        for factor_sources_of_kind in self.dependencies.factors_of_kind.iter() {
+            info!(
+                "Use(?) #{:?} factors of kind: {:?}",
+                &factor_sources_of_kind.factor_sources().len(),
+                &factor_sources_of_kind.kind
+            );
+            self.use_factor_sources(factor_sources_of_kind).await?;
         }
         Ok(())
     }

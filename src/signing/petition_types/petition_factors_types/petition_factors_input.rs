@@ -77,6 +77,13 @@ impl PetitionFactorsInput {
     pub(super) fn is_failure_with(&self, snapshot: PetitionFactorsStateSnapshot) -> bool {
         let signed_or_pending =
             self.factors_left_to_prompt(snapshot.clone()) + snapshot.signed_count();
-        signed_or_pending < self.required
+        let is_failure_with = signed_or_pending < self.required;
+        trace!(
+            "is_failure_with: {:?}, signed_or_pending: {:?}, required: {:?}",
+            is_failure_with,
+            signed_or_pending,
+            self.required
+        );
+        is_failure_with
     }
 }

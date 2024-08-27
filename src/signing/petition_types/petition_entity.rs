@@ -210,7 +210,7 @@ impl PetitionEntity {
         factor_source_id: &FactorSourceIDFromHash,
         simulated: bool,
     ) -> Result<()> {
-        self.both_void(|l| l.did_skip_if_relevant(factor_source_id, simulated));
+        self.both_void(|p| p.did_skip_if_relevant(factor_source_id, simulated));
         Ok(())
     }
 
@@ -220,7 +220,12 @@ impl PetitionEntity {
 
         let maybe_threshold = self.threshold_factors.as_ref().map(|t| t.borrow().status());
         let maybe_override = self.override_factors.as_ref().map(|o| o.borrow().status());
-
+        if let Some(t) = &maybe_threshold {
+            trace!("Threshold factor status: {:?}", t);
+        }
+        if let Some(o) = &maybe_override {
+            trace!("Override factor status: {:?}", o);
+        }
         match (maybe_threshold, maybe_override) {
             (None, None) => panic!("Programmer error! Should have at least one factors list."),
             (Some(threshold), None) => threshold,

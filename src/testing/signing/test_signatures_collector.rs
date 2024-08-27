@@ -8,6 +8,7 @@ impl SignaturesCollector {
         transactions: IndexSet<TXToSign>,
         interactors: Arc<dyn SignatureCollectingInteractors>,
     ) -> Self {
+        sensible_env_logger::safe_init!();
         Self::with(all_factor_sources_in_profile, transactions, interactors)
     }
     pub fn new_test(
