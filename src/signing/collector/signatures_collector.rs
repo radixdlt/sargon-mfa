@@ -243,6 +243,8 @@ impl SignaturesCollector {
         let invalid_transactions_if_skipped =
             self.invalid_transactions_if_skipped_factor_sources(factor_source_ids);
 
+        info!("Invalid if skipped: {:?}", invalid_transactions_if_skipped);
+
         // Prepare the request for the interactor
         ParallelBatchSigningRequest::new(per_factor_source, invalid_transactions_if_skipped)
     }
@@ -275,6 +277,12 @@ impl SignaturesCollector {
             outcome.failed_transactions().len() + outcome.successful_transactions().len(),
             expected_number_of_transactions
         );
+        if !outcome.successful() {
+            warn!(
+                "Failed to sign, invalid tx: {:?}, petition",
+                outcome.failed_transactions()
+            )
+        }
         outcome
     }
 }

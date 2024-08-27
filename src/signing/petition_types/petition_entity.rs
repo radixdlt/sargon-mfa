@@ -19,6 +19,32 @@ pub struct PetitionEntity {
     pub override_factors: Option<RefCell<PetitionFactors>>,
 }
 
+#[cfg(test)]
+mod tests_of_skipping {
+    use super::*;
+    #[test]
+    fn multiple_device() {
+        let d0 = HDFactorSource::fs0();
+        let d1 = HDFactorSource::fs1();
+        assert_eq!(d0.factor_source_kind(), FactorSourceKind::Device);
+        assert_eq!(d1.factor_source_kind(), FactorSourceKind::Device);
+
+        let matrix =
+            MatrixOfFactorInstances::override_only([d0.clone(), d1.clone()].into_iter().map(|f| {
+                HierarchicalDeterministicFactorInstance::mainnet_tx_account(
+                    HDPathComponent::securified(0),
+                    f.factor_source_id(),
+                )
+            }));
+        let sut = PetitionEntity::new_securified(
+            IntentHash::sample_third(),
+            AddressOfAccountOrPersona::Account(AccountAddress::sample()),
+            matrix,
+        );
+        sut.invalid_transactions_if_skipped(d0)
+    }
+}
+
 impl PetitionEntity {
     pub fn new(
         intent_hash: IntentHash,
@@ -164,11 +190,11 @@ impl PetitionEntity {
         })
     }
 
-    pub fn invalid_transactions_if_skipped(
+    pub fn invalid_transactions_if_skipped_factors(
         &self,
-        factor_source_id: &FactorSourceIDFromHash,
+        factor_source_ids: IndexSet<FactorSourceIDFromHash>,
     ) -> IndexSet<InvalidTransactionIfSkipped> {
-        let skip_status = self.status_if_skipped_factor_source(factor_source_id);
+        let skip_status = self.status_if_skipped_factors(factor_source_ids);
         match skip_status {
             PetitionFactorsStatus::Finished(finished_reason) => match finished_reason {
                 PetitionFactorsStatusFinished::Fail => {
@@ -194,15 +220,17 @@ impl PetitionEntity {
         }
     }
 
-    pub fn status_if_skipped_factor_source(
+    pub fn status_if_skipped_factors(
         &self,
-        factor_source_id: &FactorSourceIDFromHash,
+        factor_source_ids: IndexSet<FactorSourceIDFromHash>,
     ) -> PetitionFactorsStatus {
         let simulation = self.clone();
-        simulation
-            .did_skip_if_relevant(factor_source_id, true)
-            .unwrap();
-        simulation.status()
+        for factor_source_id in factor_source_ids.into_iter() {
+            simulation
+                .did_skip_if_relevant(factor_source_id, true)
+                .unwrap();
+            simulation.status()
+        }
     }
 
     pub fn did_skip_if_relevant(
@@ -293,7 +321,7 @@ mod tests {
 
     #[test]
     fn debug() {
-        pretty_assertions::assert_eq!(format!("{:?}", Sut::sample()), "intent_hash: TXID(\"dedede\"), entity: acco_Grace, \"threshold_factors PetitionFactors(input: PetitionFactorsInput(factors: {\\n    factor_source_id: Device:00000000-0000-0000-0000-000000000000, derivation_path: 0/A/tx/6,\\n    factor_source_id: Arculus:00000000-0000-0000-0000-000000000003, derivation_path: 0/A/tx/6,\\n    factor_source_id: Yubikey:00000000-0000-0000-0000-000000000005, derivation_path: 0/A/tx/6,\\n}), state_snapshot: signatures: \\\"\\\", skipped: \\\"\\\")\"\"override_factors PetitionFactors(input: PetitionFactorsInput(factors: {\\n    factor_source_id: Ledger:00000000-0000-0000-0000-000000000001, derivation_path: 0/A/tx/6,\\n    factor_source_id: Arculus:00000000-0000-0000-0000-000000000004, derivation_path: 0/A/tx/6,\\n}), state_snapshot: signatures: \\\"\\\", skipped: \\\"\\\")\"");
+        pretty_assertions::assert_eq!(format!("{:?}", Sut::sample()), "intent_hash: TXID(\"dedede\"), entity: acco_Grace, \"threshold_factors PetitionFactors(input: PetitionFactorsInput(factors: {\\n    factor_source_id: Device:00, derivation_path: 0/A/tx/6,\\n    factor_source_id: Arculus:03, derivation_path: 0/A/tx/6,\\n    factor_source_id: Yubikey:05, derivation_path: 0/A/tx/6,\\n}), state_snapshot: signatures: \\\"\\\", skipped: \\\"\\\")\"\"override_factors PetitionFactors(input: PetitionFactorsInput(factors: {\\n    factor_source_id: Ledger:01, derivation_path: 0/A/tx/6,\\n    factor_source_id: Arculus:04, derivation_path: 0/A/tx/6,\\n}), state_snapshot: signatures: \\\"\\\", skipped: \\\"\\\")\"");
     }
 
     #[test]
