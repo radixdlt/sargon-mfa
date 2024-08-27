@@ -25,10 +25,9 @@ impl KeysCollector {
         preprocessor: KeysCollectorPreprocessor,
     ) -> Self {
         let all_factor_sources_in_profile = all_factor_sources_in_profile.into();
-        let (keyrings, factors) = preprocessor.preprocess(all_factor_sources_in_profile);
+        let (state, factors) = preprocessor.preprocess(all_factor_sources_in_profile);
 
         let dependencies = KeysCollectorDependencies::new(interactors, factors);
-        let state = KeysCollectorState::new(keyrings);
 
         Self {
             dependencies,
@@ -69,13 +68,7 @@ impl KeysCollector {
         &self,
         factor_source_id: &FactorSourceIDFromHash,
     ) -> SerialBatchKeyDerivationRequest {
-        let keyring = self
-            .state
-            .borrow()
-            .keyrings
-            .borrow()
-            .keyring_for(factor_source_id)
-            .unwrap();
+        let keyring = self.state.borrow().keyring_for(factor_source_id).unwrap();
         assert_eq!(keyring.factors().len(), 0);
         let paths = keyring.paths.clone();
         SerialBatchKeyDerivationRequest::new(*factor_source_id, paths)
@@ -111,7 +104,7 @@ impl KeysCollector {
             .derive_with_factors() // in decreasing "friction order"
             .await
             .inspect_err(|e| eprintln!("Failed to use factor sources: {:#?}", e));
-        self.state.into_inner().keyrings.into_inner().outcome()
+        self.state.into_inner().outcome()
     }
 }
 
