@@ -94,12 +94,12 @@ impl PetitionEntity {
             .collect::<IndexSet<_>>()
     }
 
-    pub fn all_neglected_factor_instance(&self) -> IndexSet<NeglectedFactorInstance> {
+    pub fn all_neglected_factor_instances(&self) -> IndexSet<NeglectedFactorInstance> {
         self.union_of(|f| f.all_neglected())
     }
 
     pub fn all_neglected_factor_sources(&self) -> IndexSet<NeglectedFactor> {
-        self.all_neglected_factor_instance()
+        self.all_neglected_factor_instances()
             .into_iter()
             .map(|n| n.as_neglected_factor())
             .collect::<IndexSet<_>>()
