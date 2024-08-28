@@ -122,7 +122,7 @@ pub enum Laziness {
 impl SimulatedUser {
     pub fn sign_or_skip(
         &self,
-        invalid_tx_if_skipped: impl IntoIterator<Item = crate::prelude::InvalidTransactionIfSkipped>,
+        invalid_tx_if_skipped: impl IntoIterator<Item = crate::prelude::InvalidTransactionIfNeglected>,
     ) -> SigningUserInput {
         let invalid_tx_if_skipped = invalid_tx_if_skipped
             .into_iter()

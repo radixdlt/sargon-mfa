@@ -19,8 +19,9 @@ pub struct SignaturesOutcome {
     /// Potentially empty
     failed_transactions: MaybeSignedTransactions,
 
-    /// List of ids of all factor sources which failed.
-    skipped_factor_sources: IndexSet<FactorSourceIDFromHash>,
+    /// List of all neglected factor sources, either explicitly skipped by user or
+    /// implicitly neglected due to failure.
+    neglected_factor_sources: IndexSet<NeglectedFactor>,
 }
 
 impl SignaturesOutcome {
@@ -30,14 +31,18 @@ impl SignaturesOutcome {
     pub fn new(
         successful_transactions: MaybeSignedTransactions,
         failed_transactions: MaybeSignedTransactions,
-        skipped_factor_sources: impl IntoIterator<Item = FactorSourceIDFromHash>,
+        neglected_factor_sources: impl IntoIterator<Item = NeglectedFactor>,
     ) -> Self {
-        let skipped_factor_sources = skipped_factor_sources.into_iter().collect::<IndexSet<_>>();
+        let neglected_factor_sources = neglected_factor_sources
+            .into_iter()
+            .collect::<IndexSet<_>>();
+
         let successful_hashes: IndexSet<IntentHash> = successful_transactions
             .transactions
             .keys()
             .cloned()
             .collect();
+
         let failure_hashes: IndexSet<IntentHash> =
             failed_transactions.transactions.keys().cloned().collect();
 
@@ -54,7 +59,7 @@ impl SignaturesOutcome {
         Self {
             successful_transactions,
             failed_transactions,
-            skipped_factor_sources,
+            neglected_factor_sources,
         }
     }
 
@@ -74,8 +79,15 @@ impl SignaturesOutcome {
         self.failed_transactions.clone().transactions()
     }
 
-    pub fn skipped_factor_sources(&self) -> IndexSet<FactorSourceIDFromHash> {
-        self.skipped_factor_sources.clone()
+    pub fn neglected_factor_sources(&self) -> IndexSet<NeglectedFactor> {
+        self.neglected_factor_sources.clone()
+    }
+
+    pub fn ids_of_neglected_factor_sources(&self) -> IndexSet<FactorSourceIDFromHash> {
+        self.neglected_factor_sources()
+            .into_iter()
+            .map(|n| n.factor_source_id())
+            .collect()
     }
 
     pub fn signatures_of_failed_transactions(&self) -> IndexSet<HDSignature> {

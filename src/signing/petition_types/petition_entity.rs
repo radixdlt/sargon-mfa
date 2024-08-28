@@ -94,14 +94,14 @@ impl PetitionEntity {
             .collect::<IndexSet<_>>()
     }
 
-    pub fn all_skipped_factor_instance(&self) -> IndexSet<HierarchicalDeterministicFactorInstance> {
-        self.union_of(|f| f.all_skipped())
+    pub fn all_neglected_factor_instance(&self) -> IndexSet<NeglectedFactorInstance> {
+        self.union_of(|f| f.all_neglected())
     }
 
-    pub fn all_skipped_factor_sources(&self) -> IndexSet<FactorSourceIDFromHash> {
-        self.all_skipped_factor_instance()
+    pub fn all_neglected_factor_sources(&self) -> IndexSet<NeglectedFactor> {
+        self.all_neglected_factor_instance()
             .into_iter()
-            .map(|f| f.factor_source_id)
+            .map(|n| n.as_neglected_factor())
             .collect::<IndexSet<_>>()
     }
 
@@ -143,12 +143,12 @@ impl PetitionEntity {
         self.both(r#do, |_, _| ())
     }
 
-    pub fn skipped_factor_source_if_relevant(&self, factor_source_id: &FactorSourceIDFromHash) {
-        self.both_void(|l| l.skip_if_references(factor_source_id, true));
+    pub fn neglected_factor_source_if_relevant(&self, neglected: NeglectedFactor) {
+        self.both_void(|l| l.neglect_if_references(neglected.clone(), true));
     }
 
     /// # Panics
-    /// Panics if this factor source has already been skipped or signed with.
+    /// Panics if this factor source has already been neglected or signed with.
     ///
     /// Or panics if the factor source is not known to this petition.
     pub fn add_signature(&self, signature: HDSignature) {
@@ -164,17 +164,17 @@ impl PetitionEntity {
         })
     }
 
-    pub fn invalid_transactions_if_skipped_factors(
+    pub fn invalid_transactions_if_neglected_factors(
         &self,
         factor_source_ids: IndexSet<FactorSourceIDFromHash>,
-    ) -> IndexSet<InvalidTransactionIfSkipped> {
-        let skip_status = self.status_if_skipped_factors(factor_source_ids);
-        match skip_status {
+    ) -> IndexSet<InvalidTransactionIfNeglected> {
+        let status_if_neglected = self.status_if_neglected_factors(factor_source_ids);
+        match status_if_neglected {
             PetitionFactorsStatus::Finished(finished_reason) => match finished_reason {
                 PetitionFactorsStatusFinished::Fail => {
                     let intent_hash = self.intent_hash.clone();
                     let invalid_transaction =
-                        InvalidTransactionIfSkipped::new(intent_hash, vec![self.entity.clone()]);
+                        InvalidTransactionIfNeglected::new(intent_hash, vec![self.entity.clone()]);
                     IndexSet::from_iter([invalid_transaction])
                 }
                 PetitionFactorsStatusFinished::Success => IndexSet::new(),
@@ -183,25 +183,27 @@ impl PetitionEntity {
         }
     }
 
-    pub fn status_if_skipped_factors(
+    pub fn status_if_neglected_factors(
         &self,
         factor_source_ids: IndexSet<FactorSourceIDFromHash>,
     ) -> PetitionFactorsStatus {
         let simulation = self.clone();
         for factor_source_id in factor_source_ids.iter() {
             simulation
-                .did_skip_if_relevant(factor_source_id, true)
+                .neglect_if_relevant(
+                    NeglectedFactor::new(
+                        NeglectFactorReason::UserExplicitlySkipped,
+                        *factor_source_id,
+                    ),
+                    true,
+                )
                 .unwrap();
         }
         simulation.status()
     }
 
-    pub fn did_skip_if_relevant(
-        &self,
-        factor_source_id: &FactorSourceIDFromHash,
-        simulated: bool,
-    ) -> Result<()> {
-        self.both_void(|p| p.did_skip_if_relevant(factor_source_id, simulated));
+    pub fn neglect_if_relevant(&self, neglected: NeglectedFactor, simulated: bool) -> Result<()> {
+        self.both_void(|p| p.neglect_if_relevant(neglected.clone(), simulated));
         Ok(())
     }
 
@@ -299,7 +301,7 @@ mod tests {
         let entity = AddressOfAccountOrPersona::Account(AccountAddress::sample());
         let tx = IntentHash::sample_third();
         let sut = Sut::new_securified(tx.clone(), entity.clone(), matrix);
-        let invalid = sut.invalid_transactions_if_skipped_factors(IndexSet::from_iter([
+        let invalid = sut.invalid_transactions_if_neglected_factors(IndexSet::from_iter([
             d0.factor_source_id(),
             d1.factor_source_id(),
         ]));
@@ -337,8 +339,9 @@ mod tests {
         let entity = AddressOfAccountOrPersona::Account(AccountAddress::sample());
         let tx = IntentHash::sample_third();
         let sut = Sut::new_securified(tx.clone(), entity.clone(), matrix);
-        let invalid = sut
-            .invalid_transactions_if_skipped_factors(IndexSet::from_iter([d0.factor_source_id()]));
+        let invalid = sut.invalid_transactions_if_neglected_factors(IndexSet::from_iter([
+            d0.factor_source_id()
+        ]));
         assert!(invalid.is_empty());
     }
 
@@ -362,7 +365,7 @@ mod tests {
         let entity = AddressOfAccountOrPersona::Account(AccountAddress::sample());
         let tx = IntentHash::sample_third();
         let sut = Sut::new_securified(tx.clone(), entity.clone(), matrix);
-        let invalid = sut.invalid_transactions_if_skipped_factors(IndexSet::from_iter([
+        let invalid = sut.invalid_transactions_if_neglected_factors(IndexSet::from_iter([
             d0.factor_source_id(),
             d1.factor_source_id(),
         ]));
@@ -404,8 +407,9 @@ mod tests {
         let tx = IntentHash::sample_third();
         let sut = Sut::new_securified(tx.clone(), entity.clone(), matrix);
 
-        let invalid = sut
-            .invalid_transactions_if_skipped_factors(IndexSet::from_iter([d1.factor_source_id()]));
+        let invalid = sut.invalid_transactions_if_neglected_factors(IndexSet::from_iter([
+            d1.factor_source_id()
+        ]));
 
         assert_eq!(
             invalid
@@ -445,15 +449,16 @@ mod tests {
         let tx = IntentHash::sample_third();
         let sut = Sut::new_securified(tx.clone(), entity.clone(), matrix);
 
-        let invalid = sut
-            .invalid_transactions_if_skipped_factors(IndexSet::from_iter([d1.factor_source_id()]));
+        let invalid = sut.invalid_transactions_if_neglected_factors(IndexSet::from_iter([
+            d1.factor_source_id()
+        ]));
 
         assert!(invalid.is_empty());
     }
 
     #[test]
     fn debug() {
-        pretty_assertions::assert_eq!(format!("{:?}", Sut::sample()), "intent_hash: TXID(\"dedede\"), entity: acco_Grace, \"threshold_factors PetitionFactors(input: PetitionFactorsInput(factors: {\\n    factor_source_id: Device:00, derivation_path: 0/A/tx/6,\\n    factor_source_id: Arculus:03, derivation_path: 0/A/tx/6,\\n    factor_source_id: Yubikey:05, derivation_path: 0/A/tx/6,\\n}), state_snapshot: signatures: \\\"\\\", skipped: \\\"\\\")\"\"override_factors PetitionFactors(input: PetitionFactorsInput(factors: {\\n    factor_source_id: Ledger:01, derivation_path: 0/A/tx/6,\\n    factor_source_id: Arculus:04, derivation_path: 0/A/tx/6,\\n}), state_snapshot: signatures: \\\"\\\", skipped: \\\"\\\")\"");
+        pretty_assertions::assert_eq!(format!("{:?}", Sut::sample()), "intent_hash: TXID(\"dedede\"), entity: acco_Grace, \"threshold_factors PetitionFactors(input: PetitionFactorsInput(factors: {\\n    factor_source_id: Device:00, derivation_path: 0/A/tx/6,\\n    factor_source_id: Arculus:03, derivation_path: 0/A/tx/6,\\n    factor_source_id: Yubikey:05, derivation_path: 0/A/tx/6,\\n}), state_snapshot: signatures: \\\"\\\", neglected: \\\"\\\")\"\"override_factors PetitionFactors(input: PetitionFactorsInput(factors: {\\n    factor_source_id: Ledger:01, derivation_path: 0/A/tx/6,\\n    factor_source_id: Arculus:04, derivation_path: 0/A/tx/6,\\n}), state_snapshot: signatures: \\\"\\\", neglected: \\\"\\\")\"");
     }
 
     #[test]
@@ -517,7 +522,7 @@ mod tests {
     }
 
     #[test]
-    fn invalid_transactions_if_skipped_success() {
+    fn invalid_transactions_if_neglected_success() {
         let sut = Sut::sample();
         sut.add_signature(HDSignature::produced_signing_with_input(
             HDSignatureInput::new(
@@ -535,7 +540,7 @@ mod tests {
             assert!(sut
                 // Already signed with override factor `FactorSourceIDFromHash::fs1()`. Thus
                 // can skip
-                .invalid_transactions_if_skipped_factors(IndexSet::from_iter([f]))
+                .invalid_transactions_if_neglected_factors(IndexSet::from_iter([f]))
                 .is_empty())
         };
         can_skip(FactorSourceIDFromHash::fs0());

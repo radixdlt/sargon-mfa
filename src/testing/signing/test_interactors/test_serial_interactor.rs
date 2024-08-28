@@ -19,17 +19,15 @@ impl IsTestInteractor for TestSigningSerialInteractor {
 
 #[async_trait::async_trait]
 impl SignWithFactorSerialInteractor for TestSigningSerialInteractor {
-    async fn sign(
-        &self,
-        request: SerialBatchSigningRequest,
-    ) -> Result<SignWithFactorSourceOrSourcesOutcome> {
-        if self.should_simulate_failure(IndexSet::from_iter([request.input.factor_source_id])) {
-            return Err(CommonError::Failure);
+    async fn sign(&self, request: SerialBatchSigningRequest) -> SignWithFactorsOutcome {
+        let ids = IndexSet::from_iter([request.input.factor_source_id]);
+        if self.should_simulate_failure(ids.clone()) {
+            return SignWithFactorsOutcome::failure_with_factors(ids);
         }
-        let invalid_transactions_if_skipped = request.invalid_transactions_if_skipped;
+        let invalid_transactions_if_neglected = request.invalid_transactions_if_neglected;
         match self
             .simulated_user
-            .sign_or_skip(invalid_transactions_if_skipped)
+            .sign_or_skip(invalid_transactions_if_neglected)
         {
             SigningUserInput::Sign => {
                 let signatures = request
@@ -52,12 +50,10 @@ impl SignWithFactorSerialInteractor for TestSigningSerialInteractor {
                         .map(|(k, v)| (k, IndexSet::from_iter(v)))
                         .collect(),
                 );
-                Ok(SignWithFactorSourceOrSourcesOutcome::signed(response))
+                SignWithFactorsOutcome::signed(response)
             }
             SigningUserInput::Skip => {
-                Ok(SignWithFactorSourceOrSourcesOutcome::skipped_factor_source(
-                    request.input.factor_source_id,
-                ))
+                SignWithFactorsOutcome::user_skipped_factor(request.input.factor_source_id)
             }
         }
     }

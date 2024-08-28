@@ -1,7 +1,7 @@
 use crate::prelude::*;
 
 #[derive(Clone, PartialEq, Eq, derive_more::Debug)]
-pub enum SignWithFactorSourceOrSourcesOutcome {
+pub enum SignWithFactorsOutcome {
     /// The user successfully signed with the factor source(s), the associated
     /// value contains the produces signatures and any relevant metadata.
     #[debug("Signed: {:#?}", produced_signatures)]
@@ -9,28 +9,35 @@ pub enum SignWithFactorSourceOrSourcesOutcome {
         produced_signatures: BatchSigningResponse,
     },
 
-    /// The user skipped signing with the factor sources with ids
-    #[debug("Skipped")]
-    Skipped {
-        ids_of_skipped_factors_sources: Vec<FactorSourceIDFromHash>,
-    },
+    /// The factor source got neglected, either due to user explicitly skipping
+    /// or due to failire
+    #[debug("Neglected")]
+    Neglected(NeglectedFactors),
 }
 
-impl SignWithFactorSourceOrSourcesOutcome {
+impl SignWithFactorsOutcome {
     pub fn signed(produced_signatures: BatchSigningResponse) -> Self {
         Self::Signed {
             produced_signatures,
         }
     }
 
-    pub fn skipped(ids_of_skipped_factors_sources: IndexSet<FactorSourceIDFromHash>) -> Self {
-        Self::Skipped {
-            ids_of_skipped_factors_sources: ids_of_skipped_factors_sources
-                .into_iter()
-                .collect_vec(),
-        }
+    pub fn failure_with_factors(ids: IndexSet<FactorSourceIDFromHash>) -> Self {
+        Self::Neglected(NeglectedFactors::new(NeglectFactorReason::Failure, ids))
     }
-    pub fn skipped_factor_source(factor_source_id: FactorSourceIDFromHash) -> Self {
-        Self::skipped(IndexSet::from_iter([factor_source_id]))
+
+    pub fn user_skipped_factors(ids: IndexSet<FactorSourceIDFromHash>) -> Self {
+        Self::Neglected(NeglectedFactors::new(
+            NeglectFactorReason::UserExplicitlySkipped,
+            ids,
+        ))
+    }
+
+    pub fn user_skipped_factor(id: FactorSourceIDFromHash) -> Self {
+        Self::user_skipped_factors(IndexSet::from_iter([id]))
+    }
+
+    pub fn failure_with_factor(id: FactorSourceIDFromHash) -> Self {
+        Self::failure_with_factors(IndexSet::from_iter([id]))
     }
 }

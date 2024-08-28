@@ -1,5 +1,7 @@
 use crate::prelude::*;
 
+use super::NeglectedFactorInstance;
+
 /// An immutable "snapshot" of `PetitionFactorsState`
 #[derive(Clone, PartialEq, Eq, derive_more::Debug)]
 #[debug("{}", self.debug_str())]
@@ -7,28 +9,28 @@ pub(super) struct PetitionFactorsStateSnapshot {
     /// Factors that have signed.
     signed: IndexSet<HDSignature>,
 
-    /// Factors that user skipped.
-    skipped: IndexSet<HierarchicalDeterministicFactorInstance>,
+    /// Factors that has been neglected.
+    neglected: IndexSet<NeglectedFactorInstance>,
 }
 
 impl PetitionFactorsStateSnapshot {
     pub(super) fn new(
         signed: IndexSet<HDSignature>,
-        skipped: IndexSet<HierarchicalDeterministicFactorInstance>,
+        neglected: IndexSet<NeglectedFactorInstance>,
     ) -> Self {
-        Self { signed, skipped }
+        Self { signed, neglected }
     }
 
     pub(super) fn prompted_count(&self) -> i8 {
-        self.signed_count() + self.skipped_count()
+        self.signed_count() + self.neglected_count()
     }
 
     pub(super) fn signed_count(&self) -> i8 {
         self.signed.len() as i8
     }
 
-    fn skipped_count(&self) -> i8 {
-        self.skipped.len() as i8
+    fn neglected_count(&self) -> i8 {
+        self.neglected.len() as i8
     }
 
     #[allow(unused)]
@@ -37,17 +39,17 @@ impl PetitionFactorsStateSnapshot {
             .signed
             .clone()
             .into_iter()
-            .map(|s| format!("{:#?}", s))
+            .map(|s| format!("{:?}", s))
             .join(", ");
 
-        let skipped = self
-            .skipped
+        let neglected = self
+            .neglected
             .clone()
             .into_iter()
-            .map(|s| format!("{:#?}", s))
+            .map(|s| format!("{:?}", s))
             .join(", ");
 
-        format!("signatures: {:#?}, skipped: {:#?}", signatures, skipped)
+        format!("signatures: {:#?}, neglected: {:#?}", signatures, neglected)
     }
 }
 
@@ -56,15 +58,15 @@ impl HasSampleValues for PetitionFactorsStateSnapshot {
         Self::new(
             IndexSet::from_iter([HDSignature::sample(), HDSignature::sample_other()]),
             IndexSet::from_iter([
-                HierarchicalDeterministicFactorInstance::sample(),
-                HierarchicalDeterministicFactorInstance::sample_other(),
+                NeglectedFactorInstance::sample(),
+                NeglectedFactorInstance::sample_other(),
             ]),
         )
     }
     fn sample_other() -> Self {
         Self::new(
             IndexSet::from_iter([HDSignature::sample_other()]),
-            IndexSet::from_iter([HierarchicalDeterministicFactorInstance::sample_other()]),
+            IndexSet::from_iter([NeglectedFactorInstance::sample_other()]),
         )
     }
 }
@@ -88,6 +90,6 @@ mod tests {
 
     #[test]
     fn debug() {
-        assert_eq!(format!("{:?}", Sut::sample()), "signatures: \"HDSignature { input: HDSignatureInput { intent_hash: TXID(\\\"dedede\\\"), owned_factor_instance: acco_Alice: factor_source_id: Device:de, derivation_path: 0/A/tx/0 } }, HDSignature { input: HDSignatureInput { intent_hash: TXID(\\\"ababab\\\"), owned_factor_instance: ident_Alice: factor_source_id: Ledger:1e, derivation_path: 0/A/tx/1 } }\", skipped: \"factor_source_id: Device:de, derivation_path: 0/A/tx/0, factor_source_id: Ledger:1e, derivation_path: 0/A/tx/1\"");
+        assert_eq!(format!("{:?}", Sut::sample()), "signatures: \"HDSignature { input: HDSignatureInput { intent_hash: TXID(\\\"dedede\\\"), owned_factor_instance: acco_Alice: factor_source_id: Device:de, derivation_path: 0/A/tx/0 } }, HDSignature { input: HDSignatureInput { intent_hash: TXID(\\\"ababab\\\"), owned_factor_instance: ident_Alice: factor_source_id: Ledger:1e, derivation_path: 0/A/tx/1 } }\", neglected: \"Neglected { reason: UserExplicitlySkipped, content: factor_source_id: Device:de, derivation_path: 0/A/tx/0 }, Neglected { reason: Failure, content: factor_source_id: Ledger:1e, derivation_path: 0/A/tx/1 }\"");
     }
 }

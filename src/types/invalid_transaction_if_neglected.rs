@@ -1,19 +1,21 @@
 use crate::prelude::*;
 
 /// A list of entities which would fail in a transaction if we would
-/// skip signing with a certain factor source
+/// neglect certain factor source, either by user explictlty skipping
+/// it or if implicitly neglected due to failure.
 #[derive(Clone, Debug, PartialEq, Eq, std::hash::Hash)]
-pub struct InvalidTransactionIfSkipped {
-    /// The intent hash of the transaction which would be invalid if we skipped
-    /// signing with a certain factor source
+pub struct InvalidTransactionIfNeglected {
+    /// The intent hash of the transaction which would be invalid if a
+    /// certain factor source would be neglected, either if user
+    /// explicitly skipped it or implicitly neglected due to failure.
     pub intent_hash: IntentHash,
 
     /// The entities in the transaction which would fail auth.
     entities_which_would_fail_auth: Vec<AddressOfAccountOrPersona>,
 }
 
-impl InvalidTransactionIfSkipped {
-    /// Constructs a new `InvalidTransactionIfSkipped` from an IndexSet of
+impl InvalidTransactionIfNeglected {
+    /// Constructs a new `InvalidTransactionIfNeglected` from an IndexSet of
     /// entities which would fail auth..
     ///
     /// # Panics
@@ -52,7 +54,7 @@ impl InvalidTransactionIfSkipped {
 #[cfg(test)]
 mod tests {
     use super::*;
-    type Sut = InvalidTransactionIfSkipped;
+    type Sut = InvalidTransactionIfNeglected;
 
     #[test]
     #[should_panic(
