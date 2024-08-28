@@ -1,35 +1,37 @@
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct FinishEarlyWhenAllTransactionsAreValid(pub bool);
+use crate::prelude::*;
 
-impl Default for FinishEarlyWhenAllTransactionsAreValid {
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct WhenAllTransactionsAreValid(pub SignaturesCollectingContinuation);
+
+impl Default for WhenAllTransactionsAreValid {
     fn default() -> Self {
-        Self(true)
+        Self(SignaturesCollectingContinuation::FinishEarly)
     }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct FinishEarlyWhenSomeTransactionIsInvalid(pub bool);
+pub struct WhenSomeTransactionIsInvalid(pub SignaturesCollectingContinuation);
 
-impl Default for FinishEarlyWhenSomeTransactionIsInvalid {
+impl Default for WhenSomeTransactionIsInvalid {
     fn default() -> Self {
-        Self(true)
+        Self(SignaturesCollectingContinuation::FinishEarly)
     }
 }
 
 /// Strategy to use for finishing early, i.e. stop collecting more signatures
 #[derive(Clone, Default, Copy, Debug, PartialEq, Eq)]
 pub struct SigningFinishEarlyStrategy {
-    pub finish_early_when_all_transactions_are_valid: FinishEarlyWhenAllTransactionsAreValid,
-    pub finish_early_when_some_transaction_is_invalid: FinishEarlyWhenSomeTransactionIsInvalid,
+    pub when_all_transactions_are_valid: WhenAllTransactionsAreValid,
+    pub when_some_transaction_is_invalid: WhenSomeTransactionIsInvalid,
 }
 impl SigningFinishEarlyStrategy {
     pub fn new(
-        finish_early_when_all_transactions_are_valid: FinishEarlyWhenAllTransactionsAreValid,
-        finish_early_when_some_transaction_is_invalid: FinishEarlyWhenSomeTransactionIsInvalid,
+        when_all_transactions_are_valid: WhenAllTransactionsAreValid,
+        when_some_transaction_is_invalid: WhenSomeTransactionIsInvalid,
     ) -> Self {
         Self {
-            finish_early_when_all_transactions_are_valid,
-            finish_early_when_some_transaction_is_invalid,
+            when_all_transactions_are_valid,
+            when_some_transaction_is_invalid,
         }
     }
 }

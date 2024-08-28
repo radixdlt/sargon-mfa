@@ -99,20 +99,6 @@ impl SignaturesCollector {
     }
 }
 
-/// Whether to continue collecting signatures or finish early.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum SignaturesCollectingContinuation {
-    /// It is meaningless to continue collecting signatures, either since either
-    /// all transactions are valid, and the collector is configured to finish early
-    /// in that case, or some transaction is invalid and the collector is configured
-    /// finish early in that case.
-    FinishEarly,
-
-    /// We should continue collecting signatures, either since the collector is
-    /// configured to not finish early, even though we can, or since we cannot
-    /// finish early since not enough factor sources have been signed with.
-    Continue,
-}
 use SignaturesCollectingContinuation::*;
 
 // === PRIVATE ===
@@ -130,17 +116,15 @@ impl SignaturesCollector {
     /// left to sign with.
     fn continuation(&self) -> SignaturesCollectingContinuation {
         let finish_early_strategy = self.dependencies.finish_early_strategy;
-        let finish_early_when_all_transactions_are_valid = finish_early_strategy
-            .finish_early_when_all_transactions_are_valid
-            .0;
-        let finish_early_when_some_transaction_is_invalid = finish_early_strategy
-            .finish_early_when_some_transaction_is_invalid
-            .0;
+        let when_all_transactions_are_valid =
+            finish_early_strategy.when_all_transactions_are_valid.0;
+        let when_some_transaction_is_invalid =
+            finish_early_strategy.when_some_transaction_is_invalid.0;
 
         let petitions_status = self.state.borrow().petitions.borrow().status();
 
         if petitions_status.are_all_valid() {
-            if finish_early_when_all_transactions_are_valid {
+            if when_all_transactions_are_valid == FinishEarly {
                 info!("All valid && should finish early => finish early");
                 return FinishEarly;
             } else {
@@ -149,7 +133,7 @@ impl SignaturesCollector {
                 );
             }
         } else if petitions_status.is_some_invalid() {
-            if finish_early_when_some_transaction_is_invalid {
+            if when_some_transaction_is_invalid == FinishEarly {
                 info!("Some invalid && should finish early => finish early");
                 return FinishEarly;
             } else {
@@ -395,7 +379,7 @@ mod tests {
     }
 
     #[actix_rt::test]
-    async fn continues_even_with_failed_tx() {
+    async fn continues_even_with_failed_tx_when_configured_to() {
         let factor_sources = &HDFactorSource::all();
         let a0 = &Account::a0();
         let a1 = &Account::a1();
@@ -407,8 +391,8 @@ mod tests {
 
         let collector = SignaturesCollector::new(
             SigningFinishEarlyStrategy::new(
-                FinishEarlyWhenAllTransactionsAreValid(true),
-                FinishEarlyWhenSomeTransactionIsInvalid(false),
+                WhenAllTransactionsAreValid(FinishEarly),
+                WhenSomeTransactionIsInvalid(Continue),
             ),
             IndexSet::<TransactionIntent>::from_iter([t0.clone(), t1.clone()]),
             Arc::new(TestSignatureCollectingInteractors::new(
@@ -424,6 +408,43 @@ mod tests {
         assert!(!outcome.successful());
         assert_eq!(outcome.failed_transactions().len(), 1);
         assert_eq!(outcome.successful_transactions().len(), 1);
+    }
+
+    #[actix_rt::test]
+    async fn continues_even_when_all_valid_if_configured_to() {
+        sensible_env_logger::safe_init!();
+        let test = async move |when_all_valid: WhenAllTransactionsAreValid,
+                               expected_sig_count: usize| {
+            let factor_sources = &HDFactorSource::all();
+            let a5 = &Account::a5();
+
+            let t0 = TransactionIntent::address_of([a5], []);
+
+            let profile = Profile::new(factor_sources.clone(), [a5], []);
+
+            let collector = SignaturesCollector::new(
+                SigningFinishEarlyStrategy::new(
+                    when_all_valid,
+                    WhenSomeTransactionIsInvalid::default(),
+                ),
+                IndexSet::<TransactionIntent>::from_iter([t0.clone()]),
+                Arc::new(TestSignatureCollectingInteractors::new(
+                    SimulatedUser::prudent_no_fail(),
+                )),
+                &profile,
+            )
+            .unwrap();
+
+            let outcome = collector.collect_signatures().await;
+            assert!(outcome.successful());
+            assert_eq!(
+                outcome.signatures_of_successful_transactions().len(),
+                expected_sig_count
+            );
+        };
+
+        test(WhenAllTransactionsAreValid(FinishEarly), 1).await;
+        test(WhenAllTransactionsAreValid(Continue), 2).await;
     }
 
     #[test]
