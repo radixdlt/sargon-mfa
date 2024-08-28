@@ -112,7 +112,7 @@ impl SignaturesCollector {
     ///
     /// N.B. this method does not concern itself with how many or which
     /// factor sources are left to sign with, that is handled by the main loop,
-    /// i.e. this might return `false` even though there is not factor sources
+    /// i.e. this might return `Continue` even though there is not factor sources
     /// left to sign with.
     fn continuation(&self) -> SignaturesCollectingContinuation {
         let finish_early_strategy = self.dependencies.finish_early_strategy;
