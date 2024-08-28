@@ -301,11 +301,12 @@ impl SignaturesCollector {
     }
 
     fn outcome(self) -> SignaturesOutcome {
-        let state = self.state.borrow_mut();
-        let petitions = state.petitions.borrow_mut();
-        let expected_number_of_transactions = petitions.txid_to_petition.borrow().len();
-        drop(petitions);
-        drop(state);
+        let expected_number_of_transactions;
+        {
+            let state = self.state.borrow_mut();
+            let petitions = state.petitions.borrow_mut();
+            expected_number_of_transactions = petitions.txid_to_petition.borrow().len();
+        }
         let outcome = self.state.into_inner().petitions.into_inner().outcome();
         assert_eq!(
             outcome.failed_transactions().len() + outcome.successful_transactions().len(),
