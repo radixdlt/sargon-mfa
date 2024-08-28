@@ -99,7 +99,7 @@ impl SignaturesCollector {
     }
 }
 
-/// Whether or not to finish early or continue collecting signatures.
+/// Whether to continue collecting signatures or finish early.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SignaturesCollectingContinuation {
     /// It is meaningless to continue collecting signatures, either since either
@@ -148,9 +148,7 @@ impl SignaturesCollector {
                     "All valid, BUT the collector is configured to NOT finish early => Continue"
                 );
             }
-        }
-
-        if petitions_status.is_some_invalid() {
+        } else if petitions_status.is_some_invalid() {
             if finish_early_when_some_transaction_is_invalid {
                 info!("Some invalid && should finish early => finish early");
                 return FinishEarly;
