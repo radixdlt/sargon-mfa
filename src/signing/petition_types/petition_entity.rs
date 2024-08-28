@@ -183,17 +183,6 @@ impl PetitionEntity {
         }
     }
 
-    /// `Ok(true)` means "continue", `Ok(false)` means "stop, we are done". `Err(_)` means "stop, we have failed".
-    pub(super) fn continue_if_necessary(&self) -> Result<bool> {
-        match self.status() {
-            PetitionFactorsStatus::InProgress => Ok(true),
-            PetitionFactorsStatus::Finished(PetitionFactorsStatusFinished::Fail) => {
-                Err(CommonError::Failure)
-            }
-            PetitionFactorsStatus::Finished(PetitionFactorsStatusFinished::Success) => Ok(false),
-        }
-    }
-
     pub fn status_if_skipped_factors(
         &self,
         factor_source_ids: IndexSet<FactorSourceIDFromHash>,

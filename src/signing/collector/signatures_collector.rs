@@ -27,7 +27,7 @@ impl SignaturesCollector {
     /// Used by our tests. But Sargon will typically wanna use `SignaturesCollector::new` and passing
     /// it a
     pub(crate) fn with(
-        finish_early_when_all_transactions_are_valid: bool,
+        finish_early_strategy: SigningFinishEarlyStrategy,
         all_factor_sources_in_profile: IndexSet<HDFactorSource>,
         transactions: IndexSet<TXToSign>,
         interactors: Arc<dyn SignatureCollectingInteractors>,
@@ -36,11 +36,8 @@ impl SignaturesCollector {
         let preprocessor = SignaturesCollectorPreprocessor::new(transactions);
         let (petitions, factors) = preprocessor.preprocess(all_factor_sources_in_profile);
 
-        let dependencies = SignaturesCollectorDependencies::new(
-            finish_early_when_all_transactions_are_valid,
-            interactors,
-            factors,
-        );
+        let dependencies =
+            SignaturesCollectorDependencies::new(finish_early_strategy, interactors, factors);
         let state = SignaturesCollectorState::new(petitions);
 
         Self {
@@ -50,7 +47,7 @@ impl SignaturesCollector {
     }
 
     pub fn with_signers_extraction<F>(
-        finish_early_when_all_transactions_are_valid: bool,
+        finish_early_strategy: SigningFinishEarlyStrategy,
         all_factor_sources_in_profile: IndexSet<HDFactorSource>,
         transactions: IndexSet<TransactionIntent>,
         interactors: Arc<dyn SignatureCollectingInteractors>,
@@ -65,7 +62,7 @@ impl SignaturesCollector {
             .collect::<Result<IndexSet<TXToSign>>>()?;
 
         let collector = Self::with(
-            finish_early_when_all_transactions_are_valid,
+            finish_early_strategy,
             all_factor_sources_in_profile,
             transactions,
             interactors,
@@ -75,13 +72,13 @@ impl SignaturesCollector {
     }
 
     pub fn new(
-        finish_early_when_all_transactions_are_valid: bool,
+        finish_early_strategy: SigningFinishEarlyStrategy,
         transactions: IndexSet<TransactionIntent>,
         interactors: Arc<dyn SignatureCollectingInteractors>,
         profile: &Profile,
     ) -> Result<Self> {
         Self::with_signers_extraction(
-            finish_early_when_all_transactions_are_valid,
+            finish_early_strategy,
             profile.factor_sources.clone(),
             transactions,
             interactors,
@@ -102,18 +99,67 @@ impl SignaturesCollector {
     }
 }
 
+/// Whether or not to finish early or continue collecting signatures.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SignaturesCollectingContinuation {
+    /// It is meaningless to continue collecting signatures, either since either
+    /// all transactions are valid, and the collector is configured to finish early
+    /// in that case, or some transaction is invalid and the collector is configured
+    /// finish early in that case.
+    FinishEarly,
+
+    /// We should continue collecting signatures, either since the collector is
+    /// configured to not finish early, even though we can, or since we cannot
+    /// finish early since not enough factor sources have been signed with.
+    Continue,
+}
+use SignaturesCollectingContinuation::*;
+
 // === PRIVATE ===
 impl SignaturesCollector {
-    /// If all transactions already would fail, or if all transactions already are done, then
-    /// no point in continuing.
+    /// Returning `Continue` means that we should continue collecting signatures.
     ///
-    /// `Ok(true)` means "continue", `Ok(false)` means "stop, we are done". `Err(_)` means "stop, we have failed".
-    fn continue_if_necessary(&self) -> Result<bool> {
-        self.state
-            .borrow()
-            .petitions
-            .borrow()
-            .continue_if_necessary()
+    /// Returning `FinishEarly` if it is meaningless to continue collecting signatures,
+    /// either since all transactions are valid and this collector is configured
+    /// to finish early in that case, or if some transaction is invalid and this
+    /// collector is configured to finish early in that case.
+    ///
+    /// N.B. this method does not concern itself with how many or which
+    /// factor sources are left to sign with, that is handled by the main loop,
+    /// i.e. this might return `false` even though there is not factor sources
+    /// left to sign with.
+    fn continuation(&self) -> SignaturesCollectingContinuation {
+        let finish_early_strategy = self.dependencies.finish_early_strategy;
+        let finish_early_when_all_transactions_are_valid = finish_early_strategy
+            .finish_early_when_all_transactions_are_valid
+            .0;
+        let finish_early_when_some_transaction_is_invalid = finish_early_strategy
+            .finish_early_when_some_transaction_is_invalid
+            .0;
+
+        let petitions_status = self.state.borrow().petitions.borrow().status();
+
+        if petitions_status.are_all_valid() {
+            if finish_early_when_all_transactions_are_valid {
+                info!("All valid && should finish early => finish early");
+                return FinishEarly;
+            } else {
+                debug!(
+                    "All valid, BUT the collector is configured to NOT finish early => Continue"
+                );
+            }
+        }
+
+        if petitions_status.is_some_invalid() {
+            if finish_early_when_some_transaction_is_invalid {
+                info!("Some invalid && should finish early => finish early");
+                return FinishEarly;
+            } else {
+                debug!("Some transactions invalid, BUT the collector is configured to NOT finish early in case of failures => Continue");
+            }
+        }
+
+        Continue
     }
 
     async fn use_factor_sources(&self, factor_sources_of_kind: &FactorSourcesOfKind) -> Result<()> {
@@ -172,7 +218,7 @@ impl SignaturesCollector {
                     // Report the results back to the collector
                     self.process_batch_response(response);
 
-                    if !self.continue_if_necessary()? {
+                    if self.continuation() == FinishEarly {
                         break;
                     }
                 }
@@ -195,13 +241,8 @@ impl SignaturesCollector {
     async fn sign_with_factors(&self) -> Result<()> {
         let factors_of_kind = self.dependencies.factors_of_kind.clone();
         for factor_sources_of_kind in factors_of_kind.into_iter() {
-            if self
-                .dependencies
-                .finish_early_when_all_transactions_are_valid
-                && !self.continue_if_necessary()?
-            {
-                info!("Finished early");
-                break; // finished early, we have fulfilled signing requirements of all transactions
+            if self.continuation() == FinishEarly {
+                break;
             }
             info!(
                 "Use(?) #{:?} factors of kind: {:?}",
@@ -315,7 +356,7 @@ mod tests {
     #[test]
     fn invalid_profile_unknown_account() {
         let res = SignaturesCollector::new(
-            true,
+            SigningFinishEarlyStrategy::default(),
             IndexSet::from_iter([TransactionIntent::new([Account::a0().entity_address()], [])]),
             Arc::new(TestSignatureCollectingInteractors::new(
                 SimulatedUser::prudent_no_fail(),
@@ -328,7 +369,7 @@ mod tests {
     #[test]
     fn invalid_profile_unknown_persona() {
         let res = SignaturesCollector::new(
-            true,
+            SigningFinishEarlyStrategy::default(),
             IndexSet::from_iter([TransactionIntent::new([], [Persona::p0().entity_address()])]),
             Arc::new(TestSignatureCollectingInteractors::new(
                 SimulatedUser::prudent_no_fail(),
@@ -343,7 +384,7 @@ mod tests {
         let factors_sources = HDFactorSource::all();
         let persona = Persona::p0();
         let collector = SignaturesCollector::new(
-            true,
+            SigningFinishEarlyStrategy::default(),
             IndexSet::from_iter([TransactionIntent::new([], [persona.entity_address()])]),
             Arc::new(TestSignatureCollectingInteractors::new(
                 SimulatedUser::prudent_no_fail(),
@@ -353,6 +394,38 @@ mod tests {
         .unwrap();
         let outcome = collector.collect_signatures().await;
         assert!(outcome.successful())
+    }
+
+    #[actix_rt::test]
+    async fn continues_even_with_failed_tx() {
+        let factor_sources = &HDFactorSource::all();
+        let a0 = &Account::a0();
+        let a1 = &Account::a1();
+
+        let t0 = TransactionIntent::address_of([a1], []);
+        let t1 = TransactionIntent::address_of([a0], []);
+
+        let profile = Profile::new(factor_sources.clone(), [a0, a1], []);
+
+        let collector = SignaturesCollector::new(
+            SigningFinishEarlyStrategy::new(
+                FinishEarlyWhenAllTransactionsAreValid(true),
+                FinishEarlyWhenSomeTransactionIsInvalid(false),
+            ),
+            IndexSet::<TransactionIntent>::from_iter([t0.clone(), t1.clone()]),
+            Arc::new(TestSignatureCollectingInteractors::new(
+                SimulatedUser::prudent_with_failures(SimulatedFailures::with_simulated_failures([
+                    FactorSourceIDFromHash::fs1(),
+                ])),
+            )),
+            &profile,
+        )
+        .unwrap();
+
+        let outcome = collector.collect_signatures().await;
+        assert!(!outcome.successful());
+        assert_eq!(outcome.failed_transactions().len(), 1);
+        assert_eq!(outcome.successful_transactions().len(), 1);
     }
 
     #[test]
@@ -376,7 +449,7 @@ mod tests {
         let profile = Profile::new(factor_sources.clone(), [a0, a1, a2, a6], [p0, p1, p2, p6]);
 
         let collector = SignaturesCollector::new(
-            true,
+            SigningFinishEarlyStrategy::default(),
             IndexSet::<TransactionIntent>::from_iter([
                 t0.clone(),
                 t1.clone(),
