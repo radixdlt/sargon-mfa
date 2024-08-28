@@ -4,38 +4,59 @@ impl SignaturesCollector {
     /// Used by our tests. But Sargon will typically wanna use `SignaturesCollector::new` and passing
     /// it a
     pub fn new_test_with(
+        finish_early_when_all_transactions_are_valid: bool,
         all_factor_sources_in_profile: IndexSet<HDFactorSource>,
         transactions: IndexSet<TXToSign>,
         interactors: Arc<dyn SignatureCollectingInteractors>,
     ) -> Self {
         sensible_env_logger::safe_init!();
-        Self::with(all_factor_sources_in_profile, transactions, interactors)
+        Self::with(
+            finish_early_when_all_transactions_are_valid,
+            all_factor_sources_in_profile,
+            transactions,
+            interactors,
+        )
     }
     pub fn new_test(
+        finish_early_when_all_transactions_are_valid: bool,
         all_factor_sources_in_profile: impl IntoIterator<Item = HDFactorSource>,
         transactions: impl IntoIterator<Item = TXToSign>,
         simulated_user: SimulatedUser,
     ) -> Self {
         Self::new_test_with(
+            finish_early_when_all_transactions_are_valid,
             all_factor_sources_in_profile.into_iter().collect(),
             transactions.into_iter().collect(),
             Arc::new(TestSignatureCollectingInteractors::new(simulated_user)),
         )
     }
 
-    pub fn test_prudent_with_factors(
+    pub fn test_prudent_with_factors_and_finish_early(
+        finish_early_when_all_transactions_are_valid: bool,
         all_factor_sources_in_profile: impl IntoIterator<Item = HDFactorSource>,
         transactions: impl IntoIterator<Item = TXToSign>,
     ) -> Self {
         Self::new_test(
+            finish_early_when_all_transactions_are_valid,
             all_factor_sources_in_profile,
             transactions,
             SimulatedUser::prudent_no_fail(),
         )
     }
 
+    pub fn test_prudent_with_finish_early(
+        finish_early_when_all_transactions_are_valid: bool,
+        transactions: impl IntoIterator<Item = TXToSign>,
+    ) -> Self {
+        Self::test_prudent_with_factors_and_finish_early(
+            finish_early_when_all_transactions_are_valid,
+            HDFactorSource::all(),
+            transactions,
+        )
+    }
+
     pub fn test_prudent(transactions: impl IntoIterator<Item = TXToSign>) -> Self {
-        Self::test_prudent_with_factors(HDFactorSource::all(), transactions)
+        Self::test_prudent_with_finish_early(true, transactions)
     }
 
     pub fn test_prudent_with_failures(
@@ -43,6 +64,7 @@ impl SignaturesCollector {
         simulated_failures: SimulatedFailures,
     ) -> Self {
         Self::new_test(
+            true,
             HDFactorSource::all(),
             transactions,
             SimulatedUser::prudent_with_failures(simulated_failures),
@@ -54,6 +76,7 @@ impl SignaturesCollector {
         transactions: impl IntoIterator<Item = TXToSign>,
     ) -> Self {
         Self::new_test(
+            true,
             all_factor_sources_in_profile,
             transactions,
             SimulatedUser::lazy_sign_minimum([]),
@@ -71,6 +94,7 @@ impl SignaturesCollector {
         transactions: impl IntoIterator<Item = TXToSign>,
     ) -> Self {
         Self::new_test(
+            true,
             all_factor_sources_in_profile,
             transactions,
             SimulatedUser::lazy_always_skip_no_fail(),

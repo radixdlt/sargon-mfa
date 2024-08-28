@@ -1,6 +1,11 @@
 use crate::prelude::*;
 
 pub(super) struct SignaturesCollectorDependencies {
+    /// If `true` we stop collecting signatures as soon as all transactions are
+    /// valid. This is typically always set to `true`, but can be useful for
+    /// tests to set to `false` to see how the system behaves.
+    pub(super) finish_early_when_all_transactions_are_valid: bool,
+
     /// A collection of "interactors" used to sign with factor sources.
     pub(super) interactors: Arc<dyn SignatureCollectingInteractors>,
 
@@ -18,10 +23,12 @@ pub(super) struct SignaturesCollectorDependencies {
 
 impl SignaturesCollectorDependencies {
     pub fn new(
+        finish_early_when_all_transactions_are_valid: bool,
         interactors: Arc<dyn SignatureCollectingInteractors>,
         factors_of_kind: IndexSet<FactorSourcesOfKind>,
     ) -> Self {
         Self {
+            finish_early_when_all_transactions_are_valid,
             interactors,
             factors_of_kind,
         }

@@ -27,6 +27,7 @@ impl SignaturesCollector {
     /// Used by our tests. But Sargon will typically wanna use `SignaturesCollector::new` and passing
     /// it a
     pub(crate) fn with(
+        finish_early_when_all_transactions_are_valid: bool,
         all_factor_sources_in_profile: IndexSet<HDFactorSource>,
         transactions: IndexSet<TXToSign>,
         interactors: Arc<dyn SignatureCollectingInteractors>,
@@ -35,7 +36,11 @@ impl SignaturesCollector {
         let preprocessor = SignaturesCollectorPreprocessor::new(transactions);
         let (petitions, factors) = preprocessor.preprocess(all_factor_sources_in_profile);
 
-        let dependencies = SignaturesCollectorDependencies::new(interactors, factors);
+        let dependencies = SignaturesCollectorDependencies::new(
+            finish_early_when_all_transactions_are_valid,
+            interactors,
+            factors,
+        );
         let state = SignaturesCollectorState::new(petitions);
 
         Self {
@@ -45,6 +50,7 @@ impl SignaturesCollector {
     }
 
     pub fn with_signers_extraction<F>(
+        finish_early_when_all_transactions_are_valid: bool,
         all_factor_sources_in_profile: IndexSet<HDFactorSource>,
         transactions: IndexSet<TransactionIntent>,
         interactors: Arc<dyn SignatureCollectingInteractors>,
@@ -58,17 +64,24 @@ impl SignaturesCollector {
             .map(extract_signers)
             .collect::<Result<IndexSet<TXToSign>>>()?;
 
-        let collector = Self::with(all_factor_sources_in_profile, transactions, interactors);
+        let collector = Self::with(
+            finish_early_when_all_transactions_are_valid,
+            all_factor_sources_in_profile,
+            transactions,
+            interactors,
+        );
 
         Ok(collector)
     }
 
     pub fn new(
+        finish_early_when_all_transactions_are_valid: bool,
         transactions: IndexSet<TransactionIntent>,
         interactors: Arc<dyn SignatureCollectingInteractors>,
         profile: &Profile,
     ) -> Result<Self> {
         Self::with_signers_extraction(
+            finish_early_when_all_transactions_are_valid,
             profile.factor_sources.clone(),
             transactions,
             interactors,
@@ -187,7 +200,11 @@ impl SignaturesCollector {
     async fn sign_with_factors(&self) -> Result<()> {
         let factors_of_kind = self.dependencies.factors_of_kind.clone();
         for factor_sources_of_kind in factors_of_kind.into_iter() {
-            if !self.continue_if_necessary()? {
+            if self
+                .dependencies
+                .finish_early_when_all_transactions_are_valid
+                && !self.continue_if_necessary()?
+            {
                 info!("Finished early");
                 break; // finished early, we have fulfilled signing requirements of all transactions
             }
@@ -304,6 +321,7 @@ mod tests {
     #[test]
     fn invalid_profile_unknown_account() {
         let res = SignaturesCollector::new(
+            true,
             IndexSet::from_iter([TransactionIntent::new([Account::a0().entity_address()], [])]),
             Arc::new(TestSignatureCollectingInteractors::new(
                 SimulatedUser::prudent_no_fail(),
@@ -316,6 +334,7 @@ mod tests {
     #[test]
     fn invalid_profile_unknown_persona() {
         let res = SignaturesCollector::new(
+            true,
             IndexSet::from_iter([TransactionIntent::new([], [Persona::p0().entity_address()])]),
             Arc::new(TestSignatureCollectingInteractors::new(
                 SimulatedUser::prudent_no_fail(),
@@ -330,6 +349,7 @@ mod tests {
         let factors_sources = HDFactorSource::all();
         let persona = Persona::p0();
         let collector = SignaturesCollector::new(
+            true,
             IndexSet::from_iter([TransactionIntent::new([], [persona.entity_address()])]),
             Arc::new(TestSignatureCollectingInteractors::new(
                 SimulatedUser::prudent_no_fail(),
@@ -362,6 +382,7 @@ mod tests {
         let profile = Profile::new(factor_sources.clone(), [a0, a1, a2, a6], [p0, p1, p2, p6]);
 
         let collector = SignaturesCollector::new(
+            true,
             IndexSet::<TransactionIntent>::from_iter([
                 t0.clone(),
                 t1.clone(),
