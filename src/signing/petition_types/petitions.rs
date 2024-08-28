@@ -101,7 +101,7 @@ impl Petitions {
                 self.factor_to_txid.get(f).unwrap().iter().flat_map(|txid| {
                     let binding = self.txid_to_petition.borrow();
                     let value = binding.get(txid).unwrap();
-                    value.invalid_transactions_if_skipped(f)
+                    value.invalid_transactions_if_skipped_factors(factor_source_ids.clone())
                 })
             })
             .collect::<IndexSet<_>>()

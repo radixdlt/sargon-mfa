@@ -1125,16 +1125,11 @@ mod signing_tests {
                 let outcome = collector.collect_signatures().await;
                 assert!(outcome.successful());
                 let signatures = outcome.all_signatures();
-                assert_eq!(signatures.len(), 1);
-                let signature = &signatures[0];
-                assert_eq!(
-                    signature
-                        .owned_factor_instance()
-                        .factor_instance()
-                        .factor_source_id
-                        .kind,
-                    FactorSourceKind::Device
-                );
+                assert_eq!(signatures.len(), 2);
+
+                assert!(signatures
+                    .into_iter()
+                    .all(|s| s.factor_source_id().kind == FactorSourceKind::Device));
             }
 
             async fn lazy_always_skip_user_single_tx_e0<E: IsEntity>() {

@@ -223,7 +223,7 @@ impl SignaturesCollector {
         SerialBatchSigningRequest::new(
             batch_signing_request,
             self.invalid_transactions_if_skipped_factor_sources(IndexSet::from_iter([
-                factor_source_id.clone(),
+                *factor_source_id,
             ]))
             .into_iter()
             .collect_vec(),

@@ -108,14 +108,16 @@ impl PetitionTransaction {
         )
     }
 
-    pub fn invalid_transactions_if_skipped(
+    pub fn invalid_transactions_if_skipped_factors(
         &self,
-        factor_source_id: &FactorSourceIDFromHash,
+        factor_source_ids: IndexSet<FactorSourceIDFromHash>,
     ) -> IndexSet<InvalidTransactionIfSkipped> {
         self.for_entities
             .borrow()
             .iter()
-            .flat_map(|(_, petition)| petition.invalid_transactions_if_skipped(factor_source_id))
+            .flat_map(|(_, petition)| {
+                petition.invalid_transactions_if_skipped_factors(factor_source_ids.clone())
+            })
             .collect()
     }
 
