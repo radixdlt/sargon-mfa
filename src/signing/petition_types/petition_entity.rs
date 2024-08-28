@@ -164,11 +164,11 @@ impl PetitionEntity {
         })
     }
 
-    pub fn invalid_transactions_if_skipped(
+    pub fn invalid_transactions_if_skipped_factors(
         &self,
-        factor_source_id: &FactorSourceIDFromHash,
+        factor_source_ids: IndexSet<FactorSourceIDFromHash>,
     ) -> IndexSet<InvalidTransactionIfSkipped> {
-        let skip_status = self.status_if_skipped_factor_source(factor_source_id);
+        let skip_status = self.status_if_skipped_factors(factor_source_ids);
         match skip_status {
             PetitionFactorsStatus::Finished(finished_reason) => match finished_reason {
                 PetitionFactorsStatusFinished::Fail => {
@@ -194,14 +194,16 @@ impl PetitionEntity {
         }
     }
 
-    pub fn status_if_skipped_factor_source(
+    pub fn status_if_skipped_factors(
         &self,
-        factor_source_id: &FactorSourceIDFromHash,
+        factor_source_ids: IndexSet<FactorSourceIDFromHash>,
     ) -> PetitionFactorsStatus {
         let simulation = self.clone();
-        simulation
-            .did_skip_if_relevant(factor_source_id, true)
-            .unwrap();
+        for factor_source_id in factor_source_ids.iter() {
+            simulation
+                .did_skip_if_relevant(factor_source_id, true)
+                .unwrap();
+        }
         simulation.status()
     }
 
@@ -210,7 +212,7 @@ impl PetitionEntity {
         factor_source_id: &FactorSourceIDFromHash,
         simulated: bool,
     ) -> Result<()> {
-        self.both_void(|l| l.did_skip_if_relevant(factor_source_id, simulated));
+        self.both_void(|p| p.did_skip_if_relevant(factor_source_id, simulated));
         Ok(())
     }
 
@@ -220,7 +222,12 @@ impl PetitionEntity {
 
         let maybe_threshold = self.threshold_factors.as_ref().map(|t| t.borrow().status());
         let maybe_override = self.override_factors.as_ref().map(|o| o.borrow().status());
-
+        if let Some(t) = &maybe_threshold {
+            trace!("Threshold factor status: {:?}", t);
+        }
+        if let Some(o) = &maybe_override {
+            trace!("Override factor status: {:?}", o);
+        }
         match (maybe_threshold, maybe_override) {
             (None, None) => panic!("Programmer error! Should have at least one factors list."),
             (Some(threshold), None) => threshold,
@@ -287,8 +294,177 @@ mod tests {
     type Sut = PetitionEntity;
 
     #[test]
+    fn multiple_device_as_override_skipped_both_is_invalid() {
+        let d0 = HDFactorSource::fs0();
+        let d1 = HDFactorSource::fs10();
+        assert_eq!(d0.factor_source_kind(), FactorSourceKind::Device);
+        assert_eq!(d1.factor_source_kind(), FactorSourceKind::Device);
+
+        let matrix =
+            MatrixOfFactorInstances::override_only([d0.clone(), d1.clone()].into_iter().map(|f| {
+                HierarchicalDeterministicFactorInstance::mainnet_tx_account(
+                    HDPathComponent::securified(0),
+                    f.factor_source_id(),
+                )
+            }));
+        let entity = AddressOfAccountOrPersona::Account(AccountAddress::sample());
+        let tx = IntentHash::sample_third();
+        let sut = Sut::new_securified(tx.clone(), entity.clone(), matrix);
+        let invalid = sut.invalid_transactions_if_skipped_factors(IndexSet::from_iter([
+            d0.factor_source_id(),
+            d1.factor_source_id(),
+        ]));
+        assert_eq!(
+            invalid
+                .clone()
+                .into_iter()
+                .map(|t| t.intent_hash)
+                .collect_vec(),
+            vec![tx]
+        );
+        assert_eq!(
+            invalid
+                .into_iter()
+                .flat_map(|t| t.entities_which_would_fail_auth().into_iter().collect_vec())
+                .collect_vec(),
+            vec![entity]
+        );
+    }
+
+    #[test]
+    fn multiple_device_as_override_skipped_one_is_valid() {
+        let d0 = HDFactorSource::fs0();
+        let d1 = HDFactorSource::fs10();
+        assert_eq!(d0.factor_source_kind(), FactorSourceKind::Device);
+        assert_eq!(d1.factor_source_kind(), FactorSourceKind::Device);
+
+        let matrix =
+            MatrixOfFactorInstances::override_only([d0.clone(), d1.clone()].into_iter().map(|f| {
+                HierarchicalDeterministicFactorInstance::mainnet_tx_account(
+                    HDPathComponent::securified(0),
+                    f.factor_source_id(),
+                )
+            }));
+        let entity = AddressOfAccountOrPersona::Account(AccountAddress::sample());
+        let tx = IntentHash::sample_third();
+        let sut = Sut::new_securified(tx.clone(), entity.clone(), matrix);
+        let invalid = sut
+            .invalid_transactions_if_skipped_factors(IndexSet::from_iter([d0.factor_source_id()]));
+        assert!(invalid.is_empty());
+    }
+
+    #[test]
+    fn multiple_device_as_threshold_skipped_both_is_invalid() {
+        let d0 = HDFactorSource::fs0();
+        let d1 = HDFactorSource::fs10();
+        assert_eq!(d0.factor_source_kind(), FactorSourceKind::Device);
+        assert_eq!(d1.factor_source_kind(), FactorSourceKind::Device);
+
+        let matrix = MatrixOfFactorInstances::threshold_only(
+            [d0.clone(), d1.clone()].into_iter().map(|f| {
+                HierarchicalDeterministicFactorInstance::mainnet_tx_account(
+                    HDPathComponent::securified(0),
+                    f.factor_source_id(),
+                )
+            }),
+            2,
+        );
+
+        let entity = AddressOfAccountOrPersona::Account(AccountAddress::sample());
+        let tx = IntentHash::sample_third();
+        let sut = Sut::new_securified(tx.clone(), entity.clone(), matrix);
+        let invalid = sut.invalid_transactions_if_skipped_factors(IndexSet::from_iter([
+            d0.factor_source_id(),
+            d1.factor_source_id(),
+        ]));
+        assert_eq!(
+            invalid
+                .clone()
+                .into_iter()
+                .map(|t| t.intent_hash)
+                .collect_vec(),
+            vec![tx]
+        );
+        assert_eq!(
+            invalid
+                .into_iter()
+                .flat_map(|t| t.entities_which_would_fail_auth().into_iter().collect_vec())
+                .collect_vec(),
+            vec![entity]
+        );
+    }
+
+    #[test]
+    fn two_device_as_threshold_of_2_skipped_one_is_invalid() {
+        let d0 = HDFactorSource::fs0();
+        let d1 = HDFactorSource::fs10();
+        assert_eq!(d0.factor_source_kind(), FactorSourceKind::Device);
+        assert_eq!(d1.factor_source_kind(), FactorSourceKind::Device);
+
+        let matrix = MatrixOfFactorInstances::threshold_only(
+            [d0.clone(), d1.clone()].into_iter().map(|f| {
+                HierarchicalDeterministicFactorInstance::mainnet_tx_account(
+                    HDPathComponent::securified(0),
+                    f.factor_source_id(),
+                )
+            }),
+            2,
+        );
+
+        let entity = AddressOfAccountOrPersona::Account(AccountAddress::sample());
+        let tx = IntentHash::sample_third();
+        let sut = Sut::new_securified(tx.clone(), entity.clone(), matrix);
+
+        let invalid = sut
+            .invalid_transactions_if_skipped_factors(IndexSet::from_iter([d1.factor_source_id()]));
+
+        assert_eq!(
+            invalid
+                .clone()
+                .into_iter()
+                .map(|t| t.intent_hash)
+                .collect_vec(),
+            vec![tx]
+        );
+        assert_eq!(
+            invalid
+                .into_iter()
+                .flat_map(|t| t.entities_which_would_fail_auth().into_iter().collect_vec())
+                .collect_vec(),
+            vec![entity]
+        );
+    }
+
+    #[test]
+    fn two_device_as_threshold_of_1_skipped_one_is_valid() {
+        let d0 = HDFactorSource::fs0();
+        let d1 = HDFactorSource::fs10();
+        assert_eq!(d0.factor_source_kind(), FactorSourceKind::Device);
+        assert_eq!(d1.factor_source_kind(), FactorSourceKind::Device);
+
+        let matrix = MatrixOfFactorInstances::threshold_only(
+            [d0.clone(), d1.clone()].into_iter().map(|f| {
+                HierarchicalDeterministicFactorInstance::mainnet_tx_account(
+                    HDPathComponent::securified(0),
+                    f.factor_source_id(),
+                )
+            }),
+            1,
+        );
+
+        let entity = AddressOfAccountOrPersona::Account(AccountAddress::sample());
+        let tx = IntentHash::sample_third();
+        let sut = Sut::new_securified(tx.clone(), entity.clone(), matrix);
+
+        let invalid = sut
+            .invalid_transactions_if_skipped_factors(IndexSet::from_iter([d1.factor_source_id()]));
+
+        assert!(invalid.is_empty());
+    }
+
+    #[test]
     fn debug() {
-        pretty_assertions::assert_eq!(format!("{:?}", Sut::sample()), "intent_hash: TXID(\"dedede\"), entity: acco_Grace, \"threshold_factors PetitionFactors(input: PetitionFactorsInput(factors: {\\n    factor_source_id: Device:00000000-0000-0000-0000-000000000000, derivation_path: 0/A/tx/6,\\n    factor_source_id: Arculus:00000000-0000-0000-0000-000000000003, derivation_path: 0/A/tx/6,\\n    factor_source_id: Yubikey:00000000-0000-0000-0000-000000000005, derivation_path: 0/A/tx/6,\\n}), state_snapshot: signatures: \\\"\\\", skipped: \\\"\\\")\"\"override_factors PetitionFactors(input: PetitionFactorsInput(factors: {\\n    factor_source_id: Ledger:00000000-0000-0000-0000-000000000001, derivation_path: 0/A/tx/6,\\n    factor_source_id: Arculus:00000000-0000-0000-0000-000000000004, derivation_path: 0/A/tx/6,\\n}), state_snapshot: signatures: \\\"\\\", skipped: \\\"\\\")\"");
+        pretty_assertions::assert_eq!(format!("{:?}", Sut::sample()), "intent_hash: TXID(\"dedede\"), entity: acco_Grace, \"threshold_factors PetitionFactors(input: PetitionFactorsInput(factors: {\\n    factor_source_id: Device:00, derivation_path: 0/A/tx/6,\\n    factor_source_id: Arculus:03, derivation_path: 0/A/tx/6,\\n    factor_source_id: Yubikey:05, derivation_path: 0/A/tx/6,\\n}), state_snapshot: signatures: \\\"\\\", skipped: \\\"\\\")\"\"override_factors PetitionFactors(input: PetitionFactorsInput(factors: {\\n    factor_source_id: Ledger:01, derivation_path: 0/A/tx/6,\\n    factor_source_id: Arculus:04, derivation_path: 0/A/tx/6,\\n}), state_snapshot: signatures: \\\"\\\", skipped: \\\"\\\")\"");
     }
 
     #[test]
@@ -370,7 +546,7 @@ mod tests {
             assert!(sut
                 // Already signed with override factor `FactorSourceIDFromHash::fs1()`. Thus
                 // can skip
-                .invalid_transactions_if_skipped(&f)
+                .invalid_transactions_if_skipped_factors(IndexSet::from_iter([f]))
                 .is_empty())
         };
         can_skip(FactorSourceIDFromHash::fs0());

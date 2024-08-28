@@ -67,7 +67,19 @@ impl Petitions {
                     .for_entities
                     .borrow()
                     .iter()
-                    .map(|(_, petition)| petition.continue_if_necessary())
+                    .map(|(_, petition)| {
+                        let s = petition.status();
+                        if matches!(
+                            s,
+                            PetitionFactorsStatus::Finished(PetitionFactorsStatusFinished::Fail)
+                        ) {
+                            warn!(
+                                "Fail, entity: {} in tx: {:?}",
+                                petition.entity, petition.intent_hash
+                            )
+                        };
+                        petition.continue_if_necessary()
+                    })
                     .collect_vec()
             })
             .collect::<Result<Vec<bool>>>()?;
@@ -78,17 +90,19 @@ impl Petitions {
         Ok(should_continue_signal)
     }
 
-    pub fn invalid_transactions_if_skipped(
+    pub fn invalid_transactions_if_skipped_factors(
         &self,
-        factor_source_id: &FactorSourceIDFromHash,
+        factor_source_ids: IndexSet<FactorSourceIDFromHash>,
     ) -> IndexSet<InvalidTransactionIfSkipped> {
-        let txids = self.factor_to_txid.get(factor_source_id).unwrap();
-        txids
-            .into_iter()
-            .flat_map(|txid| {
-                let binding = self.txid_to_petition.borrow();
-                let value = binding.get(txid).unwrap();
-                value.invalid_transactions_if_skipped(factor_source_id)
+        factor_source_ids
+            .clone()
+            .iter()
+            .flat_map(|f| {
+                self.factor_to_txid.get(f).unwrap().iter().flat_map(|txid| {
+                    let binding = self.txid_to_petition.borrow();
+                    let value = binding.get(txid).unwrap();
+                    value.invalid_transactions_if_skipped_factors(factor_source_ids.clone())
+                })
             })
             .collect::<IndexSet<_>>()
     }
@@ -125,14 +139,14 @@ impl Petitions {
         });
     }
 
-    pub(crate) fn process_batch_response(
-        &self,
-        response: SignWithFactorSourceOrSourcesOutcome<BatchSigningResponse>,
-    ) {
+    pub(crate) fn process_batch_response(&self, response: SignWithFactorSourceOrSourcesOutcome) {
         match response {
             SignWithFactorSourceOrSourcesOutcome::Signed {
                 produced_signatures,
             } => {
+                for (k, v) in produced_signatures.signatures.clone().iter() {
+                    info!("Signed with {} (#{} signatures)", k, v.len());
+                }
                 produced_signatures
                     .signatures
                     .values()
@@ -143,6 +157,7 @@ impl Petitions {
                 ids_of_skipped_factors_sources,
             } => {
                 for skipped_factor_source_id in ids_of_skipped_factors_sources.iter() {
+                    info!("Skipped {}", skipped_factor_source_id);
                     self.skip_factor_source_with_id(skipped_factor_source_id)
                 }
             }
@@ -202,6 +217,6 @@ mod tests {
 
     #[test]
     fn debug() {
-        assert_eq!(format!("{:?}", Sut::sample()), "Petitions(TXID(\"dedede\"): PetitionTransaction(for_entities: [PetitionEntity(intent_hash: TXID(\"dedede\"), entity: acco_Grace, \"threshold_factors PetitionFactors(input: PetitionFactorsInput(factors: {\\n    factor_source_id: Device:dededede-dede-dede-dede-dededededede, derivation_path: 0/A/tx/0,\\n    factor_source_id: Ledger:1e1e1e1e-1e1e-1e1e-1e1e-1e1e1e1e1e1e, derivation_path: 0/A/tx/1,\\n}), state_snapshot: signatures: \\\"\\\", skipped: \\\"\\\")\"\"override_factors PetitionFactors(input: PetitionFactorsInput(factors: {\\n    factor_source_id: Ledger:1e1e1e1e-1e1e-1e1e-1e1e-1e1e1e1e1e1e, derivation_path: 0/A/tx/1,\\n}), state_snapshot: signatures: \\\"\\\", skipped: \\\"\\\")\")]))");
+        pretty_assertions::assert_eq!(format!("{:?}", Sut::sample()), "Petitions(TXID(\"dedede\"): PetitionTransaction(for_entities: [PetitionEntity(intent_hash: TXID(\"dedede\"), entity: acco_Grace, \"threshold_factors PetitionFactors(input: PetitionFactorsInput(factors: {\\n    factor_source_id: Device:de, derivation_path: 0/A/tx/0,\\n    factor_source_id: Ledger:1e, derivation_path: 0/A/tx/1,\\n}), state_snapshot: signatures: \\\"\\\", skipped: \\\"\\\")\"\"override_factors PetitionFactors(input: PetitionFactorsInput(factors: {\\n    factor_source_id: Ledger:1e, derivation_path: 0/A/tx/1,\\n}), state_snapshot: signatures: \\\"\\\", skipped: \\\"\\\")\")]))");
     }
 }

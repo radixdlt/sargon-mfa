@@ -22,7 +22,7 @@ impl SignWithFactorParallelInteractor for TestSigningParallelInteractor {
     async fn sign(
         &self,
         request: ParallelBatchSigningRequest,
-    ) -> Result<SignWithFactorSourceOrSourcesOutcome<BatchSigningResponse>> {
+    ) -> Result<SignWithFactorSourceOrSourcesOutcome> {
         if self.should_simulate_failure(request.per_factor_source.keys().cloned().collect()) {
             return Err(CommonError::Failure);
         }

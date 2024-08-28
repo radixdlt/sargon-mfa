@@ -25,6 +25,8 @@ pub mod prelude {
         collections::{BTreeMap, BTreeSet, HashMap, HashSet},
         sync::Arc,
     };
+
+    pub use log::*;
 }
 
 pub use prelude::*;

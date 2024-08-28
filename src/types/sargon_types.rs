@@ -40,8 +40,17 @@ impl<T: From<Uuid>> IDStepper<T> {
     }
 }
 
+fn take_last_n(str: impl AsRef<str>, n: usize) -> String {
+    let str = str.as_ref();
+    if str.len() >= n {
+        str[str.len() - n..].to_owned()
+    } else {
+        "".to_owned()
+    }
+}
+
 #[derive(Clone, Copy, PartialEq, Eq, std::hash::Hash, derive_more::Display, derive_more::Debug)]
-#[display("{kind}:{id}")]
+#[display("{kind}:{}", take_last_n(self.id.to_string(), 2))]
 #[debug("{}", self.to_string())]
 pub struct FactorSourceIDFromHash {
     pub kind: FactorSourceKind,

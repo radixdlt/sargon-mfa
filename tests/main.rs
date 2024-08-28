@@ -548,6 +548,7 @@ mod signing_tests {
             let profile = Profile::new(factor_sources.clone(), [a0, a1, a2], [p0, p1, p2]);
 
             let collector = SignaturesCollector::new(
+                true,
                 IndexSet::<TransactionIntent>::from_iter([t0.clone(), t1.clone(), t2.clone()]),
                 Arc::new(TestSignatureCollectingInteractors::new(sim)),
                 &profile,
@@ -659,6 +660,7 @@ mod signing_tests {
             let profile = Profile::new(factor_sources.clone(), [a4, a5, a6], [p4, p5, p6]);
 
             let collector = SignaturesCollector::new(
+                true,
                 IndexSet::<TransactionIntent>::from_iter([
                     t0.clone(),
                     t1.clone(),
@@ -749,6 +751,7 @@ mod signing_tests {
                 let profile = Profile::new(factor_sources.clone(), [a0], [p3]);
 
                 let collector = SignaturesCollector::new(
+                    true,
                     all_transactions,
                     Arc::new(TestSignatureCollectingInteractors::new(
                         SimulatedUser::prudent_with_failures(
@@ -1125,16 +1128,11 @@ mod signing_tests {
                 let outcome = collector.collect_signatures().await;
                 assert!(outcome.successful());
                 let signatures = outcome.all_signatures();
-                assert_eq!(signatures.len(), 1);
-                let signature = &signatures[0];
-                assert_eq!(
-                    signature
-                        .owned_factor_instance()
-                        .factor_instance()
-                        .factor_source_id
-                        .kind,
-                    FactorSourceKind::Device
-                );
+                assert_eq!(signatures.len(), 2);
+
+                assert!(signatures
+                    .into_iter()
+                    .all(|s| s.factor_source_id().kind == FactorSourceKind::Device));
             }
 
             async fn lazy_always_skip_user_single_tx_e0<E: IsEntity>() {

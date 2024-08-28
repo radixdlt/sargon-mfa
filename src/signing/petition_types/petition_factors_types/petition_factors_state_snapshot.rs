@@ -88,6 +88,6 @@ mod tests {
 
     #[test]
     fn debug() {
-        assert_eq!(format!("{:?}", Sut::sample()), "signatures: \"HDSignature { input: HDSignatureInput { intent_hash: TXID(\\\"dedede\\\"), owned_factor_instance: acco_Alice: factor_source_id: Device:dededede-dede-dede-dede-dededededede, derivation_path: 0/A/tx/0 } }, HDSignature { input: HDSignatureInput { intent_hash: TXID(\\\"ababab\\\"), owned_factor_instance: ident_Alice: factor_source_id: Ledger:1e1e1e1e-1e1e-1e1e-1e1e-1e1e1e1e1e1e, derivation_path: 0/A/tx/1 } }\", skipped: \"factor_source_id: Device:dededede-dede-dede-dede-dededededede, derivation_path: 0/A/tx/0, factor_source_id: Ledger:1e1e1e1e-1e1e-1e1e-1e1e-1e1e1e1e1e1e, derivation_path: 0/A/tx/1\"");
+        assert_eq!(format!("{:?}", Sut::sample()), "signatures: \"HDSignature { input: HDSignatureInput { intent_hash: TXID(\\\"dedede\\\"), owned_factor_instance: acco_Alice: factor_source_id: Device:de, derivation_path: 0/A/tx/0 } }, HDSignature { input: HDSignatureInput { intent_hash: TXID(\\\"ababab\\\"), owned_factor_instance: ident_Alice: factor_source_id: Ledger:1e, derivation_path: 0/A/tx/1 } }\", skipped: \"factor_source_id: Device:de, derivation_path: 0/A/tx/0, factor_source_id: Ledger:1e, derivation_path: 0/A/tx/1\"");
     }
 }

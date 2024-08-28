@@ -1,11 +1,13 @@
 use crate::prelude::*;
 
-#[derive(Clone, PartialEq, Eq, std::hash::Hash, derive_more::Debug)]
-pub enum SignWithFactorSourceOrSourcesOutcome<T> {
+#[derive(Clone, PartialEq, Eq, derive_more::Debug)]
+pub enum SignWithFactorSourceOrSourcesOutcome {
     /// The user successfully signed with the factor source(s), the associated
     /// value contains the produces signatures and any relevant metadata.
     #[debug("Signed: {:#?}", produced_signatures)]
-    Signed { produced_signatures: T },
+    Signed {
+        produced_signatures: BatchSigningResponse,
+    },
 
     /// The user skipped signing with the factor sources with ids
     #[debug("Skipped")]
@@ -14,8 +16,8 @@ pub enum SignWithFactorSourceOrSourcesOutcome<T> {
     },
 }
 
-impl<T> SignWithFactorSourceOrSourcesOutcome<T> {
-    pub fn signed(produced_signatures: T) -> Self {
+impl SignWithFactorSourceOrSourcesOutcome {
+    pub fn signed(produced_signatures: BatchSigningResponse) -> Self {
         Self::Signed {
             produced_signatures,
         }

@@ -27,14 +27,20 @@ impl SignaturesCollector {
     /// Used by our tests. But Sargon will typically wanna use `SignaturesCollector::new` and passing
     /// it a
     pub(crate) fn with(
+        finish_early_when_all_transactions_are_valid: bool,
         all_factor_sources_in_profile: IndexSet<HDFactorSource>,
         transactions: IndexSet<TXToSign>,
         interactors: Arc<dyn SignatureCollectingInteractors>,
     ) -> Self {
+        debug!("Init SignaturesCollector");
         let preprocessor = SignaturesCollectorPreprocessor::new(transactions);
         let (petitions, factors) = preprocessor.preprocess(all_factor_sources_in_profile);
 
-        let dependencies = SignaturesCollectorDependencies::new(interactors, factors);
+        let dependencies = SignaturesCollectorDependencies::new(
+            finish_early_when_all_transactions_are_valid,
+            interactors,
+            factors,
+        );
         let state = SignaturesCollectorState::new(petitions);
 
         Self {
@@ -44,6 +50,7 @@ impl SignaturesCollector {
     }
 
     pub fn with_signers_extraction<F>(
+        finish_early_when_all_transactions_are_valid: bool,
         all_factor_sources_in_profile: IndexSet<HDFactorSource>,
         transactions: IndexSet<TransactionIntent>,
         interactors: Arc<dyn SignatureCollectingInteractors>,
@@ -57,17 +64,24 @@ impl SignaturesCollector {
             .map(extract_signers)
             .collect::<Result<IndexSet<TXToSign>>>()?;
 
-        let collector = Self::with(all_factor_sources_in_profile, transactions, interactors);
+        let collector = Self::with(
+            finish_early_when_all_transactions_are_valid,
+            all_factor_sources_in_profile,
+            transactions,
+            interactors,
+        );
 
         Ok(collector)
     }
 
     pub fn new(
+        finish_early_when_all_transactions_are_valid: bool,
         transactions: IndexSet<TransactionIntent>,
         interactors: Arc<dyn SignatureCollectingInteractors>,
         profile: &Profile,
     ) -> Result<Self> {
         Self::with_signers_extraction(
+            finish_early_when_all_transactions_are_valid,
             profile.factor_sources.clone(),
             transactions,
             interactors,
@@ -82,7 +96,7 @@ impl SignaturesCollector {
         _ = self
             .sign_with_factors() // in decreasing "friction order"
             .await
-            .inspect_err(|e| eprintln!("Failed to use factor sources: {:#?}", e));
+            .inspect_err(|e| error!("Failed to use factor sources: {:#?}", e));
 
         self.outcome()
     }
@@ -112,13 +126,23 @@ impl SignaturesCollector {
             // Parallel Interactor: Many Factor Sources at once
             SigningInteractor::Parallel(interactor) => {
                 // Prepare the request for the interactor
+                debug!("Creating parallel request for interactor");
                 let request = self.request_for_parallel_interactor(
                     factor_sources
                         .into_iter()
                         .map(|f| f.factor_source_id())
                         .collect(),
                 );
+                if !request.invalid_transactions_if_skipped.is_empty() {
+                    info!(
+                        "If factors {:?} are skipped, invalid TXs: {:?}",
+                        request.per_factor_source.keys(),
+                        request.invalid_transactions_if_skipped
+                    )
+                }
+                debug!("Dispatching parallel request to interactor: {:?}", request);
                 let response = interactor.sign(request).await?;
+                debug!("Got response from parallel interactor: {:?}", response);
                 self.process_batch_response(response);
             }
 
@@ -129,11 +153,21 @@ impl SignaturesCollector {
             SigningInteractor::Serial(interactor) => {
                 for factor_source in factor_sources {
                     // Prepare the request for the interactor
+                    debug!("Creating serial request for interactor");
                     let request =
                         self.request_for_serial_interactor(&factor_source.factor_source_id());
 
+                    if !request.invalid_transactions_if_skipped.is_empty() {
+                        info!(
+                            "If factor {:?} are skipped, invalid TXs: {:?}",
+                            request.input.factor_source_id, request.invalid_transactions_if_skipped
+                        )
+                    }
+
+                    debug!("Dispatching serial request to interactor: {:?}", request);
                     // Produce the results from the interactor
                     let response = interactor.sign(request).await?;
+                    debug!("Got response from serial interactor: {:?}", response);
 
                     // Report the results back to the collector
                     self.process_batch_response(response);
@@ -166,12 +200,23 @@ impl SignaturesCollector {
     async fn sign_with_factors(&self) -> Result<()> {
         let factors_of_kind = self.dependencies.factors_of_kind.clone();
         for factor_sources_of_kind in factors_of_kind.into_iter() {
-            if !self.continue_if_necessary()? {
+            if self
+                .dependencies
+                .finish_early_when_all_transactions_are_valid
+                && !self.continue_if_necessary()?
+            {
+                info!("Finished early");
                 break; // finished early, we have fulfilled signing requirements of all transactions
             }
+            info!(
+                "Use(?) #{:?} factors of kind: {:?}",
+                &factor_sources_of_kind.factor_sources().len(),
+                &factor_sources_of_kind.kind
+            );
             self.sign_with_factors_of_kind(factor_sources_of_kind)
                 .await?;
         }
+        info!("FINISHED WITH ALL FACTORS");
         Ok(())
     }
 
@@ -194,9 +239,11 @@ impl SignaturesCollector {
 
         SerialBatchSigningRequest::new(
             batch_signing_request,
-            self.invalid_transactions_if_skipped(factor_source_id)
-                .into_iter()
-                .collect_vec(),
+            self.invalid_transactions_if_skipped_factor_sources(IndexSet::from_iter([
+                *factor_source_id,
+            ]))
+            .into_iter()
+            .collect_vec(),
         )
     }
 
@@ -213,35 +260,24 @@ impl SignaturesCollector {
         let invalid_transactions_if_skipped =
             self.invalid_transactions_if_skipped_factor_sources(factor_source_ids);
 
+        info!("Invalid if skipped: {:?}", invalid_transactions_if_skipped);
+
         // Prepare the request for the interactor
         ParallelBatchSigningRequest::new(per_factor_source, invalid_transactions_if_skipped)
-    }
-
-    fn invalid_transactions_if_skipped(
-        &self,
-        factor_source_id: &FactorSourceIDFromHash,
-    ) -> IndexSet<InvalidTransactionIfSkipped> {
-        self.state
-            .borrow()
-            .petitions
-            .borrow()
-            .invalid_transactions_if_skipped(factor_source_id)
     }
 
     fn invalid_transactions_if_skipped_factor_sources(
         &self,
         factor_source_ids: IndexSet<FactorSourceIDFromHash>,
     ) -> IndexSet<InvalidTransactionIfSkipped> {
-        factor_source_ids
-            .into_iter()
-            .flat_map(|f| self.invalid_transactions_if_skipped(&f))
-            .collect::<IndexSet<_>>()
+        self.state
+            .borrow()
+            .petitions
+            .borrow()
+            .invalid_transactions_if_skipped_factors(factor_source_ids)
     }
 
-    fn process_batch_response(
-        &self,
-        response: SignWithFactorSourceOrSourcesOutcome<BatchSigningResponse>,
-    ) {
+    fn process_batch_response(&self, response: SignWithFactorSourceOrSourcesOutcome) {
         let state = self.state.borrow_mut();
         let petitions = state.petitions.borrow_mut();
         petitions.process_batch_response(response)
@@ -258,6 +294,12 @@ impl SignaturesCollector {
             outcome.failed_transactions().len() + outcome.successful_transactions().len(),
             expected_number_of_transactions
         );
+        if !outcome.successful() {
+            warn!(
+                "Failed to sign, invalid tx: {:?}, petition",
+                outcome.failed_transactions()
+            )
+        }
         outcome
     }
 }
@@ -279,6 +321,7 @@ mod tests {
     #[test]
     fn invalid_profile_unknown_account() {
         let res = SignaturesCollector::new(
+            true,
             IndexSet::from_iter([TransactionIntent::new([Account::a0().entity_address()], [])]),
             Arc::new(TestSignatureCollectingInteractors::new(
                 SimulatedUser::prudent_no_fail(),
@@ -291,6 +334,7 @@ mod tests {
     #[test]
     fn invalid_profile_unknown_persona() {
         let res = SignaturesCollector::new(
+            true,
             IndexSet::from_iter([TransactionIntent::new([], [Persona::p0().entity_address()])]),
             Arc::new(TestSignatureCollectingInteractors::new(
                 SimulatedUser::prudent_no_fail(),
@@ -305,6 +349,7 @@ mod tests {
         let factors_sources = HDFactorSource::all();
         let persona = Persona::p0();
         let collector = SignaturesCollector::new(
+            true,
             IndexSet::from_iter([TransactionIntent::new([], [persona.entity_address()])]),
             Arc::new(TestSignatureCollectingInteractors::new(
                 SimulatedUser::prudent_no_fail(),
@@ -337,6 +382,7 @@ mod tests {
         let profile = Profile::new(factor_sources.clone(), [a0, a1, a2, a6], [p0, p1, p2, p6]);
 
         let collector = SignaturesCollector::new(
+            true,
             IndexSet::<TransactionIntent>::from_iter([
                 t0.clone(),
                 t1.clone(),

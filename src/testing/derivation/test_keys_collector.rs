@@ -153,6 +153,7 @@ impl KeysCollector {
         all_factor_sources_in_profile: impl IntoIterator<Item = HDFactorSource>,
         derivation_paths: impl IntoIterator<Item = (FactorSourceIDFromHash, IndexSet<DerivationPath>)>,
     ) -> Self {
+        sensible_env_logger::safe_init!();
         Self::new(
             all_factor_sources_in_profile.into_iter().collect(),
             derivation_paths.into_iter().collect(),

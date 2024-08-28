@@ -75,7 +75,16 @@ impl PetitionFactors {
 
     pub fn did_skip_if_relevant(&self, factor_source_id: &FactorSourceIDFromHash, simulated: bool) {
         if let Some(_x_) = self.reference_to_factor_source_with_id(factor_source_id) {
+            debug!(
+                "PetitionFactors = kind {:?} skip factor source with id: {}, simulated: {}",
+                self.factor_list_kind, factor_source_id, simulated
+            );
             self.did_skip(factor_source_id, simulated)
+        } else {
+            debug!(
+                "PetitionFactors = kind {:?} did not reference factor source with id: {}",
+                self.factor_list_kind, factor_source_id
+            );
         }
     }
 
@@ -149,7 +158,15 @@ impl PetitionFactors {
     }
 
     fn is_finished_with_fail(&self) -> bool {
-        self.input.is_failure_with(self.state_snapshot())
+        let snapshot = self.state_snapshot();
+        let is_finished_with_fail = self.input.is_failure_with(snapshot.clone());
+        trace!(
+            "is_finished_with_fail: {:?} from input: {:?}, snapshot: {:?}",
+            is_finished_with_fail,
+            self.input,
+            snapshot
+        );
+        is_finished_with_fail
     }
 
     fn finished_with(&self) -> Option<PetitionFactorsStatusFinished> {
