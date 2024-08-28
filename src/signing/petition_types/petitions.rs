@@ -23,6 +23,25 @@ pub(crate) struct Petitions {
     pub txid_to_petition: RefCell<IndexMap<IntentHash, PetitionTransaction>>,
 }
 
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum PetitionsStatus {
+    InProgressNoneInvalid,
+    AllAreValid,
+    SomeIsInvalid,
+}
+impl PetitionsStatus {
+    // pub fn are_all_done(&self) -> bool {
+    //     matches!(self, Self::Done { .. })
+    // }
+    pub fn are_all_valid(&self) -> bool {
+        matches!(self, Self::AllAreValid)
+    }
+
+    pub fn is_some_invalid(&self) -> bool {
+        matches!(self, Self::SomeIsInvalid)
+    }
+}
+
 impl Petitions {
     pub(crate) fn new(
         factor_to_txid: HashMap<FactorSourceIDFromHash, IndexSet<IntentHash>>,
@@ -56,9 +75,8 @@ impl Petitions {
         )
     }
 
-    /// `Ok(true)` means "continue", `Ok(false)` means "stop, we are done". `Err(_)` means "stop, we have failed".
-    pub fn continue_if_necessary(&self) -> Result<bool> {
-        let should_continue_signals = self
+    pub fn status(&self) -> PetitionsStatus {
+        let statuses = self
             .txid_to_petition
             .borrow()
             .iter()
@@ -67,27 +85,31 @@ impl Petitions {
                     .for_entities
                     .borrow()
                     .iter()
-                    .map(|(_, petition)| {
-                        let s = petition.status();
-                        if matches!(
-                            s,
-                            PetitionFactorsStatus::Finished(PetitionFactorsStatusFinished::Fail)
-                        ) {
-                            warn!(
-                                "Fail, entity: {} in tx: {:?}",
-                                petition.entity, petition.intent_hash
-                            )
-                        };
-                        petition.continue_if_necessary()
-                    })
+                    .map(|(_, petition)| petition.status())
                     .collect_vec()
             })
-            .collect::<Result<Vec<bool>>>()?;
+            .collect::<Vec<PetitionFactorsStatus>>();
 
-        // If **any** petition says we should continue, we must continue.
-        let should_continue_signal = should_continue_signals.into_iter().any(|b| b);
+        let are_all_valid = statuses.iter().all(|s| {
+            matches!(
+                s,
+                PetitionFactorsStatus::Finished(PetitionFactorsStatusFinished::Success)
+            )
+        });
+        if are_all_valid {
+            return PetitionsStatus::AllAreValid;
+        }
 
-        Ok(should_continue_signal)
+        let is_some_invalid = statuses.iter().any(|s| {
+            matches!(
+                s,
+                PetitionFactorsStatus::Finished(PetitionFactorsStatusFinished::Fail)
+            )
+        });
+        if is_some_invalid {
+            return PetitionsStatus::SomeIsInvalid;
+        }
+        PetitionsStatus::InProgressNoneInvalid
     }
 
     pub fn invalid_transactions_if_skipped_factors(

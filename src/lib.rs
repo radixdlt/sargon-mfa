@@ -1,6 +1,7 @@
 #![allow(internal_features)]
 #![feature(core_intrinsics)]
 #![feature(iter_repeat_n)]
+#![feature(async_closure)]
 
 mod derivation;
 mod signing;
