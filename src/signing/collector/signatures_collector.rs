@@ -181,19 +181,14 @@ impl SignaturesCollector {
         Ok(())
     }
 
-    async fn sign_with_factors_of_kind(
-        &self,
-        factor_sources_of_kind: FactorSourcesOfKind,
-    ) -> Result<()> {
-        let result = self.use_factor_sources(&factor_sources_of_kind).await;
-
-        match result {
-            Ok(_) => {}
-            Err(_) => self.process_batch_response(SignWithFactorSourceOrSourcesOutcome::Skipped {
-                ids_of_skipped_factors_sources: factor_sources_of_kind.factor_source_ids(),
-            }),
-        }
-        Ok(())
+    async fn sign_with_factors_of_kind(&self, factor_sources_of_kind: FactorSourcesOfKind) {
+        let Err(e) = self.use_factor_sources(&factor_sources_of_kind).await else {
+            return;
+        };
+        error!("Failure using factor {:?}", e);
+        self.process_batch_response(SignWithFactorSourceOrSourcesOutcome::Skipped {
+            ids_of_skipped_factors_sources: factor_sources_of_kind.factor_source_ids(),
+        })
     }
 
     /// In decreasing "friction order"
@@ -213,8 +208,7 @@ impl SignaturesCollector {
                 &factor_sources_of_kind.factor_sources().len(),
                 &factor_sources_of_kind.kind
             );
-            self.sign_with_factors_of_kind(factor_sources_of_kind)
-                .await?;
+            self.sign_with_factors_of_kind(factor_sources_of_kind).await;
         }
         info!("FINISHED WITH ALL FACTORS");
         Ok(())
