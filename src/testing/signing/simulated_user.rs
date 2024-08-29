@@ -107,6 +107,7 @@ impl SimulatedUser {
 }
 
 unsafe impl Sync for SimulatedUser {}
+unsafe impl Send for SimulatedUser {}
 
 /// A very lazy user that defers all boring work such as signing stuff for as long
 /// as possible. Ironically, this sometimes leads to user signing more than she
