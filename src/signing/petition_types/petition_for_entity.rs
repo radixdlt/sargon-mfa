@@ -77,7 +77,7 @@ impl PetitionForEntity {
         self.status() == PetitionFactorsStatus::Finished(PetitionFactorsStatusFinished::Fail)
     }
 
-    fn union_of<F, T>(&self, map: F) -> IndexSet<T>
+    fn map_list_then_form_union<F, T>(&self, map: F) -> IndexSet<T>
     where
         T: Eq + std::hash::Hash + Clone,
         F: Fn(&PetitionForFactors) -> IndexSet<T>,
@@ -94,14 +94,14 @@ impl PetitionForEntity {
     }
 
     pub fn all_factor_instances(&self) -> IndexSet<OwnedFactorInstance> {
-        self.union_of(|l| l.factor_instances())
+        self.map_list_then_form_union(|l| l.factor_instances())
             .into_iter()
             .map(|f| OwnedFactorInstance::owned_factor_instance(self.entity.clone(), f.clone()))
             .collect::<IndexSet<_>>()
     }
 
     pub fn all_neglected_factor_instances(&self) -> IndexSet<NeglectedFactorInstance> {
-        self.union_of(|f| f.all_neglected())
+        self.map_list_then_form_union(|f| f.all_neglected())
     }
 
     pub fn all_neglected_factor_sources(&self) -> IndexSet<NeglectedFactor> {
@@ -112,7 +112,7 @@ impl PetitionForEntity {
     }
 
     pub fn all_signatures(&self) -> IndexSet<HDSignature> {
-        self.union_of(|f| f.all_signatures())
+        self.map_list_then_form_union(|f| f.all_signatures())
     }
 
     fn with_list<F, T>(list: &Option<RefCell<PetitionForFactors>>, map: F) -> Option<T>
