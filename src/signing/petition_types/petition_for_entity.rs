@@ -122,7 +122,7 @@ impl PetitionForEntity {
         list.as_ref().map(|refcell| map(&refcell.borrow()))
     }
 
-    fn on_list<F, R>(&self, kind: FactorListKind, r#do: &F) -> Option<R>
+    fn map_factor_list<F, R>(&self, kind: FactorListKind, r#do: &F) -> Option<R>
     where
         F: Fn(&PetitionForFactors) -> R,
     {
@@ -137,8 +137,8 @@ impl PetitionForEntity {
         F: Fn(&PetitionForFactors) -> T,
         C: Fn(Option<T>, Option<T>) -> R,
     {
-        let t = self.on_list(FactorListKind::Threshold, &r#do);
-        let o = self.on_list(FactorListKind::Override, &r#do);
+        let t = self.map_factor_list(FactorListKind::Threshold, &r#do);
+        let o = self.map_factor_list(FactorListKind::Override, &r#do);
         combine(t, o)
     }
 
