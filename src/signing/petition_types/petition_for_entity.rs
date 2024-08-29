@@ -236,27 +236,32 @@ impl PetitionForEntity {
         use PetitionFactorsStatus::*;
         use PetitionFactorsStatusFinished::*;
 
-        let maybe_threshold = self.threshold_factors.as_ref().map(|t| t.borrow().status());
-        let maybe_override = self.override_factors.as_ref().map(|o| o.borrow().status());
-        if let Some(t) = &maybe_threshold {
-            trace!("Threshold factor status: {:?}", t);
-        }
-        if let Some(o) = &maybe_override {
-            trace!("Override factor status: {:?}", o);
-        }
-        match (maybe_threshold, maybe_override) {
-            (None, None) => panic!("Programmer error! Should have at least one factors list."),
-            (Some(threshold), None) => threshold,
-            (None, Some(r#override)) => r#override,
-            (Some(threshold), Some(r#override)) => match (threshold, r#override) {
-                (InProgress, InProgress) => PetitionFactorsStatus::InProgress,
-                (Finished(Fail), InProgress) => PetitionFactorsStatus::InProgress,
-                (InProgress, Finished(Fail)) => PetitionFactorsStatus::InProgress,
-                (Finished(Fail), Finished(Fail)) => PetitionFactorsStatus::Finished(Fail),
-                (Finished(Success), _) => PetitionFactorsStatus::Finished(Success),
-                (_, Finished(Success)) => PetitionFactorsStatus::Finished(Success),
+        self.both(
+            |p| p.status(),
+            |maybe_threshold, maybe_override| {
+                if let Some(t) = &maybe_threshold {
+                    trace!("Threshold factor status: {:?}", t);
+                }
+                if let Some(o) = &maybe_override {
+                    trace!("Override factor status: {:?}", o);
+                }
+                match (maybe_threshold, maybe_override) {
+                    (None, None) => {
+                        panic!("Programmer error! Should have at least one factors list.")
+                    }
+                    (Some(threshold), None) => threshold,
+                    (None, Some(r#override)) => r#override,
+                    (Some(threshold), Some(r#override)) => match (threshold, r#override) {
+                        (InProgress, InProgress) => PetitionFactorsStatus::InProgress,
+                        (Finished(Fail), InProgress) => PetitionFactorsStatus::InProgress,
+                        (InProgress, Finished(Fail)) => PetitionFactorsStatus::InProgress,
+                        (Finished(Fail), Finished(Fail)) => PetitionFactorsStatus::Finished(Fail),
+                        (Finished(Success), _) => PetitionFactorsStatus::Finished(Success),
+                        (_, Finished(Success)) => PetitionFactorsStatus::Finished(Success),
+                    },
+                }
             },
-        }
+        )
     }
 
     #[allow(unused)]
