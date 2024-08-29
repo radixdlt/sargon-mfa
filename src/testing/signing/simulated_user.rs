@@ -1,13 +1,4 @@
-use std::{
-    borrow::BorrowMut,
-    cell::{Cell, RefCell},
-    collections::HashMap,
-    sync::{Arc, Mutex, RwLock},
-};
-
-use indexmap::IndexSet;
-
-use crate::FactorSourceIDFromHash;
+use crate::prelude::*;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum SigningUserInput {
@@ -15,19 +6,30 @@ pub enum SigningUserInput {
     Skip,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone, derive_more::Debug)]
+#[debug("SimulatedUser(mode: {mode:?}, failures: {failures:?})")]
 pub struct SimulatedUser {
+    spy_on_request: Arc<dyn Fn(FactorSourceKind, HashSet<InvalidTransactionIfNeglected>) -> ()>,
     mode: SimulatedUserMode,
     /// `None` means never failures
     failures: Option<SimulatedFailures>,
 }
 
 impl SimulatedUser {
-    pub fn new(mode: SimulatedUserMode, failures: impl Into<Option<SimulatedFailures>>) -> Self {
+    pub fn with_spy(
+        spy_on_request: impl Fn(FactorSourceKind, HashSet<InvalidTransactionIfNeglected>) -> ()
+            + 'static,
+        mode: SimulatedUserMode,
+        failures: impl Into<Option<SimulatedFailures>>,
+    ) -> Self {
         Self {
+            spy_on_request: Arc::new(spy_on_request),
             mode,
             failures: failures.into(),
         }
+    }
+    pub fn new(mode: SimulatedUserMode, failures: impl Into<Option<SimulatedFailures>>) -> Self {
+        Self::with_spy(|_, _| {}, mode, failures)
     }
 }
 
@@ -122,11 +124,14 @@ pub enum Laziness {
 impl SimulatedUser {
     pub fn sign_or_skip(
         &self,
-        invalid_tx_if_skipped: impl IntoIterator<Item = crate::prelude::InvalidTransactionIfNeglected>,
+        factor_source_kind: FactorSourceKind,
+        invalid_tx_if_skipped: impl IntoIterator<Item = InvalidTransactionIfNeglected>,
     ) -> SigningUserInput {
         let invalid_tx_if_skipped = invalid_tx_if_skipped
             .into_iter()
             .collect::<std::collections::HashSet<_>>();
+
+        (self.spy_on_request)(factor_source_kind, invalid_tx_if_skipped.clone());
 
         if self.be_prudent(|| !invalid_tx_if_skipped.is_empty()) {
             SigningUserInput::Sign

@@ -137,6 +137,10 @@ impl BatchTXBatchKeySigningRequest {
             per_transaction: per_transaction.into_iter().collect(),
         }
     }
+
+    pub fn factor_source_kind(&self) -> FactorSourceKind {
+        self.factor_source_id.kind
+    }
 }
 
 impl HasSampleValues for BatchTXBatchKeySigningRequest {

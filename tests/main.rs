@@ -713,6 +713,12 @@ mod signing_tests {
         }
 
         mod with_failure {
+            use std::{
+                borrow::BorrowMut,
+                rc::Rc,
+                sync::{Mutex, RwLock},
+            };
+
             use super::*;
 
             #[actix_rt::test]
@@ -816,11 +822,30 @@ mod signing_tests {
                 info!("tx1: {:?} (Should SUCCEED)", tx1.intent_hash);
                 let profile = Profile::new(factor_sources.clone(), [&a7, &a0], []);
 
+                // let displayed_invalid_tx = Rc::<
+                //     RefCell<Vec<(FactorSourceKind, HashSet<InvalidTransactionIfNeglected>)>>,
+                // >::new(RefCell::new(Vec::new()));
+                type Tuple = (FactorSourceKind, HashSet<InvalidTransactionIfNeglected>);
+                type Tuples = Vec<Tuple>;
+                let displayed_invalid_tx = Mutex::<Tuples>::new(Tuples::default());
+
                 let collector = SignaturesCollector::new(
                     SigningFinishEarlyStrategy::default(),
                     IndexSet::from_iter([tx0.clone(), tx1.clone()]),
                     Arc::new(TestSignatureCollectingInteractors::new(
-                        SimulatedUser::prudent_with_failures(
+                        SimulatedUser::with_spy(
+                            |kind, invalid| {
+                                // displayed_invalid_tx.borrow_mut().push((kind, invalid));
+                                // displayed_invalid_tx
+                                //     .borrow_mut()
+                                //     .try_write()
+                                //     .unwrap()
+                                //     .push((kind, invalid));
+                                let tuple: Tuple = (kind, invalid);
+                                // displayed_invalid_tx.clone().write().unwrap().push(tuple);
+                                displayed_invalid_tx.try_lock().unwrap().push(tuple);
+                            },
+                            SimulatedUserMode::Prudent,
                             SimulatedFailures::with_simulated_failures([
                                 FactorSourceIDFromHash::fs2(), // will cause any TX with a7 to fail
                             ]),
@@ -829,6 +854,8 @@ mod signing_tests {
                     &profile,
                 )
                 .unwrap();
+
+                let displayed_invalid_tx = displayed_invalid_tx.into_inner().unwrap();
 
                 let outcome = collector.collect_signatures().await;
                 assert!(!outcome.successful());

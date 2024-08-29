@@ -30,10 +30,10 @@ impl SignWithFactorParallelInteractor for TestSigningParallelInteractor {
             return SignWithFactorsOutcome::failure_with_factors(ids);
         }
 
-        match self
-            .simulated_user
-            .sign_or_skip(request.invalid_transactions_if_neglected)
-        {
+        match self.simulated_user.sign_or_skip(
+            request.factor_source_kind(),
+            request.invalid_transactions_if_neglected,
+        ) {
             SigningUserInput::Sign => {
                 let signatures = request
                     .per_factor_source

@@ -186,12 +186,7 @@ impl SignaturesCollector {
             SigningInteractor::Parallel(interactor) => {
                 // Prepare the request for the interactor
                 debug!("Creating parallel request for interactor");
-                let request = self.request_for_parallel_interactor(
-                    factor_sources
-                        .into_iter()
-                        .map(|f| f.factor_source_id())
-                        .collect(),
-                );
+                let request = self.request_for_parallel_interactor(factor_sources_of_kind);
                 if !request.invalid_transactions_if_neglected.is_empty() {
                     info!(
                         "If factors {:?} are neglected, invalid TXs: {:?}",
@@ -285,8 +280,13 @@ impl SignaturesCollector {
 
     fn request_for_parallel_interactor(
         &self,
-        factor_source_ids: IndexSet<FactorSourceIDFromHash>,
+        factor_sources_of_kind: &FactorSourcesOfKind,
     ) -> ParallelBatchSigningRequest {
+        let factor_source_ids = factor_sources_of_kind
+            .factor_sources()
+            .iter()
+            .map(|f| f.factor_source_id())
+            .collect::<IndexSet<_>>();
         let per_factor_source = factor_source_ids
             .clone()
             .iter()
@@ -297,7 +297,11 @@ impl SignaturesCollector {
             self.invalid_transactions_if_neglected_factor_sources(factor_source_ids);
 
         // Prepare the request for the interactor
-        ParallelBatchSigningRequest::new(per_factor_source, invalid_transactions_if_neglected)
+        ParallelBatchSigningRequest::new(
+            factor_sources_of_kind.kind,
+            per_factor_source,
+            invalid_transactions_if_neglected,
+        )
     }
 
     fn invalid_transactions_if_neglected_factor_sources(
