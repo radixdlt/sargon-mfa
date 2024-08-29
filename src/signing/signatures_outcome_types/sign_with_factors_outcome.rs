@@ -36,8 +36,4 @@ impl SignWithFactorsOutcome {
     pub fn user_skipped_factor(id: FactorSourceIDFromHash) -> Self {
         Self::user_skipped_factors(IndexSet::from_iter([id]))
     }
-
-    pub fn failure_with_factor(id: FactorSourceIDFromHash) -> Self {
-        Self::failure_with_factors(IndexSet::from_iter([id]))
-    }
 }

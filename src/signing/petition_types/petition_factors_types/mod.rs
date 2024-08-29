@@ -12,7 +12,7 @@ use petition_factors_state::*;
 use petition_factors_state_snapshot::*;
 use petition_factors_sub_state::*;
 
-pub use factor_source_referencing::*;
+pub(crate) use factor_source_referencing::*;
 pub use neglected_factor_instance::*;
 pub use petition_factors::*;
 pub use petition_factors_status::*;

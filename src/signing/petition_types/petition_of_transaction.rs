@@ -11,13 +11,6 @@ pub(crate) struct PetitionTransaction {
     pub for_entities: RefCell<HashMap<AddressOfAccountOrPersona, PetitionEntity>>,
 }
 
-#[derive(Clone, PartialEq, Eq)]
-pub struct PetitionTransactionOutcome {
-    pub transaction_valid: bool,
-    pub signatures: IndexSet<HDSignature>,
-    pub neglected_factors: IndexSet<NeglectedFactor>,
-}
-
 impl PetitionTransaction {
     pub(crate) fn new(
         intent_hash: IntentHash,
@@ -62,11 +55,12 @@ impl PetitionTransaction {
             .flat_map(|x| x.all_neglected_factor_sources())
             .collect::<IndexSet<NeglectedFactor>>();
 
-        PetitionTransactionOutcome {
+        PetitionTransactionOutcome::new(
             transaction_valid,
+            self.intent_hash.clone(),
             signatures,
             neglected_factors,
-        }
+        )
     }
 
     fn _all_factor_instances(&self) -> IndexSet<OwnedFactorInstance> {

@@ -1,10 +1,14 @@
 use crate::prelude::*;
 
+/// A collection of all `HierarchicalDeterministicFactorInstance`
+/// (Public Keys) which were derived from the referenced
+/// `FactorSource`s at the specified `DerivationPath`s
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct KeyDerivationOutcome {
     pub factors_by_source:
         IndexMap<FactorSourceIDFromHash, IndexSet<HierarchicalDeterministicFactorInstance>>,
 }
+
 impl KeyDerivationOutcome {
     pub fn new(
         factors_by_source: IndexMap<
