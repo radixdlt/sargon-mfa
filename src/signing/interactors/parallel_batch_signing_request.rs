@@ -2,7 +2,7 @@ use crate::prelude::*;
 
 /// A collection of factor sources to use to sign, transactions with multiple keys
 /// (derivations paths).
-#[derive(derive_more::Debug)]
+#[derive(derive_more::Debug, Clone)]
 #[debug("per_factor_source: {:#?}", per_factor_source)]
 pub struct ParallelBatchSigningRequest {
     factor_source_kind: FactorSourceKind,

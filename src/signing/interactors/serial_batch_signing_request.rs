@@ -10,13 +10,13 @@ pub struct SerialBatchSigningRequest {
     pub input: BatchTXBatchKeySigningRequest,
     /// A collection of transactions which would be invalid if the user skips
     /// signing with this factor source, or if we fail to sign
-    pub invalid_transactions_if_neglected: Vec<InvalidTransactionIfNeglected>,
+    pub invalid_transactions_if_neglected: IndexSet<InvalidTransactionIfNeglected>,
 }
 
 impl SerialBatchSigningRequest {
     pub fn new(
         input: BatchTXBatchKeySigningRequest,
-        invalid_transactions_if_neglected: Vec<InvalidTransactionIfNeglected>,
+        invalid_transactions_if_neglected: IndexSet<InvalidTransactionIfNeglected>,
     ) -> Self {
         Self {
             input,

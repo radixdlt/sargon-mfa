@@ -713,7 +713,7 @@ mod signing_tests {
         }
 
         mod with_failure {
-            use std::{borrow::BorrowMut, rc::Rc};
+            use std::rc::Rc;
 
             use super::*;
 
@@ -805,7 +805,7 @@ mod signing_tests {
 
             #[actix_rt::test]
             async fn same_tx_is_not_shown_to_user_in_case_of_already_failure() {
-                // sensible_env_logger::safe_init!();
+                sensible_env_logger::safe_init!();
                 let factor_sources = HDFactorSource::all();
 
                 let a7 = Account::a7();
@@ -814,11 +814,9 @@ mod signing_tests {
                 let tx0 = TransactionIntent::new([a7.entity_address(), a0.entity_address()], []);
                 let tx1 = TransactionIntent::new([a0.entity_address()], []);
 
-                info!("tx0: {:?} (Should FAIL)", tx0.intent_hash);
-                info!("tx1: {:?} (Should SUCCEED)", tx1.intent_hash);
                 let profile = Profile::new(factor_sources.clone(), [&a7, &a0], []);
 
-                type Tuple = (FactorSourceKind, HashSet<InvalidTransactionIfNeglected>);
+                type Tuple = (FactorSourceKind, IndexSet<InvalidTransactionIfNeglected>);
                 type Tuples = Vec<Tuple>;
                 let tuples = Rc::<RefCell<Tuples>>::new(RefCell::new(Tuples::default()));
                 let tuples_clone = tuples.clone();
@@ -828,7 +826,6 @@ mod signing_tests {
                     Arc::new(TestSignatureCollectingInteractors::new(
                         SimulatedUser::with_spy(
                             move |kind, invalid| {
-                                println!("🔮 kind: {}", kind);
                                 let tuple = (kind, invalid);
                                 let mut x = RefCell::borrow_mut(&tuples_clone);
                                 x.push(tuple)
@@ -843,36 +840,29 @@ mod signing_tests {
                 )
                 .unwrap();
 
-                /*
-
-                                match kind {
-                                    FactorSourceKind::Ledger => {
-                                        assert_eq!(
-                                            invalid
-                                                .clone()
-                                                .into_iter()
-                                                .map(|i| i.intent_hash)
-                                                .collect_vec(),
-                                            vec![tx0_clone.intent_hash.clone()]
-                                        );
-                                    }
-                                    FactorSourceKind::Device => {
-                                        assert_eq!(
-                                            invalid
-                                                .clone()
-                                                .into_iter()
-                                                .map(|i| i.intent_hash)
-                                                .collect_vec(),
-                                            vec![tx1_clone.intent_hash.clone()]
-                                        );
-                                    }
-                                    _ => panic!("Unexpected kind"),
-                */
-
                 let outcome = collector.collect_signatures().await;
 
                 let tuples = tuples.borrow().clone();
-                assert_eq!(tuples.len(), 2);
+                assert_eq!(
+                    tuples,
+                    vec![
+                        (
+                            FactorSourceKind::Ledger,
+                            IndexSet::from_iter([InvalidTransactionIfNeglected::new(
+                                tx0.clone().intent_hash,
+                                [a7.address()]
+                            )])
+                        ),
+                        // Important that we do NOT display any mentioning of `tx0` here again!
+                        (
+                            FactorSourceKind::Device,
+                            IndexSet::from_iter([InvalidTransactionIfNeglected::new(
+                                tx1.clone().intent_hash,
+                                [a0.address()]
+                            )])
+                        ),
+                    ]
+                );
 
                 assert!(!outcome.successful());
                 assert_eq!(

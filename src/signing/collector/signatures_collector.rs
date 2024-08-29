@@ -274,7 +274,7 @@ impl SignaturesCollector {
                 *factor_source_id,
             ]))
             .into_iter()
-            .collect_vec(),
+            .collect::<IndexSet<_>>(),
         )
     }
 
