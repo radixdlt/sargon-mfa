@@ -14,7 +14,7 @@ pub struct WhenSomeTransactionIsInvalid(pub SignaturesCollectingContinuation);
 
 impl Default for WhenSomeTransactionIsInvalid {
     fn default() -> Self {
-        Self(SignaturesCollectingContinuation::FinishEarly)
+        Self(SignaturesCollectingContinuation::Continue)
     }
 }
 
@@ -54,6 +54,19 @@ mod tests {
         assert_eq!(
             sut.when_all_transactions_are_valid.0,
             SignaturesCollectingContinuation::Continue
+        );
+        assert_eq!(
+            sut.when_some_transaction_is_invalid.0,
+            SignaturesCollectingContinuation::Continue
+        );
+    }
+
+    #[test]
+    fn test_default_is_finish_when_valid_continue_if_invalid() {
+        let sut = Sut::default();
+        assert_eq!(
+            sut.when_all_transactions_are_valid.0,
+            SignaturesCollectingContinuation::FinishEarly
         );
         assert_eq!(
             sut.when_some_transaction_is_invalid.0,

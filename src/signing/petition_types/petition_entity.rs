@@ -65,10 +65,16 @@ impl PetitionEntity {
         )
     }
 
-    /// Returns `true` signatures requirement has been fulfilled, either by
+    /// Returns `true` if signatures requirement has been fulfilled, either by
     /// override factors or by threshold factors
     pub fn has_signatures_requirement_been_fulfilled(&self) -> bool {
         self.status() == PetitionFactorsStatus::Finished(PetitionFactorsStatusFinished::Success)
+    }
+
+    /// Returns `true` if the transaction of this petition already has failed due
+    /// to too many factors neglected
+    pub fn has_failed(&self) -> bool {
+        self.status() == PetitionFactorsStatus::Finished(PetitionFactorsStatusFinished::Fail)
     }
 
     fn union_of<F, T>(&self, map: F) -> IndexSet<T>
@@ -143,10 +149,6 @@ impl PetitionEntity {
         self.both(r#do, |_, _| ())
     }
 
-    pub fn neglected_factor_source_if_relevant(&self, neglected: NeglectedFactor) {
-        self.both_void(|l| l.neglect_if_references(neglected.clone(), true));
-    }
-
     /// # Panics
     /// Panics if this factor source has already been neglected or signed with.
     ///
@@ -162,6 +164,18 @@ impl PetitionEntity {
                 _ => (),
             }
         })
+    }
+
+    pub(crate) fn should_neglect_factors_due_to_irrelevant(
+        &self,
+        factor_source_ids: IndexSet<FactorSourceIDFromHash>,
+    ) -> bool {
+        assert!(self.references_any_factor_source(&factor_source_ids));
+        match self.status() {
+            PetitionFactorsStatus::Finished(PetitionFactorsStatusFinished::Fail) => true,
+            PetitionFactorsStatus::Finished(PetitionFactorsStatusFinished::Success) => false,
+            PetitionFactorsStatus::InProgress => false,
+        }
     }
 
     pub fn invalid_transactions_if_neglected_factors(
@@ -190,20 +204,33 @@ impl PetitionEntity {
         let simulation = self.clone();
         for factor_source_id in factor_source_ids.iter() {
             simulation
-                .neglect_if_relevant(
-                    NeglectedFactor::new(
-                        NeglectFactorReason::UserExplicitlySkipped,
-                        *factor_source_id,
-                    ),
-                    true,
-                )
+                .neglect_if_referenced(NeglectedFactor::new(
+                    NeglectFactorReason::Simulation,
+                    *factor_source_id,
+                ))
                 .unwrap();
         }
         simulation.status()
     }
 
-    pub fn neglect_if_relevant(&self, neglected: NeglectedFactor, simulated: bool) -> Result<()> {
-        self.both_void(|p| p.neglect_if_relevant(neglected.clone(), simulated));
+    pub fn references_any_factor_source(
+        &self,
+        factor_source_ids: &IndexSet<FactorSourceIDFromHash>,
+    ) -> bool {
+        factor_source_ids
+            .iter()
+            .any(|f| self.references_factor_source_with_id(f))
+    }
+
+    pub fn references_factor_source_with_id(&self, id: &FactorSourceIDFromHash) -> bool {
+        self.both(
+            |p| p.references_factor_source_with_id(id),
+            |a, b| a.unwrap_or(false) || b.unwrap_or(false),
+        )
+    }
+
+    pub fn neglect_if_referenced(&self, neglected: NeglectedFactor) -> Result<()> {
+        self.both_void(|p| p.neglect_if_referenced(neglected.clone()));
         Ok(())
     }
 

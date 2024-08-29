@@ -135,6 +135,38 @@ impl Petitions {
             .collect::<IndexSet<_>>()
     }
 
+    pub(crate) fn should_neglect_factors_due_to_irrelevant(
+        &self,
+        factor_sources_of_kind: &FactorSourcesOfKind,
+    ) -> bool {
+        let factor_source_ids = factor_sources_of_kind
+            .factor_sources()
+            .iter()
+            .map(|f| f.factor_source_id())
+            .collect::<IndexSet<_>>();
+        factor_sources_of_kind
+            .factor_sources()
+            .iter()
+            .map(|f| f.factor_source_id())
+            .all(|f| {
+                self.factor_source_to_intent_hash
+                    .get(&f)
+                    .unwrap()
+                    .iter()
+                    .all(|intent_hash| {
+                        let binding = self.txid_to_petition.borrow();
+                        let value = binding.get(intent_hash).unwrap();
+                        value.should_neglect_factors_due_to_irrelevant(factor_source_ids.clone())
+                    })
+            })
+    }
+
+    /// # Panics
+    /// Panics if no petition deem usage of `FactorSource` with id
+    /// `factor_source_id` relevant. We SHOULD have checked this already with
+    /// `should_neglect_factors_due_to_irrelevant` from SignatureCollector main
+    /// loop, i.e. we should not have called this method from SignaturesCollector
+    /// if `should_neglect_factors_due_to_irrelevant` returned true.
     pub(crate) fn input_for_interactor(
         &self,
         factor_source_id: &FactorSourceIDFromHash,
@@ -143,12 +175,17 @@ impl Petitions {
             .factor_source_to_intent_hash
             .get(factor_source_id)
             .unwrap();
+
         let per_transaction = intent_hashes
             .into_iter()
-            .map(|intent_hash| {
+            .filter_map(|intent_hash| {
                 let binding = self.txid_to_petition.borrow();
                 let petition = binding.get(intent_hash).unwrap();
-                petition.input_for_interactor(factor_source_id)
+                if petition.has_tx_failed() {
+                    None
+                } else {
+                    Some(petition.input_for_interactor(factor_source_id))
+                }
             })
             .collect::<IndexSet<BatchKeySigningRequest>>();
 
@@ -161,7 +198,7 @@ impl Petitions {
         petition.add_signature(signature.clone())
     }
 
-    fn neglected_factor_source_with_id(&self, neglected: NeglectedFactor) {
+    fn neglect_factor_source_with_id(&self, neglected: NeglectedFactor) {
         let binding = self.txid_to_petition.borrow();
         let intent_hashes = self
             .factor_source_to_intent_hash
@@ -169,7 +206,7 @@ impl Petitions {
             .unwrap();
         intent_hashes.into_iter().for_each(|intent_hash| {
             let petition = binding.get(intent_hash).unwrap();
-            petition.neglected_factor_source(neglected.clone())
+            petition.neglect_factor_source(neglected.clone())
         });
     }
 
@@ -191,7 +228,7 @@ impl Petitions {
                 let reason = neglected_factors.reason;
                 for neglected_factor_source_id in neglected_factors.content.iter() {
                     info!("Neglected {}", neglected_factor_source_id);
-                    self.neglected_factor_source_with_id(NeglectedFactor::new(
+                    self.neglect_factor_source_with_id(NeglectedFactor::new(
                         reason,
                         *neglected_factor_source_id,
                     ))

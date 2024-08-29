@@ -20,6 +20,10 @@ impl IsTestInteractor for TestSigningParallelInteractor {
 #[async_trait::async_trait]
 impl SignWithFactorParallelInteractor for TestSigningParallelInteractor {
     async fn sign(&self, request: ParallelBatchSigningRequest) -> SignWithFactorsOutcome {
+        self.simulated_user.spy_on_request_before_handled(
+            request.clone().factor_source_kind(),
+            request.clone().invalid_transactions_if_neglected,
+        );
         let ids = request
             .per_factor_source
             .keys()

@@ -713,6 +713,8 @@ mod signing_tests {
         }
 
         mod with_failure {
+            use std::rc::Rc;
+
             use super::*;
 
             #[actix_rt::test]
@@ -737,8 +739,52 @@ mod signing_tests {
             }
 
             #[actix_rt::test]
-            async fn many_failing_tx() {
+            async fn failed_threshold_successful_override() {
                 sensible_env_logger::safe_init!();
+                let factor_sources = &HDFactorSource::all();
+                let a9 = &Account::a9();
+                let tx0 = TransactionIntent::address_of([a9], []);
+
+                let all_transactions = IndexSet::from_iter([tx0.clone()]);
+
+                let profile = Profile::new(factor_sources.clone(), [a9], []);
+
+                let collector = SignaturesCollector::new(
+                    SigningFinishEarlyStrategy::default(),
+                    all_transactions,
+                    Arc::new(TestSignatureCollectingInteractors::new(
+                        SimulatedUser::prudent_with_failures(
+                            SimulatedFailures::with_simulated_failures([
+                                FactorSourceIDFromHash::fs1(),
+                            ]),
+                        ),
+                    )),
+                    &profile,
+                )
+                .unwrap();
+
+                let outcome = collector.collect_signatures().await;
+                assert!(outcome.successful());
+                assert_eq!(
+                    outcome
+                        .successful_transactions()
+                        .into_iter()
+                        .map(|t| t.intent_hash.clone())
+                        .collect_vec(),
+                    vec![tx0.clone().intent_hash]
+                );
+                assert_eq!(
+                    outcome
+                        .all_signatures()
+                        .into_iter()
+                        .map(|s| s.factor_source_id())
+                        .collect_vec(),
+                    vec![FactorSourceIDFromHash::fs8()]
+                );
+            }
+
+            #[actix_rt::test]
+            async fn many_failing_tx() {
                 let factor_sources = &HDFactorSource::all();
                 let a0 = &Account::a0();
                 let p3 = &Persona::p3();
@@ -798,6 +844,122 @@ mod signing_tests {
                         .map(|t| t.intent_hash)
                         .collect_vec(),
                     vec![tx.intent_hash]
+                )
+            }
+
+            #[actix_rt::test]
+            async fn same_tx_is_not_shown_to_user_in_case_of_already_failure() {
+                sensible_env_logger::safe_init!();
+                let factor_sources = HDFactorSource::all();
+
+                let a7 = Account::a7();
+                let a0 = Account::a0();
+
+                let tx0 = TransactionIntent::new([a7.entity_address(), a0.entity_address()], []);
+                let tx1 = TransactionIntent::new([a0.entity_address()], []);
+
+                let profile = Profile::new(factor_sources.clone(), [&a7, &a0], []);
+
+                type Tuple = (FactorSourceKind, IndexSet<InvalidTransactionIfNeglected>);
+                type Tuples = Vec<Tuple>;
+                let tuples = Rc::<RefCell<Tuples>>::new(RefCell::new(Tuples::default()));
+                let tuples_clone = tuples.clone();
+                let collector = SignaturesCollector::new(
+                    SigningFinishEarlyStrategy::default(),
+                    IndexSet::from_iter([tx0.clone(), tx1.clone()]),
+                    Arc::new(TestSignatureCollectingInteractors::new(
+                        SimulatedUser::with_spy(
+                            move |kind, invalid| {
+                                let tuple = (kind, invalid);
+                                let mut x = RefCell::borrow_mut(&tuples_clone);
+                                x.push(tuple)
+                            },
+                            SimulatedUserMode::Prudent,
+                            SimulatedFailures::with_simulated_failures([
+                                FactorSourceIDFromHash::fs2(), // will cause any TX with a7 to fail
+                            ]),
+                        ),
+                    )),
+                    &profile,
+                )
+                .unwrap();
+
+                let outcome = collector.collect_signatures().await;
+
+                let tuples = tuples.borrow().clone();
+                assert_eq!(
+                    tuples,
+                    vec![
+                        (
+                            FactorSourceKind::Ledger,
+                            IndexSet::from_iter([InvalidTransactionIfNeglected::new(
+                                tx0.clone().intent_hash,
+                                [a7.address()]
+                            )])
+                        ),
+                        // Important that we do NOT display any mentioning of `tx0` here again!
+                        (
+                            FactorSourceKind::Device,
+                            IndexSet::from_iter([InvalidTransactionIfNeglected::new(
+                                tx1.clone().intent_hash,
+                                [a0.address()]
+                            )])
+                        ),
+                    ]
+                );
+
+                assert!(!outcome.successful());
+                assert_eq!(
+                    outcome.ids_of_neglected_factor_sources_failed(),
+                    IndexSet::<FactorSourceIDFromHash>::from_iter([FactorSourceIDFromHash::fs2()])
+                );
+                assert_eq!(
+                    outcome.ids_of_neglected_factor_sources_irrelevant(),
+                    IndexSet::<FactorSourceIDFromHash>::from_iter([
+                        FactorSourceIDFromHash::fs6(),
+                        FactorSourceIDFromHash::fs7(),
+                        FactorSourceIDFromHash::fs8(),
+                        FactorSourceIDFromHash::fs9()
+                    ])
+                );
+                assert_eq!(
+                    outcome
+                        .successful_transactions()
+                        .into_iter()
+                        .map(|t| t.intent_hash)
+                        .collect_vec(),
+                    vec![tx1.intent_hash.clone()]
+                );
+
+                assert_eq!(
+                    outcome
+                        .failed_transactions()
+                        .into_iter()
+                        .map(|t| t.intent_hash)
+                        .collect_vec(),
+                    vec![tx0.intent_hash.clone()]
+                );
+
+                assert_eq!(outcome.all_signatures().len(), 1);
+
+                assert!(outcome
+                    .all_signatures()
+                    .into_iter()
+                    .map(|s| s.intent_hash().clone())
+                    .all(|i| i == tx1.intent_hash));
+
+                assert_eq!(
+                    outcome
+                        .all_signatures()
+                        .into_iter()
+                        .map(|s| s.derivation_path())
+                        .collect_vec(),
+                    vec![DerivationPath::new(
+                        NetworkID::Mainnet,
+                        CAP26EntityKind::Account,
+                        CAP26KeyKind::T9n,
+                        HDPathComponent::non_hardened(0)
+                    )]
                 )
             }
         }

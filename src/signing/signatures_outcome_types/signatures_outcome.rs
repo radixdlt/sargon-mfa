@@ -112,6 +112,12 @@ impl SignaturesOutcome {
         self.ids_of_neglected_factor_sources_filter(|nf| nf.reason == NeglectFactorReason::Failure)
     }
 
+    pub fn ids_of_neglected_factor_sources_irrelevant(&self) -> IndexSet<FactorSourceIDFromHash> {
+        self.ids_of_neglected_factor_sources_filter(|nf| {
+            nf.reason == NeglectFactorReason::Irrelevant
+        })
+    }
+
     pub fn signatures_of_failed_transactions(&self) -> IndexSet<HDSignature> {
         self.failed_transactions.all_signatures()
     }

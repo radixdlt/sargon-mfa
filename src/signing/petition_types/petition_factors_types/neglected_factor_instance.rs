@@ -81,4 +81,17 @@ pub enum NeglectFactorReason {
     #[display("Failure")]
     #[debug("Failure")]
     Failure,
+
+    /// A FactorSource got neglected implicitly since it is irrelevant,
+    /// all transactions which references the FactorSource have already
+    /// failed, thus pointless in using it.
+    #[display("Irrelevant")]
+    #[debug("Irrelevant")]
+    Irrelevant,
+
+    /// We simulate neglect in order to see what the status of petitions
+    /// would be if a FactorSource would be neglected.
+    #[display("Simulation")]
+    #[debug("Simulation")]
+    Simulation,
 }

@@ -71,13 +71,30 @@ impl PetitionTransaction {
             .collect()
     }
 
-    pub fn all_factor_instances_of_source(
+    pub fn has_tx_failed(&self) -> bool {
+        self.for_entities.borrow().values().any(|p| p.has_failed())
+    }
+
+    pub fn all_relevant_factor_instances_of_source(
         &self,
         factor_source_id: &FactorSourceIDFromHash,
     ) -> IndexSet<OwnedFactorInstance> {
-        self._all_factor_instances()
-            .into_iter()
-            .filter(|f| f.factor_instance().factor_source_id == *factor_source_id)
+        assert!(!self.has_tx_failed());
+        self.for_entities
+            .borrow()
+            .values()
+            .filter(|&p| {
+                if p.has_failed() {
+                    debug!("OMITTING petition since it HAS failed: {:?}", p);
+                    false
+                } else {
+                    debug!("INCLUDING petition since it has NOT failed: {:?}", p);
+                    true
+                }
+            })
+            .cloned()
+            .flat_map(|petition| petition.all_factor_instances())
+            .filter(|f| f.factor_source_id() == *factor_source_id)
             .collect()
     }
 
@@ -89,10 +106,10 @@ impl PetitionTransaction {
         for_entity.add_signature(signature.clone());
     }
 
-    pub fn neglected_factor_source(&self, neglected: NeglectedFactor) {
+    pub fn neglect_factor_source(&self, neglected: NeglectedFactor) {
         let mut for_entities = self.for_entities.borrow_mut();
         for petition in for_entities.values_mut() {
-            petition.neglected_factor_source_if_relevant(neglected.clone())
+            petition.neglect_if_referenced(neglected.clone()).unwrap()
         }
     }
 
@@ -100,10 +117,13 @@ impl PetitionTransaction {
         &self,
         factor_source_id: &FactorSourceIDFromHash,
     ) -> BatchKeySigningRequest {
+        assert!(!self
+            .should_neglect_factors_due_to_irrelevant(IndexSet::from_iter([*factor_source_id])));
+        assert!(!self.has_tx_failed());
         BatchKeySigningRequest::new(
             self.intent_hash.clone(),
             *factor_source_id,
-            self.all_factor_instances_of_source(factor_source_id),
+            self.all_relevant_factor_instances_of_source(factor_source_id),
         )
     }
 
@@ -111,6 +131,10 @@ impl PetitionTransaction {
         &self,
         factor_source_ids: IndexSet<FactorSourceIDFromHash>,
     ) -> IndexSet<InvalidTransactionIfNeglected> {
+        if self.has_tx_failed() {
+            // No need to display already failed tx.
+            return IndexSet::new();
+        }
         self.for_entities
             .borrow()
             .iter()
@@ -118,6 +142,20 @@ impl PetitionTransaction {
                 petition.invalid_transactions_if_neglected_factors(factor_source_ids.clone())
             })
             .collect()
+    }
+
+    pub(crate) fn should_neglect_factors_due_to_irrelevant(
+        &self,
+        factor_source_ids: IndexSet<FactorSourceIDFromHash>,
+    ) -> bool {
+        self.for_entities
+            .borrow()
+            .values()
+            .filter(|&p| p.references_any_factor_source(&factor_source_ids))
+            .cloned()
+            .all(|petition| {
+                petition.should_neglect_factors_due_to_irrelevant(factor_source_ids.clone())
+            })
     }
 
     #[allow(unused)]

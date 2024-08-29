@@ -73,14 +73,14 @@ impl PetitionFactors {
         ))
     }
 
-    pub fn neglect_if_relevant(&self, neglected: NeglectedFactor, simulated: bool) {
+    pub fn neglect_if_referenced(&self, neglected: NeglectedFactor) {
         let factor_source_id = &neglected.factor_source_id();
         if let Some(_x_) = self.reference_to_factor_source_with_id(factor_source_id) {
             debug!(
-                "PetitionFactors = kind {:?} neglect factor source with id: {}, reason: {}, simulated: {}",
-                self.factor_list_kind, factor_source_id, neglected.reason, simulated
+                "PetitionFactors = kind {:?} neglect factor source with id: {}, reason: {}",
+                self.factor_list_kind, factor_source_id, neglected.reason
             );
-            self.neglect(neglected, simulated)
+            self.neglect(neglected)
         } else {
             debug!(
                 "PetitionFactors = kind {:?} did not reference factor source with id: {}",
@@ -89,13 +89,15 @@ impl PetitionFactors {
         }
     }
 
-    fn neglect(&self, neglected: NeglectedFactor, simulated: bool) {
+    fn neglect(&self, neglected: NeglectedFactor) {
         let factor_instance =
             self.expect_reference_to_factor_source_with_id(&neglected.factor_source_id());
-        self.state.borrow_mut().neglect(
-            &NeglectedFactorInstance::new(neglected.reason, factor_instance.clone()),
-            simulated,
-        );
+        self.state
+            .borrow_mut()
+            .neglect(&NeglectedFactorInstance::new(
+                neglected.reason,
+                factor_instance.clone(),
+            ));
     }
 
     pub fn has_owned_instance_with_id(&self, owned_factor_instance: &OwnedFactorInstance) -> bool {
@@ -131,12 +133,6 @@ impl PetitionFactors {
     ) -> bool {
         self.reference_to_factor_source_with_id(factor_source_id)
             .is_some()
-    }
-
-    pub fn neglect_if_references(&self, neglected: NeglectedFactor, simulated: bool) {
-        if self.references_factor_source_with_id(&neglected.factor_source_id()) {
-            self.neglect(neglected, simulated)
-        }
     }
 
     fn expect_reference_to_factor_source_with_id(

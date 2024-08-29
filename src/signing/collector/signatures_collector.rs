@@ -144,7 +144,38 @@ impl SignaturesCollector {
         Continue
     }
 
-    async fn sign_with_factors_of_kind(&self, factor_sources_of_kind: FactorSourcesOfKind) {
+    fn should_neglect_factors_due_to_irrelevant(
+        &self,
+        factor_sources_of_kind: &FactorSourcesOfKind,
+    ) -> bool {
+        let state = self.state.borrow();
+        let petitions = state.petitions.borrow();
+        petitions.should_neglect_factors_due_to_irrelevant(factor_sources_of_kind)
+    }
+
+    fn neglected_factors_due_to_irrelevant(
+        &self,
+        factor_sources_of_kind: &FactorSourcesOfKind,
+    ) -> bool {
+        if self.should_neglect_factors_due_to_irrelevant(factor_sources_of_kind) {
+            info!(
+                "Neglecting all factors of kind: {} since they are all irrelevant (all TX referencing those factors have already failed)",
+                factor_sources_of_kind.kind
+            );
+            self.process_batch_response(SignWithFactorsOutcome::irrelevant(factor_sources_of_kind));
+            true
+        } else {
+            false
+        }
+    }
+
+    async fn sign_with_factors_of_kind(&self, factor_sources_of_kind: &FactorSourcesOfKind) {
+        info!(
+            "Use(?) #{:?} factors of kind: {:?}",
+            &factor_sources_of_kind.factor_sources().len(),
+            &factor_sources_of_kind.kind
+        );
+
         let interactor = self
             .dependencies
             .interactors
@@ -155,12 +186,7 @@ impl SignaturesCollector {
             SigningInteractor::Parallel(interactor) => {
                 // Prepare the request for the interactor
                 debug!("Creating parallel request for interactor");
-                let request = self.request_for_parallel_interactor(
-                    factor_sources
-                        .into_iter()
-                        .map(|f| f.factor_source_id())
-                        .collect(),
-                );
+                let request = self.request_for_parallel_interactor(factor_sources_of_kind);
                 if !request.invalid_transactions_if_neglected.is_empty() {
                     info!(
                         "If factors {:?} are neglected, invalid TXs: {:?}",
@@ -212,15 +238,13 @@ impl SignaturesCollector {
     /// In decreasing "friction order"
     async fn sign_with_factors(&self) -> Result<()> {
         let factors_of_kind = self.dependencies.factors_of_kind.clone();
-        for factor_sources_of_kind in factors_of_kind.into_iter() {
+        for factor_sources_of_kind in factors_of_kind.iter() {
             if self.continuation() == FinishEarly {
                 break;
             }
-            info!(
-                "Use(?) #{:?} factors of kind: {:?}",
-                &factor_sources_of_kind.factor_sources().len(),
-                &factor_sources_of_kind.kind
-            );
+            if self.neglected_factors_due_to_irrelevant(factor_sources_of_kind) {
+                continue;
+            }
             self.sign_with_factors_of_kind(factor_sources_of_kind).await;
         }
         info!("FINISHED WITH ALL FACTORS");
@@ -250,14 +274,19 @@ impl SignaturesCollector {
                 *factor_source_id,
             ]))
             .into_iter()
-            .collect_vec(),
+            .collect::<IndexSet<_>>(),
         )
     }
 
     fn request_for_parallel_interactor(
         &self,
-        factor_source_ids: IndexSet<FactorSourceIDFromHash>,
+        factor_sources_of_kind: &FactorSourcesOfKind,
     ) -> ParallelBatchSigningRequest {
+        let factor_source_ids = factor_sources_of_kind
+            .factor_sources()
+            .iter()
+            .map(|f| f.factor_source_id())
+            .collect::<IndexSet<_>>();
         let per_factor_source = factor_source_ids
             .clone()
             .iter()
@@ -267,13 +296,12 @@ impl SignaturesCollector {
         let invalid_transactions_if_neglected =
             self.invalid_transactions_if_neglected_factor_sources(factor_source_ids);
 
-        info!(
-            "Invalid if neglected: {:?}",
-            invalid_transactions_if_neglected
-        );
-
         // Prepare the request for the interactor
-        ParallelBatchSigningRequest::new(per_factor_source, invalid_transactions_if_neglected)
+        ParallelBatchSigningRequest::new(
+            factor_sources_of_kind.kind,
+            per_factor_source,
+            invalid_transactions_if_neglected,
+        )
     }
 
     fn invalid_transactions_if_neglected_factor_sources(
@@ -439,6 +467,28 @@ mod tests {
 
         test(WhenAllTransactionsAreValid(FinishEarly), 1).await;
         test(WhenAllTransactionsAreValid(Continue), 2).await;
+    }
+
+    #[test]
+    fn factor_source_kinds_order() {
+        let kinds = HDFactorSource::all()
+            .into_iter()
+            .map(|f| f.factor_source_kind())
+            .collect::<IndexSet<_>>();
+        let mut kinds = kinds.into_iter().collect_vec();
+        kinds.sort();
+        let kinds = kinds.into_iter().collect::<IndexSet<_>>();
+        assert_eq!(
+            kinds,
+            IndexSet::<FactorSourceKind>::from_iter([
+                FactorSourceKind::Ledger,
+                FactorSourceKind::Arculus,
+                FactorSourceKind::Yubikey,
+                FactorSourceKind::SecurityQuestions,
+                FactorSourceKind::OffDeviceMnemonic,
+                FactorSourceKind::Device,
+            ])
+        )
     }
 
     #[test]

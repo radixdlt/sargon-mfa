@@ -219,6 +219,14 @@ impl MatrixOfFactorInstances {
             5,
         )
     }
+    /// Securified { Threshold 1/1 and Override factors #1  }
+    pub fn m8<F>(fi: F) -> Self
+    where
+        F: Fn(FactorSourceIDFromHash) -> HierarchicalDeterministicFactorInstance,
+    {
+        type F = FactorSourceIDFromHash;
+        Self::new([F::fs1()].map(&fi), 1, [F::fs8()].map(&fi))
+    }
 }
 
 impl Account {
@@ -295,6 +303,16 @@ impl Account {
     /// Jenny | 8 | Unsecurified { Device } (fs10)
     pub fn a8() -> Self {
         Self::unsecurified_mainnet(8, "Jenny", FactorSourceIDFromHash::fs10())
+    }
+
+    /// Klara | 9 |  Securified { Threshold 1/1 and Override factors #1  }
+    pub fn a9() -> Self {
+        Self::securified_mainnet(9, "Klara", |idx| {
+            MatrixOfFactorInstances::m8(HierarchicalDeterministicFactorInstance::f(
+                Self::entity_kind(),
+                idx,
+            ))
+        })
     }
 }
 
