@@ -800,6 +800,30 @@ mod signing_tests {
                     vec![tx.intent_hash]
                 )
             }
+
+            #[actix_rt::test]
+            async fn same_tx_is_not_shown_to_user_in_case_of_already_failure() {
+                let factor_sources = HDFactorSource::all();
+                let tx0 = TransactionIntent::new([], []);
+                let tx1 = TransactionIntent::new([], []);
+                let profile = Profile::new(factor_sources.clone(), [], []);
+                let collector = SignaturesCollector::new(
+                    SigningFinishEarlyStrategy::default(),
+                    IndexSet::from_iter([tx0, tx1]),
+                    Arc::new(TestSignatureCollectingInteractors::new(
+                        SimulatedUser::prudent_with_failures(
+                            SimulatedFailures::with_simulated_failures([
+                                FactorSourceIDFromHash::fs0(),
+                            ]),
+                        ),
+                    )),
+                    &profile,
+                )
+                .unwrap();
+
+                let outcome = collector.collect_signatures().await;
+                todo!()
+            }
         }
 
         mod no_fail {

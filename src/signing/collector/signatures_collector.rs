@@ -144,7 +144,20 @@ impl SignaturesCollector {
         Continue
     }
 
-    async fn sign_with_factors_of_kind(&self, factor_sources_of_kind: FactorSourcesOfKind) {
+    fn neglected_factors_due_to_irrelevant(
+        &self,
+        factor_sources_of_kind: &FactorSourcesOfKind,
+    ) -> bool {
+        false
+    }
+
+    async fn sign_with_factors_of_kind(&self, factor_sources_of_kind: &FactorSourcesOfKind) {
+        info!(
+            "Use(?) #{:?} factors of kind: {:?}",
+            &factor_sources_of_kind.factor_sources().len(),
+            &factor_sources_of_kind.kind
+        );
+
         let interactor = self
             .dependencies
             .interactors
@@ -212,15 +225,13 @@ impl SignaturesCollector {
     /// In decreasing "friction order"
     async fn sign_with_factors(&self) -> Result<()> {
         let factors_of_kind = self.dependencies.factors_of_kind.clone();
-        for factor_sources_of_kind in factors_of_kind.into_iter() {
+        for factor_sources_of_kind in factors_of_kind.iter() {
             if self.continuation() == FinishEarly {
                 break;
             }
-            info!(
-                "Use(?) #{:?} factors of kind: {:?}",
-                &factor_sources_of_kind.factor_sources().len(),
-                &factor_sources_of_kind.kind
-            );
+            if self.neglected_factors_due_to_irrelevant(factor_sources_of_kind) {
+                continue;
+            }
             self.sign_with_factors_of_kind(factor_sources_of_kind).await;
         }
         info!("FINISHED WITH ALL FACTORS");
