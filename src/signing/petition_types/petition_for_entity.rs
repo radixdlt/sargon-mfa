@@ -178,22 +178,23 @@ impl PetitionForEntity {
         }
     }
 
-    pub fn invalid_transactions_if_neglected_factors(
+    pub fn invalid_transaction_if_neglected_factors(
         &self,
         factor_source_ids: IndexSet<FactorSourceIDFromHash>,
-    ) -> IndexSet<InvalidTransactionIfNeglected> {
+    ) -> Option<InvalidTransactionIfNeglected> {
         let status_if_neglected = self.status_if_neglected_factors(factor_source_ids);
         match status_if_neglected {
             PetitionFactorsStatus::Finished(finished_reason) => match finished_reason {
                 PetitionFactorsStatusFinished::Fail => {
                     let intent_hash = self.intent_hash.clone();
-                    let invalid_transaction =
-                        InvalidTransactionIfNeglected::new(intent_hash, vec![self.entity.clone()]);
-                    IndexSet::from_iter([invalid_transaction])
+                    Some(InvalidTransactionIfNeglected::new(
+                        intent_hash,
+                        vec![self.entity.clone()],
+                    ))
                 }
-                PetitionFactorsStatusFinished::Success => IndexSet::new(),
+                PetitionFactorsStatusFinished::Success => None,
             },
-            PetitionFactorsStatus::InProgress => IndexSet::new(),
+            PetitionFactorsStatus::InProgress => None,
         }
     }
 
@@ -328,24 +329,17 @@ mod tests {
         let entity = AddressOfAccountOrPersona::Account(AccountAddress::sample());
         let tx = IntentHash::sample_third();
         let sut = Sut::new_securified(tx.clone(), entity.clone(), matrix);
-        let invalid = sut.invalid_transactions_if_neglected_factors(IndexSet::from_iter([
-            d0.factor_source_id(),
-            d1.factor_source_id(),
-        ]));
+        let invalid = sut
+            .invalid_transaction_if_neglected_factors(IndexSet::from_iter([
+                d0.factor_source_id(),
+                d1.factor_source_id(),
+            ]))
+            .unwrap();
+
+        assert_eq!(invalid.clone().intent_hash, tx);
         assert_eq!(
-            invalid
-                .clone()
-                .into_iter()
-                .map(|t| t.intent_hash)
-                .collect_vec(),
-            vec![tx]
-        );
-        assert_eq!(
-            invalid
-                .into_iter()
-                .flat_map(|t| t.entities_which_would_fail_auth().into_iter().collect_vec())
-                .collect_vec(),
-            vec![entity]
+            invalid.entities_which_would_fail_auth(),
+            IndexSet::<_>::from_iter([entity])
         );
     }
 
@@ -366,10 +360,9 @@ mod tests {
         let entity = AddressOfAccountOrPersona::Account(AccountAddress::sample());
         let tx = IntentHash::sample_third();
         let sut = Sut::new_securified(tx.clone(), entity.clone(), matrix);
-        let invalid = sut.invalid_transactions_if_neglected_factors(IndexSet::from_iter([
-            d0.factor_source_id()
-        ]));
-        assert!(invalid.is_empty());
+        let invalid = sut
+            .invalid_transaction_if_neglected_factors(IndexSet::from_iter([d0.factor_source_id()]));
+        assert!(invalid.is_none());
     }
 
     #[test]
@@ -392,24 +385,16 @@ mod tests {
         let entity = AddressOfAccountOrPersona::Account(AccountAddress::sample());
         let tx = IntentHash::sample_third();
         let sut = Sut::new_securified(tx.clone(), entity.clone(), matrix);
-        let invalid = sut.invalid_transactions_if_neglected_factors(IndexSet::from_iter([
-            d0.factor_source_id(),
-            d1.factor_source_id(),
-        ]));
+        let invalid = sut
+            .invalid_transaction_if_neglected_factors(IndexSet::from_iter([
+                d0.factor_source_id(),
+                d1.factor_source_id(),
+            ]))
+            .unwrap();
+        assert_eq!(invalid.clone().intent_hash, tx);
         assert_eq!(
-            invalid
-                .clone()
-                .into_iter()
-                .map(|t| t.intent_hash)
-                .collect_vec(),
-            vec![tx]
-        );
-        assert_eq!(
-            invalid
-                .into_iter()
-                .flat_map(|t| t.entities_which_would_fail_auth().into_iter().collect_vec())
-                .collect_vec(),
-            vec![entity]
+            invalid.entities_which_would_fail_auth(),
+            IndexSet::<_>::from_iter([entity])
         );
     }
 
@@ -434,24 +419,14 @@ mod tests {
         let tx = IntentHash::sample_third();
         let sut = Sut::new_securified(tx.clone(), entity.clone(), matrix);
 
-        let invalid = sut.invalid_transactions_if_neglected_factors(IndexSet::from_iter([
-            d1.factor_source_id()
-        ]));
+        let invalid = sut
+            .invalid_transaction_if_neglected_factors(IndexSet::from_iter([d1.factor_source_id()]))
+            .unwrap();
 
+        assert_eq!(invalid.clone().intent_hash, tx);
         assert_eq!(
-            invalid
-                .clone()
-                .into_iter()
-                .map(|t| t.intent_hash)
-                .collect_vec(),
-            vec![tx]
-        );
-        assert_eq!(
-            invalid
-                .into_iter()
-                .flat_map(|t| t.entities_which_would_fail_auth().into_iter().collect_vec())
-                .collect_vec(),
-            vec![entity]
+            invalid.entities_which_would_fail_auth(),
+            IndexSet::<_>::from_iter([entity])
         );
     }
 
@@ -476,11 +451,10 @@ mod tests {
         let tx = IntentHash::sample_third();
         let sut = Sut::new_securified(tx.clone(), entity.clone(), matrix);
 
-        let invalid = sut.invalid_transactions_if_neglected_factors(IndexSet::from_iter([
-            d1.factor_source_id()
-        ]));
+        let invalid = sut
+            .invalid_transaction_if_neglected_factors(IndexSet::from_iter([d1.factor_source_id()]));
 
-        assert!(invalid.is_empty());
+        assert!(invalid.is_none());
     }
 
     #[test]
@@ -567,8 +541,8 @@ mod tests {
             assert!(sut
                 // Already signed with override factor `FactorSourceIDFromHash::fs1()`. Thus
                 // can skip
-                .invalid_transactions_if_neglected_factors(IndexSet::from_iter([f]))
-                .is_empty())
+                .invalid_transaction_if_neglected_factors(IndexSet::from_iter([f]))
+                .is_none())
         };
         can_skip(FactorSourceIDFromHash::fs0());
         can_skip(FactorSourceIDFromHash::fs3());

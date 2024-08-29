@@ -138,8 +138,8 @@ impl PetitionForTransaction {
         self.for_entities
             .borrow()
             .iter()
-            .flat_map(|(_, petition)| {
-                petition.invalid_transactions_if_neglected_factors(factor_source_ids.clone())
+            .filter_map(|(_, petition)| {
+                petition.invalid_transaction_if_neglected_factors(factor_source_ids.clone())
             })
             .collect()
     }
