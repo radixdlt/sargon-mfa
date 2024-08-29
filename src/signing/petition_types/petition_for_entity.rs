@@ -115,11 +115,11 @@ impl PetitionForEntity {
         self.map_list_then_form_union(|f| f.all_signatures())
     }
 
-    fn with_list<F, T>(list: &Option<RefCell<PetitionForFactors>>, map: F) -> Option<T>
+    fn with_list<F, T>(list: &Option<RefCell<PetitionForFactors>>, r#do: F) -> Option<T>
     where
         F: Fn(&PetitionForFactors) -> T,
     {
-        list.as_ref().map(|refcell| map(&refcell.borrow()))
+        list.as_ref().map(|refcell| r#do(&refcell.borrow()))
     }
 
     fn map_factor_list<F, R>(&self, kind: FactorListKind, r#do: &F) -> Option<R>
