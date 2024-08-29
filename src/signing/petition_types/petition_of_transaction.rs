@@ -131,6 +131,10 @@ impl PetitionTransaction {
         &self,
         factor_source_ids: IndexSet<FactorSourceIDFromHash>,
     ) -> IndexSet<InvalidTransactionIfNeglected> {
+        if self.has_tx_failed() {
+            // No need to display already failed tx.
+            return IndexSet::new();
+        }
         self.for_entities
             .borrow()
             .iter()
