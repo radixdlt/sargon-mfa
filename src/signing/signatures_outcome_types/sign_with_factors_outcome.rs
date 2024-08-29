@@ -10,7 +10,7 @@ pub enum SignWithFactorsOutcome {
     },
 
     /// The factor source got neglected, either due to user explicitly skipping
-    /// or due to failire
+    /// or due to failure
     #[debug("Neglected")]
     Neglected(NeglectedFactors),
 }
@@ -35,5 +35,16 @@ impl SignWithFactorsOutcome {
 
     pub fn user_skipped_factor(id: FactorSourceIDFromHash) -> Self {
         Self::user_skipped_factors(IndexSet::from_iter([id]))
+    }
+
+    pub fn irrelevant(factor_sources_of_kind: &FactorSourcesOfKind) -> Self {
+        Self::Neglected(NeglectedFactors::new(
+            NeglectFactorReason::Irrelevant,
+            factor_sources_of_kind
+                .factor_sources()
+                .into_iter()
+                .map(|f| f.factor_source_id())
+                .collect(),
+        ))
     }
 }

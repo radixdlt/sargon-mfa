@@ -89,10 +89,10 @@ impl PetitionTransaction {
         for_entity.add_signature(signature.clone());
     }
 
-    pub fn neglected_factor_source(&self, neglected: NeglectedFactor) {
+    pub fn neglect_factor_source(&self, neglected: NeglectedFactor) {
         let mut for_entities = self.for_entities.borrow_mut();
         for petition in for_entities.values_mut() {
-            petition.neglected_factor_source_if_relevant(neglected.clone())
+            petition.neglect_factor_source_if_referenced(neglected.clone())
         }
     }
 
@@ -118,6 +118,21 @@ impl PetitionTransaction {
                 petition.invalid_transactions_if_neglected_factors(factor_source_ids.clone())
             })
             .collect()
+    }
+
+    pub(crate) fn should_neglect_factors_due_to_irrelevant(
+        &self,
+        factor_source_ids: IndexSet<FactorSourceIDFromHash>,
+    ) -> bool {
+        self.for_entities
+            .borrow()
+            .values()
+            .cloned()
+            .into_iter()
+            .filter(|p| p.references_any_factor_source(&factor_source_ids))
+            .all(|petition| {
+                petition.should_neglect_factors_due_to_irrelevant(factor_source_ids.clone())
+            })
     }
 
     #[allow(unused)]

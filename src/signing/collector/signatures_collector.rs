@@ -144,11 +144,25 @@ impl SignaturesCollector {
         Continue
     }
 
+    fn should_neglect_factors_due_to_irrelevant(
+        &self,
+        factor_sources_of_kind: &FactorSourcesOfKind,
+    ) -> bool {
+        let state = self.state.borrow();
+        let petitions = state.petitions.borrow();
+        petitions.should_neglect_factors_due_to_irrelevant(factor_sources_of_kind)
+    }
+
     fn neglected_factors_due_to_irrelevant(
         &self,
         factor_sources_of_kind: &FactorSourcesOfKind,
     ) -> bool {
-        false
+        if self.should_neglect_factors_due_to_irrelevant(factor_sources_of_kind) {
+            self.process_batch_response(SignWithFactorsOutcome::irrelevant(factor_sources_of_kind));
+            true
+        } else {
+            false
+        }
     }
 
     async fn sign_with_factors_of_kind(&self, factor_sources_of_kind: &FactorSourcesOfKind) {

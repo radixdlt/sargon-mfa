@@ -143,7 +143,7 @@ impl PetitionEntity {
         self.both(r#do, |_, _| ())
     }
 
-    pub fn neglected_factor_source_if_relevant(&self, neglected: NeglectedFactor) {
+    pub fn neglect_factor_source_if_referenced(&self, neglected: NeglectedFactor) {
         self.both_void(|l| l.neglect_if_references(neglected.clone(), true));
     }
 
@@ -162,6 +162,18 @@ impl PetitionEntity {
                 _ => (),
             }
         })
+    }
+
+    pub(crate) fn should_neglect_factors_due_to_irrelevant(
+        &self,
+        factor_source_ids: IndexSet<FactorSourceIDFromHash>,
+    ) -> bool {
+        assert!(self.references_any_factor_source(&factor_source_ids));
+        match self.status() {
+            PetitionFactorsStatus::Finished(PetitionFactorsStatusFinished::Fail) => true,
+            PetitionFactorsStatus::Finished(PetitionFactorsStatusFinished::Success) => false, // unsure about this...
+            PetitionFactorsStatus::InProgress => false,
+        }
     }
 
     pub fn invalid_transactions_if_neglected_factors(
@@ -190,7 +202,7 @@ impl PetitionEntity {
         let simulation = self.clone();
         for factor_source_id in factor_source_ids.iter() {
             simulation
-                .neglect_if_relevant(
+                .neglect_if_referenced(
                     NeglectedFactor::new(
                         NeglectFactorReason::UserExplicitlySkipped,
                         *factor_source_id,
@@ -202,8 +214,24 @@ impl PetitionEntity {
         simulation.status()
     }
 
-    pub fn neglect_if_relevant(&self, neglected: NeglectedFactor, simulated: bool) -> Result<()> {
-        self.both_void(|p| p.neglect_if_relevant(neglected.clone(), simulated));
+    pub fn references_any_factor_source(
+        &self,
+        factor_source_ids: &IndexSet<FactorSourceIDFromHash>,
+    ) -> bool {
+        factor_source_ids
+            .iter()
+            .any(|f| self.references_factor_source_with_id(f))
+    }
+
+    pub fn references_factor_source_with_id(&self, id: &FactorSourceIDFromHash) -> bool {
+        self.both(
+            |p| p.references_factor_source_with_id(id),
+            |a, b| a.unwrap_or(false) || b.unwrap_or(false),
+        )
+    }
+
+    pub fn neglect_if_referenced(&self, neglected: NeglectedFactor, simulated: bool) -> Result<()> {
+        self.both_void(|p| p.neglect_if_referenced(neglected.clone(), simulated));
         Ok(())
     }
 

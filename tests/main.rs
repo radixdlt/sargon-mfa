@@ -804,6 +804,8 @@ mod signing_tests {
             #[actix_rt::test]
             async fn same_tx_is_not_shown_to_user_in_case_of_already_failure() {
                 let factor_sources = HDFactorSource::all();
+
+                let a = Account::a0();
                 let tx0 = TransactionIntent::new([], []);
                 let tx1 = TransactionIntent::new([], []);
                 let profile = Profile::new(factor_sources.clone(), [], []);
@@ -822,7 +824,14 @@ mod signing_tests {
                 .unwrap();
 
                 let outcome = collector.collect_signatures().await;
-                todo!()
+                assert!(outcome.successful());
+                assert_eq!(
+                    outcome
+                        .ids_of_neglected_factor_sources_irrelevant()
+                        .into_iter()
+                        .collect_vec(),
+                    vec![]
+                );
             }
         }
 

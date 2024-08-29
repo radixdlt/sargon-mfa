@@ -73,7 +73,7 @@ impl PetitionFactors {
         ))
     }
 
-    pub fn neglect_if_relevant(&self, neglected: NeglectedFactor, simulated: bool) {
+    pub fn neglect_if_referenced(&self, neglected: NeglectedFactor, simulated: bool) {
         let factor_source_id = &neglected.factor_source_id();
         if let Some(_x_) = self.reference_to_factor_source_with_id(factor_source_id) {
             debug!(
