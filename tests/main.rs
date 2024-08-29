@@ -804,6 +804,7 @@ mod signing_tests {
             #[ignore = "WIP"]
             #[actix_rt::test]
             async fn same_tx_is_not_shown_to_user_in_case_of_already_failure() {
+                sensible_env_logger::safe_init!();
                 let factor_sources = HDFactorSource::all();
 
                 let a7 = Account::a7();
@@ -812,9 +813,10 @@ mod signing_tests {
                 let tx0 = TransactionIntent::new([a7.entity_address(), a0.entity_address()], []);
                 let tx1 = TransactionIntent::new([a0.entity_address()], []);
 
+                info!("tx0: {:?}", tx0.intent_hash);
+                info!("tx1: {:?}", tx1.intent_hash);
                 let profile = Profile::new(factor_sources.clone(), [&a7, &a0], []);
 
-                sensible_env_logger::safe_init!();
                 let collector = SignaturesCollector::new(
                     SigningFinishEarlyStrategy::default(),
                     IndexSet::from_iter([tx0.clone(), tx1.clone()]),

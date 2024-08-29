@@ -161,6 +161,12 @@ impl Petitions {
             })
     }
 
+    /// # Panics
+    /// Panics if no petition deem usage of `FactorSource` with id
+    /// `factor_source_id` relevant. We SHOULD have checked this already with
+    /// `should_neglect_factors_due_to_irrelevant` from SignatureCollector main
+    /// loop, i.e. we should not have called this method from SignaturesCollector
+    /// if `should_neglect_factors_due_to_irrelevant` returned true.
     pub(crate) fn input_for_interactor(
         &self,
         factor_source_id: &FactorSourceIDFromHash,
@@ -169,6 +175,7 @@ impl Petitions {
             .factor_source_to_intent_hash
             .get(factor_source_id)
             .unwrap();
+
         let per_transaction = intent_hashes
             .into_iter()
             .map(|intent_hash| {

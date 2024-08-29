@@ -19,11 +19,15 @@ impl OwnedFactorInstance {
         &self.value
     }
 
+    pub fn factor_source_id(&self) -> FactorSourceIDFromHash {
+        self.factor_instance().factor_source_id()
+    }
+
     /// Checks if this `OwnedFactorInstance` was created from the factor source
     /// with id `factor_source_id`.
     pub fn by_factor_source(&self, factor_source_id: impl Borrow<FactorSourceIDFromHash>) -> bool {
         let factor_source_id = factor_source_id.borrow();
-        self.factor_instance().factor_source_id == *factor_source_id
+        self.factor_source_id() == *factor_source_id
     }
 }
 

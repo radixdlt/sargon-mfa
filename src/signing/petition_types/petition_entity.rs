@@ -65,10 +65,16 @@ impl PetitionEntity {
         )
     }
 
-    /// Returns `true` signatures requirement has been fulfilled, either by
+    /// Returns `true` if signatures requirement has been fulfilled, either by
     /// override factors or by threshold factors
     pub fn has_signatures_requirement_been_fulfilled(&self) -> bool {
         self.status() == PetitionFactorsStatus::Finished(PetitionFactorsStatusFinished::Success)
+    }
+
+    /// Returns `true` if the transaction of this petition already has failed due
+    /// to too many factors neglected
+    pub fn has_failed(&self) -> bool {
+        self.status() == PetitionFactorsStatus::Finished(PetitionFactorsStatusFinished::Fail)
     }
 
     fn union_of<F, T>(&self, map: F) -> IndexSet<T>

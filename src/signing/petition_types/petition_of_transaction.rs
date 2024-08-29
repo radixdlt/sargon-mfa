@@ -71,13 +71,17 @@ impl PetitionTransaction {
             .collect()
     }
 
-    pub fn all_factor_instances_of_source(
+    pub fn all_relevant_factor_instances_of_source(
         &self,
         factor_source_id: &FactorSourceIDFromHash,
     ) -> IndexSet<OwnedFactorInstance> {
-        self._all_factor_instances()
-            .into_iter()
-            .filter(|f| f.factor_instance().factor_source_id == *factor_source_id)
+        self.for_entities
+            .borrow()
+            .values()
+            .filter(|&p| !p.has_failed())
+            .cloned()
+            .flat_map(|petition| petition.all_factor_instances())
+            .filter(|f| f.factor_source_id() == *factor_source_id)
             .collect()
     }
 
@@ -103,7 +107,7 @@ impl PetitionTransaction {
         BatchKeySigningRequest::new(
             self.intent_hash.clone(),
             *factor_source_id,
-            self.all_factor_instances_of_source(factor_source_id),
+            self.all_relevant_factor_instances_of_source(factor_source_id),
         )
     }
 
@@ -127,9 +131,8 @@ impl PetitionTransaction {
         self.for_entities
             .borrow()
             .values()
+            .filter(|&p| p.references_any_factor_source(&factor_source_ids))
             .cloned()
-            .into_iter()
-            .filter(|p| p.references_any_factor_source(&factor_source_ids))
             .all(|petition| {
                 petition.should_neglect_factors_due_to_irrelevant(factor_source_ids.clone())
             })
