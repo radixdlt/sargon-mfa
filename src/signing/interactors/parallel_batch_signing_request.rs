@@ -11,17 +11,17 @@ pub struct ParallelBatchSigningRequest {
 
     /// A collection of transactions which would be invalid if the user skips
     /// signing with this factor source.
-    pub invalid_transactions_if_skipped: IndexSet<InvalidTransactionIfSkipped>,
+    pub invalid_transactions_if_neglected: IndexSet<InvalidTransactionIfNeglected>,
 }
 
 impl ParallelBatchSigningRequest {
     pub fn new(
         per_factor_source: IndexMap<FactorSourceIDFromHash, BatchTXBatchKeySigningRequest>,
-        invalid_transactions_if_skipped: IndexSet<InvalidTransactionIfSkipped>,
+        invalid_transactions_if_neglected: IndexSet<InvalidTransactionIfNeglected>,
     ) -> Self {
         Self {
             per_factor_source,
-            invalid_transactions_if_skipped,
+            invalid_transactions_if_neglected,
         }
     }
 }

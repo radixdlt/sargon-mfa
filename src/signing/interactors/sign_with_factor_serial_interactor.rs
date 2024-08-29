@@ -16,8 +16,5 @@ use crate::prelude::*;
 /// might not even even allow multiple SecurityQuestionsFactorSources to be used).
 #[async_trait::async_trait]
 pub trait SignWithFactorSerialInteractor {
-    async fn sign(
-        &self,
-        request: SerialBatchSigningRequest,
-    ) -> Result<SignWithFactorSourceOrSourcesOutcome>;
+    async fn sign(&self, request: SerialBatchSigningRequest) -> SignWithFactorsOutcome;
 }

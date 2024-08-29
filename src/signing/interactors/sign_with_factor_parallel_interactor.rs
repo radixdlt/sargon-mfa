@@ -20,8 +20,5 @@ use crate::prelude::*;
 /// Example of a Parallel Batch Signing Driver is that for DeviceFactorSource.
 #[async_trait::async_trait]
 pub trait SignWithFactorParallelInteractor {
-    async fn sign(
-        &self,
-        request: ParallelBatchSigningRequest,
-    ) -> Result<SignWithFactorSourceOrSourcesOutcome>;
+    async fn sign(&self, request: ParallelBatchSigningRequest) -> SignWithFactorsOutcome;
 }

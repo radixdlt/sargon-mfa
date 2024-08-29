@@ -19,16 +19,20 @@ impl IsTestInteractor for TestSigningParallelInteractor {
 
 #[async_trait::async_trait]
 impl SignWithFactorParallelInteractor for TestSigningParallelInteractor {
-    async fn sign(
-        &self,
-        request: ParallelBatchSigningRequest,
-    ) -> Result<SignWithFactorSourceOrSourcesOutcome> {
-        if self.should_simulate_failure(request.per_factor_source.keys().cloned().collect()) {
-            return Err(CommonError::Failure);
+    async fn sign(&self, request: ParallelBatchSigningRequest) -> SignWithFactorsOutcome {
+        let ids = request
+            .per_factor_source
+            .keys()
+            .cloned()
+            .collect::<IndexSet<_>>();
+
+        if self.should_simulate_failure(ids.clone()) {
+            return SignWithFactorsOutcome::failure_with_factors(ids);
         }
+
         match self
             .simulated_user
-            .sign_or_skip(request.invalid_transactions_if_skipped)
+            .sign_or_skip(request.invalid_transactions_if_neglected)
         {
             SigningUserInput::Sign => {
                 let signatures = request
@@ -57,16 +61,10 @@ impl SignWithFactorParallelInteractor for TestSigningParallelInteractor {
                         .collect(),
                 );
 
-                Ok(SignWithFactorSourceOrSourcesOutcome::signed(response))
+                SignWithFactorsOutcome::signed(response)
             }
 
-            SigningUserInput::Skip => Ok(SignWithFactorSourceOrSourcesOutcome::skipped(
-                request
-                    .per_factor_source
-                    .keys()
-                    .cloned()
-                    .collect::<IndexSet<_>>(),
-            )),
+            SigningUserInput::Skip => SignWithFactorsOutcome::user_skipped_factors(ids),
         }
     }
 }

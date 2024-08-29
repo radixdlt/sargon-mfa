@@ -16,7 +16,7 @@ pub(crate) struct Petitions {
     ///
     /// Where A, B, C and D, all use the factor source, e.g. some arculus
     /// card which the user has setup as a factor (source) for all these accounts.
-    pub factor_to_txid: HashMap<FactorSourceIDFromHash, IndexSet<IntentHash>>,
+    pub factor_source_to_intent_hash: HashMap<FactorSourceIDFromHash, IndexSet<IntentHash>>,
 
     /// Lookup from TXID to signatures builders, sorted according to the order of
     /// transactions passed to the SignaturesBuilder.
@@ -44,11 +44,11 @@ impl PetitionsStatus {
 
 impl Petitions {
     pub(crate) fn new(
-        factor_to_txid: HashMap<FactorSourceIDFromHash, IndexSet<IntentHash>>,
+        factor_source_to_intent_hash: HashMap<FactorSourceIDFromHash, IndexSet<IntentHash>>,
         txid_to_petition: IndexMap<IntentHash, PetitionTransaction>,
     ) -> Self {
         Self {
-            factor_to_txid,
+            factor_source_to_intent_hash,
             txid_to_petition: RefCell::new(txid_to_petition),
         }
     }
@@ -57,21 +57,23 @@ impl Petitions {
         let txid_to_petition = self.txid_to_petition.into_inner();
         let mut failed_transactions = MaybeSignedTransactions::empty();
         let mut successful_transactions = MaybeSignedTransactions::empty();
-        let mut skipped_factor_sources = IndexSet::<_>::new();
-        for (txid, petition_of_transaction) in txid_to_petition.into_iter() {
-            let (successful, signatures, skipped) = petition_of_transaction.outcome();
-            if successful {
-                successful_transactions.add_signatures(txid, signatures);
+        let mut neglected_factor_sources = IndexSet::<NeglectedFactor>::new();
+        for (intent_hash, petition_of_transaction) in txid_to_petition.into_iter() {
+            let outcome = petition_of_transaction.outcome();
+            let signatures = outcome.signatures;
+
+            if outcome.transaction_valid {
+                successful_transactions.add_signatures(intent_hash, signatures);
             } else {
-                failed_transactions.add_signatures(txid, signatures);
+                failed_transactions.add_signatures(intent_hash, signatures);
             }
-            skipped_factor_sources.extend(skipped)
+            neglected_factor_sources.extend(outcome.neglected_factors)
         }
 
         SignaturesOutcome::new(
             successful_transactions,
             failed_transactions,
-            skipped_factor_sources,
+            neglected_factor_sources,
         )
     }
 
@@ -112,19 +114,23 @@ impl Petitions {
         PetitionsStatus::InProgressNoneInvalid
     }
 
-    pub fn invalid_transactions_if_skipped_factors(
+    pub fn invalid_transactions_if_neglected_factors(
         &self,
         factor_source_ids: IndexSet<FactorSourceIDFromHash>,
-    ) -> IndexSet<InvalidTransactionIfSkipped> {
+    ) -> IndexSet<InvalidTransactionIfNeglected> {
         factor_source_ids
             .clone()
             .iter()
             .flat_map(|f| {
-                self.factor_to_txid.get(f).unwrap().iter().flat_map(|txid| {
-                    let binding = self.txid_to_petition.borrow();
-                    let value = binding.get(txid).unwrap();
-                    value.invalid_transactions_if_skipped_factors(factor_source_ids.clone())
-                })
+                self.factor_source_to_intent_hash
+                    .get(f)
+                    .unwrap()
+                    .iter()
+                    .flat_map(|intent_hash| {
+                        let binding = self.txid_to_petition.borrow();
+                        let value = binding.get(intent_hash).unwrap();
+                        value.invalid_transactions_if_neglected_factors(factor_source_ids.clone())
+                    })
             })
             .collect::<IndexSet<_>>()
     }
@@ -133,12 +139,15 @@ impl Petitions {
         &self,
         factor_source_id: &FactorSourceIDFromHash,
     ) -> BatchTXBatchKeySigningRequest {
-        let txids = self.factor_to_txid.get(factor_source_id).unwrap();
-        let per_transaction = txids
+        let intent_hashes = self
+            .factor_source_to_intent_hash
+            .get(factor_source_id)
+            .unwrap();
+        let per_transaction = intent_hashes
             .into_iter()
-            .map(|txid| {
+            .map(|intent_hash| {
                 let binding = self.txid_to_petition.borrow();
-                let petition = binding.get(txid).unwrap();
+                let petition = binding.get(intent_hash).unwrap();
                 petition.input_for_interactor(factor_source_id)
             })
             .collect::<IndexSet<BatchKeySigningRequest>>();
@@ -152,18 +161,21 @@ impl Petitions {
         petition.add_signature(signature.clone())
     }
 
-    fn skip_factor_source_with_id(&self, skipped_factor_source_id: &FactorSourceIDFromHash) {
+    fn neglected_factor_source_with_id(&self, neglected: NeglectedFactor) {
         let binding = self.txid_to_petition.borrow();
-        let txids = self.factor_to_txid.get(skipped_factor_source_id).unwrap();
-        txids.into_iter().for_each(|txid| {
-            let petition = binding.get(txid).unwrap();
-            petition.skipped_factor_source(skipped_factor_source_id)
+        let intent_hashes = self
+            .factor_source_to_intent_hash
+            .get(&neglected.factor_source_id())
+            .unwrap();
+        intent_hashes.into_iter().for_each(|intent_hash| {
+            let petition = binding.get(intent_hash).unwrap();
+            petition.neglected_factor_source(neglected.clone())
         });
     }
 
-    pub(crate) fn process_batch_response(&self, response: SignWithFactorSourceOrSourcesOutcome) {
+    pub(crate) fn process_batch_response(&self, response: SignWithFactorsOutcome) {
         match response {
-            SignWithFactorSourceOrSourcesOutcome::Signed {
+            SignWithFactorsOutcome::Signed {
                 produced_signatures,
             } => {
                 for (k, v) in produced_signatures.signatures.clone().iter() {
@@ -175,12 +187,14 @@ impl Petitions {
                     .flatten()
                     .for_each(|s| self.add_signature(s));
             }
-            SignWithFactorSourceOrSourcesOutcome::Skipped {
-                ids_of_skipped_factors_sources,
-            } => {
-                for skipped_factor_source_id in ids_of_skipped_factors_sources.iter() {
-                    info!("Skipped {}", skipped_factor_source_id);
-                    self.skip_factor_source_with_id(skipped_factor_source_id)
+            SignWithFactorsOutcome::Neglected(neglected_factors) => {
+                let reason = neglected_factors.reason;
+                for neglected_factor_source_id in neglected_factors.content.iter() {
+                    info!("Neglected {}", neglected_factor_source_id);
+                    self.neglected_factor_source_with_id(NeglectedFactor::new(
+                        reason,
+                        *neglected_factor_source_id,
+                    ))
                 }
             }
         }
@@ -239,6 +253,6 @@ mod tests {
 
     #[test]
     fn debug() {
-        pretty_assertions::assert_eq!(format!("{:?}", Sut::sample()), "Petitions(TXID(\"dedede\"): PetitionTransaction(for_entities: [PetitionEntity(intent_hash: TXID(\"dedede\"), entity: acco_Grace, \"threshold_factors PetitionFactors(input: PetitionFactorsInput(factors: {\\n    factor_source_id: Device:de, derivation_path: 0/A/tx/0,\\n    factor_source_id: Ledger:1e, derivation_path: 0/A/tx/1,\\n}), state_snapshot: signatures: \\\"\\\", skipped: \\\"\\\")\"\"override_factors PetitionFactors(input: PetitionFactorsInput(factors: {\\n    factor_source_id: Ledger:1e, derivation_path: 0/A/tx/1,\\n}), state_snapshot: signatures: \\\"\\\", skipped: \\\"\\\")\")]))");
+        pretty_assertions::assert_eq!(format!("{:?}", Sut::sample()), "Petitions(TXID(\"dedede\"): PetitionTransaction(for_entities: [PetitionEntity(intent_hash: TXID(\"dedede\"), entity: acco_Grace, \"threshold_factors PetitionFactors(input: PetitionFactorsInput(factors: {\\n    factor_source_id: Device:de, derivation_path: 0/A/tx/0,\\n    factor_source_id: Ledger:1e, derivation_path: 0/A/tx/1,\\n}), state_snapshot: signatures: \\\"\\\", neglected: \\\"\\\")\"\"override_factors PetitionFactors(input: PetitionFactorsInput(factors: {\\n    factor_source_id: Ledger:1e, derivation_path: 0/A/tx/1,\\n}), state_snapshot: signatures: \\\"\\\", neglected: \\\"\\\")\")]))");
     }
 }

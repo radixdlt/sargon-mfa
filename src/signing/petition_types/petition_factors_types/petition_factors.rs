@@ -38,8 +38,8 @@ impl PetitionFactors {
         self.input.factors.clone()
     }
 
-    pub fn all_skipped(&self) -> IndexSet<HierarchicalDeterministicFactorInstance> {
-        self.state.borrow().all_skipped()
+    pub fn all_neglected(&self) -> IndexSet<NeglectedFactorInstance> {
+        self.state.borrow().all_neglected()
     }
 
     pub fn all_signatures(&self) -> IndexSet<HDSignature> {
@@ -73,13 +73,14 @@ impl PetitionFactors {
         ))
     }
 
-    pub fn did_skip_if_relevant(&self, factor_source_id: &FactorSourceIDFromHash, simulated: bool) {
+    pub fn neglect_if_relevant(&self, neglected: NeglectedFactor, simulated: bool) {
+        let factor_source_id = &neglected.factor_source_id();
         if let Some(_x_) = self.reference_to_factor_source_with_id(factor_source_id) {
             debug!(
-                "PetitionFactors = kind {:?} skip factor source with id: {}, simulated: {}",
-                self.factor_list_kind, factor_source_id, simulated
+                "PetitionFactors = kind {:?} neglect factor source with id: {}, reason: {}, simulated: {}",
+                self.factor_list_kind, factor_source_id, neglected.reason, simulated
             );
-            self.did_skip(factor_source_id, simulated)
+            self.neglect(neglected, simulated)
         } else {
             debug!(
                 "PetitionFactors = kind {:?} did not reference factor source with id: {}",
@@ -88,9 +89,13 @@ impl PetitionFactors {
         }
     }
 
-    fn did_skip(&self, factor_source_id: &FactorSourceIDFromHash, simulated: bool) {
-        let factor_instance = self.expect_reference_to_factor_source_with_id(factor_source_id);
-        self.state.borrow_mut().did_skip(factor_instance, simulated);
+    fn neglect(&self, neglected: NeglectedFactor, simulated: bool) {
+        let factor_instance =
+            self.expect_reference_to_factor_source_with_id(&neglected.factor_source_id());
+        self.state.borrow_mut().neglect(
+            &NeglectedFactorInstance::new(neglected.reason, factor_instance.clone()),
+            simulated,
+        );
     }
 
     pub fn has_owned_instance_with_id(&self, owned_factor_instance: &OwnedFactorInstance) -> bool {
@@ -114,7 +119,7 @@ impl PetitionFactors {
     }
 
     /// # Panics
-    /// Panics if this factor source has already been skipped or signed with.
+    /// Panics if this factor source has already been neglected or signed with.
     fn add_signature(&self, signature: &HDSignature) {
         let state = self.state.borrow_mut();
         state.add_signature(signature)
@@ -128,9 +133,9 @@ impl PetitionFactors {
             .is_some()
     }
 
-    pub fn skip_if_references(&self, factor_source_id: &FactorSourceIDFromHash, simulated: bool) {
-        if self.references_factor_source_with_id(factor_source_id) {
-            self.did_skip(factor_source_id, simulated)
+    pub fn neglect_if_references(&self, neglected: NeglectedFactor, simulated: bool) {
+        if self.references_factor_source_with_id(&neglected.factor_source_id()) {
+            self.neglect(neglected, simulated)
         }
     }
 

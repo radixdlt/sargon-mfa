@@ -30,13 +30,6 @@ impl FactorSourcesOfKind {
     pub(crate) fn factor_sources(&self) -> IndexSet<HDFactorSource> {
         self.factor_sources.clone().into_iter().collect()
     }
-
-    pub(crate) fn factor_source_ids(&self) -> Vec<FactorSourceIDFromHash> {
-        self.factor_sources
-            .iter()
-            .map(|f| f.factor_source_id())
-            .collect()
-    }
 }
 
 #[cfg(test)]

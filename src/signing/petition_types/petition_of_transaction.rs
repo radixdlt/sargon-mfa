@@ -33,13 +33,7 @@ impl PetitionTransaction {
     ///
     /// The third value in the tuple `(_, _, IndexSet<FactorSourceIDFromHash>)` contains the
     /// id of all the factor sources which was skipped.
-    pub fn outcome(
-        self,
-    ) -> (
-        bool,
-        IndexSet<HDSignature>,
-        IndexSet<FactorSourceIDFromHash>,
-    ) {
+    pub fn outcome(self) -> PetitionTransactionOutcome {
         let for_entities = self
             .for_entities
             .into_inner()
@@ -47,7 +41,7 @@ impl PetitionTransaction {
             .map(|x| x.to_owned())
             .collect_vec();
 
-        let successful = for_entities
+        let transaction_valid = for_entities
             .iter()
             .all(|b| b.has_signatures_requirement_been_fulfilled());
 
@@ -56,12 +50,17 @@ impl PetitionTransaction {
             .flat_map(|x| x.all_signatures())
             .collect::<IndexSet<_>>();
 
-        let skipped = for_entities
+        let neglected_factors = for_entities
             .iter()
-            .flat_map(|x| x.all_skipped_factor_sources())
-            .collect::<IndexSet<_>>();
+            .flat_map(|x| x.all_neglected_factor_sources())
+            .collect::<IndexSet<NeglectedFactor>>();
 
-        (successful, signatures, skipped)
+        PetitionTransactionOutcome::new(
+            transaction_valid,
+            self.intent_hash.clone(),
+            signatures,
+            neglected_factors,
+        )
     }
 
     fn _all_factor_instances(&self) -> IndexSet<OwnedFactorInstance> {
@@ -90,10 +89,10 @@ impl PetitionTransaction {
         for_entity.add_signature(signature.clone());
     }
 
-    pub fn skipped_factor_source(&self, factor_source_id: &FactorSourceIDFromHash) {
+    pub fn neglected_factor_source(&self, neglected: NeglectedFactor) {
         let mut for_entities = self.for_entities.borrow_mut();
         for petition in for_entities.values_mut() {
-            petition.skipped_factor_source_if_relevant(factor_source_id)
+            petition.neglected_factor_source_if_relevant(neglected.clone())
         }
     }
 
@@ -108,15 +107,15 @@ impl PetitionTransaction {
         )
     }
 
-    pub fn invalid_transactions_if_skipped_factors(
+    pub fn invalid_transactions_if_neglected_factors(
         &self,
         factor_source_ids: IndexSet<FactorSourceIDFromHash>,
-    ) -> IndexSet<InvalidTransactionIfSkipped> {
+    ) -> IndexSet<InvalidTransactionIfNeglected> {
         self.for_entities
             .borrow()
             .iter()
             .flat_map(|(_, petition)| {
-                petition.invalid_transactions_if_skipped_factors(factor_source_ids.clone())
+                petition.invalid_transactions_if_neglected_factors(factor_source_ids.clone())
             })
             .collect()
     }
@@ -190,6 +189,6 @@ mod tests {
 
     #[test]
     fn debug() {
-        assert_eq!(format!("{:?}", Sut::sample()), "PetitionTransaction(for_entities: [PetitionEntity(intent_hash: TXID(\"dedede\"), entity: acco_Grace, \"threshold_factors PetitionFactors(input: PetitionFactorsInput(factors: {\\n    factor_source_id: Device:de, derivation_path: 0/A/tx/0,\\n    factor_source_id: Ledger:1e, derivation_path: 0/A/tx/1,\\n}), state_snapshot: signatures: \\\"\\\", skipped: \\\"\\\")\"\"override_factors PetitionFactors(input: PetitionFactorsInput(factors: {\\n    factor_source_id: Ledger:1e, derivation_path: 0/A/tx/1,\\n}), state_snapshot: signatures: \\\"\\\", skipped: \\\"\\\")\")])");
+        assert_eq!(format!("{:?}", Sut::sample()), "PetitionTransaction(for_entities: [PetitionEntity(intent_hash: TXID(\"dedede\"), entity: acco_Grace, \"threshold_factors PetitionFactors(input: PetitionFactorsInput(factors: {\\n    factor_source_id: Device:de, derivation_path: 0/A/tx/0,\\n    factor_source_id: Ledger:1e, derivation_path: 0/A/tx/1,\\n}), state_snapshot: signatures: \\\"\\\", neglected: \\\"\\\")\"\"override_factors PetitionFactors(input: PetitionFactorsInput(factors: {\\n    factor_source_id: Ledger:1e, derivation_path: 0/A/tx/1,\\n}), state_snapshot: signatures: \\\"\\\", neglected: \\\"\\\")\")])");
     }
 }

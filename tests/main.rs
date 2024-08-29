@@ -639,7 +639,7 @@ mod signing_tests {
         struct Expected {
             successful_txs_signature_count: usize,
             signed_factor_source_kinds: IndexSet<FactorSourceKind>,
-            expected_skipped_factor_source_count: usize,
+            expected_neglected_factor_source_count: usize,
         }
         async fn multi_securified_entities_with_sim_user(vector: Vector) {
             let factor_sources = &HDFactorSource::all();
@@ -677,8 +677,8 @@ mod signing_tests {
             let outcome = collector.collect_signatures().await;
 
             assert_eq!(
-                outcome.skipped_factor_sources().len(),
-                vector.expected.expected_skipped_factor_source_count
+                outcome.neglected_factor_sources().len(),
+                vector.expected.expected_neglected_factor_source_count
             );
 
             assert!(outcome.successful());
@@ -730,7 +730,7 @@ mod signing_tests {
                             FactorSourceKind::Arculus,
                             FactorSourceKind::Yubikey,
                         ]),
-                        expected_skipped_factor_source_count: 1,
+                        expected_neglected_factor_source_count: 1,
                     },
                 })
                 .await;
@@ -738,6 +738,7 @@ mod signing_tests {
 
             #[actix_rt::test]
             async fn many_failing_tx() {
+                sensible_env_logger::safe_init!();
                 let factor_sources = &HDFactorSource::all();
                 let a0 = &Account::a0();
                 let p3 = &Persona::p3();
@@ -777,6 +778,18 @@ mod signing_tests {
                         .map(|t| t.intent_hash.clone())
                         .collect_vec()
                 );
+
+                assert_eq!(
+                    outcome
+                        .ids_of_neglected_factor_sources_failed()
+                        .into_iter()
+                        .collect_vec(),
+                    vec![FactorSourceIDFromHash::fs0()]
+                );
+
+                assert!(outcome
+                    .ids_of_neglected_factor_sources_skipped_by_user()
+                    .is_empty());
 
                 assert_eq!(
                     outcome
@@ -820,7 +833,7 @@ mod signing_tests {
                             FactorSourceKind::Arculus,
                             FactorSourceKind::Yubikey,
                         ]),
-                        expected_skipped_factor_source_count: 0,
+                        expected_neglected_factor_source_count: 0,
                     },
                 })
                 .await;
@@ -836,7 +849,7 @@ mod signing_tests {
                             FactorSourceKind::Yubikey,
                             FactorSourceKind::Device,
                         ]),
-                        expected_skipped_factor_source_count: 2,
+                        expected_neglected_factor_source_count: 2,
                     },
                 })
                 .await;
@@ -1101,7 +1114,7 @@ mod signing_tests {
                 );
 
                 assert_eq!(
-                    outcome.skipped_factor_sources(),
+                    outcome.ids_of_neglected_factor_sources(),
                     IndexSet::just(FactorSourceIDFromHash::fs1())
                 )
             }
@@ -1144,7 +1157,7 @@ mod signing_tests {
                 assert!(signatures.is_empty());
             }
 
-            async fn fail_get_skipped_e0<E: IsEntity>() {
+            async fn fail_get_neglected_e0<E: IsEntity>() {
                 let failing = IndexSet::<_>::from_iter([FactorSourceIDFromHash::fs0()]);
                 let collector = SignaturesCollector::test_prudent_with_failures(
                     [TXToSign::new([E::e0()])],
@@ -1152,8 +1165,8 @@ mod signing_tests {
                 );
                 let outcome = collector.collect_signatures().await;
                 assert!(!outcome.successful());
-                let skipped = outcome.skipped_factor_sources();
-                assert_eq!(skipped, failing);
+                let neglected = outcome.ids_of_neglected_factor_sources();
+                assert_eq!(neglected, failing);
             }
 
             async fn lazy_always_skip_user_single_tx_e1<E: IsEntity>() {
@@ -1226,6 +1239,40 @@ mod signing_tests {
                 );
                 let outcome = collector.collect_signatures().await;
                 assert!(!outcome.successful());
+                assert_eq!(
+                    outcome
+                        .ids_of_neglected_factor_sources_failed()
+                        .into_iter()
+                        .collect_vec(),
+                    vec![FactorSourceIDFromHash::fs0()]
+                );
+                assert!(outcome
+                    .ids_of_neglected_factor_sources_skipped_by_user()
+                    .is_empty())
+            }
+
+            async fn failure_e5<E: IsEntity>() {
+                let collector = SignaturesCollector::new_test(
+                    SigningFinishEarlyStrategy::r#continue(),
+                    HDFactorSource::all(),
+                    [TXToSign::new([E::e5()])],
+                    SimulatedUser::prudent_with_failures(
+                        SimulatedFailures::with_simulated_failures([FactorSourceIDFromHash::fs4()]),
+                    ),
+                );
+
+                let outcome = collector.collect_signatures().await;
+                assert!(outcome.successful());
+                assert_eq!(
+                    outcome
+                        .ids_of_neglected_factor_sources_failed()
+                        .into_iter()
+                        .collect_vec(),
+                    vec![FactorSourceIDFromHash::fs4()]
+                );
+                assert!(outcome
+                    .ids_of_neglected_factor_sources_skipped_by_user()
+                    .is_empty());
             }
 
             async fn building_can_succeed_even_if_one_factor_source_fails_assert_ids_of_successful_tx_e4<
@@ -1260,7 +1307,7 @@ mod signing_tests {
                 let outcome = collector.collect_signatures().await;
                 assert!(outcome.successful());
                 assert_eq!(
-                    outcome.skipped_factor_sources(),
+                    outcome.ids_of_neglected_factor_sources(),
                     IndexSet::<_>::from_iter([FactorSourceIDFromHash::fs3()])
                 );
             }
@@ -1383,7 +1430,7 @@ mod signing_tests {
 
                 #[actix_rt::test]
                 async fn fail_get_skipped_a0() {
-                    fail_get_skipped_e0::<E>().await
+                    fail_get_neglected_e0::<E>().await
                 }
 
                 #[actix_rt::test]
@@ -1422,8 +1469,13 @@ mod signing_tests {
                 }
 
                 #[actix_rt::test]
-                async fn failure() {
+                async fn failure_a0() {
                     failure_e0::<E>().await
+                }
+
+                #[actix_rt::test]
+                async fn failure_a5() {
+                    failure_e5::<E>().await
                 }
 
                 #[actix_rt::test]
@@ -1558,7 +1610,7 @@ mod signing_tests {
 
                 #[actix_rt::test]
                 async fn fail_get_skipped_p0() {
-                    fail_get_skipped_e0::<E>().await
+                    fail_get_neglected_e0::<E>().await
                 }
 
                 #[actix_rt::test]
@@ -1597,8 +1649,13 @@ mod signing_tests {
                 }
 
                 #[actix_rt::test]
-                async fn failure() {
+                async fn failure_p0() {
                     failure_e0::<E>().await
+                }
+
+                #[actix_rt::test]
+                async fn failure_p5() {
+                    failure_e5::<E>().await
                 }
 
                 #[actix_rt::test]

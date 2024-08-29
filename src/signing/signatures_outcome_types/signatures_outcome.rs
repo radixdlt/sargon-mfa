@@ -19,8 +19,9 @@ pub struct SignaturesOutcome {
     /// Potentially empty
     failed_transactions: MaybeSignedTransactions,
 
-    /// List of ids of all factor sources which failed.
-    skipped_factor_sources: IndexSet<FactorSourceIDFromHash>,
+    /// List of all neglected factor sources, either explicitly skipped by user or
+    /// implicitly neglected due to failure.
+    neglected_factor_sources: IndexSet<NeglectedFactor>,
 }
 
 impl SignaturesOutcome {
@@ -30,14 +31,18 @@ impl SignaturesOutcome {
     pub fn new(
         successful_transactions: MaybeSignedTransactions,
         failed_transactions: MaybeSignedTransactions,
-        skipped_factor_sources: impl IntoIterator<Item = FactorSourceIDFromHash>,
+        neglected_factor_sources: impl IntoIterator<Item = NeglectedFactor>,
     ) -> Self {
-        let skipped_factor_sources = skipped_factor_sources.into_iter().collect::<IndexSet<_>>();
+        let neglected_factor_sources = neglected_factor_sources
+            .into_iter()
+            .collect::<IndexSet<_>>();
+
         let successful_hashes: IndexSet<IntentHash> = successful_transactions
             .transactions
             .keys()
             .cloned()
             .collect();
+
         let failure_hashes: IndexSet<IntentHash> =
             failed_transactions.transactions.keys().cloned().collect();
 
@@ -51,10 +56,12 @@ impl SignaturesOutcome {
             "Discrepancy, found intent hash in both successful and failed transactions, this is a programmer error."
         );
 
+        assert!(failed_transactions.is_empty() || !neglected_factor_sources.is_empty(), "Discrepancy, found failed transactions but no neglected factor sources, this is a programmer error.");
+
         Self {
             successful_transactions,
             failed_transactions,
-            skipped_factor_sources,
+            neglected_factor_sources,
         }
     }
 
@@ -74,8 +81,35 @@ impl SignaturesOutcome {
         self.failed_transactions.clone().transactions()
     }
 
-    pub fn skipped_factor_sources(&self) -> IndexSet<FactorSourceIDFromHash> {
-        self.skipped_factor_sources.clone()
+    pub fn neglected_factor_sources(&self) -> IndexSet<NeglectedFactor> {
+        self.neglected_factor_sources.clone()
+    }
+
+    fn ids_of_neglected_factor_sources_filter(
+        &self,
+        filter: fn(&NeglectedFactor) -> bool,
+    ) -> IndexSet<FactorSourceIDFromHash> {
+        self.neglected_factor_sources()
+            .into_iter()
+            .filter(filter)
+            .map(|n| n.factor_source_id())
+            .collect()
+    }
+
+    pub fn ids_of_neglected_factor_sources(&self) -> IndexSet<FactorSourceIDFromHash> {
+        self.ids_of_neglected_factor_sources_filter(|_| true)
+    }
+
+    pub fn ids_of_neglected_factor_sources_skipped_by_user(
+        &self,
+    ) -> IndexSet<FactorSourceIDFromHash> {
+        self.ids_of_neglected_factor_sources_filter(|nf| {
+            nf.reason == NeglectFactorReason::UserExplicitlySkipped
+        })
+    }
+
+    pub fn ids_of_neglected_factor_sources_failed(&self) -> IndexSet<FactorSourceIDFromHash> {
+        self.ids_of_neglected_factor_sources_filter(|nf| nf.reason == NeglectFactorReason::Failure)
     }
 
     pub fn signatures_of_failed_transactions(&self) -> IndexSet<HDSignature> {
@@ -104,6 +138,18 @@ mod tests {
     fn new_panics_if_intent_hash_is_in_both_failed_and_success_collection() {
         Sut::new(
             MaybeSignedTransactions::sample(),
+            MaybeSignedTransactions::sample(),
+            [],
+        );
+    }
+
+    #[test]
+    #[should_panic(
+        expected = "Discrepancy, found failed transactions but no neglected factor sources, this is a programmer error."
+    )]
+    fn new_panics_if_failed_tx_is_not_empty_but_neglected_is() {
+        Sut::new(
+            MaybeSignedTransactions::empty(),
             MaybeSignedTransactions::sample(),
             [],
         );

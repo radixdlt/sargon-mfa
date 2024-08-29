@@ -4,14 +4,16 @@ use super::*;
 use crate::prelude::*;
 
 /// Mutable state of `PetitionFactors`, keeping track of which factors that
-/// have either signed or been skipped.
-#[derive(Clone, PartialEq, Eq, Debug)]
+/// have either signed or been neglected.
+#[derive(Clone, PartialEq, Eq, derive_more::Debug)]
+#[debug("PetitionFactorsState(signed: {:?}, neglected: {:?})", signed.borrow().clone(), neglected.borrow().clone())]
 pub struct PetitionFactorsState {
     /// Factors that have signed.
     signed: RefCell<PetitionFactorsSubState<HDSignature>>,
 
-    /// Factors that user skipped.
-    skipped: RefCell<PetitionFactorsSubState<HierarchicalDeterministicFactorInstance>>,
+    /// Neglected factors, either due to user explicitly skipping, or due
+    /// implicitly neglected to failure.
+    neglected: RefCell<PetitionFactorsSubState<NeglectedFactorInstance>>,
 }
 
 impl PetitionFactorsState {
@@ -19,15 +21,13 @@ impl PetitionFactorsState {
     pub(super) fn new() -> Self {
         Self {
             signed: RefCell::new(PetitionFactorsSubState::<_>::new()),
-            skipped: RefCell::new(PetitionFactorsSubState::<_>::new()),
+            neglected: RefCell::new(PetitionFactorsSubState::<_>::new()),
         }
     }
 
-    /// A reference to the skipped factors so far.
-    pub(super) fn skipped(
-        &self,
-    ) -> Ref<PetitionFactorsSubState<HierarchicalDeterministicFactorInstance>> {
-        self.skipped.borrow()
+    /// A reference to the neglected factors so far.
+    pub(super) fn neglected(&self) -> Ref<PetitionFactorsSubState<NeglectedFactorInstance>> {
+        self.neglected.borrow()
     }
 
     /// A reference to the factors which have been signed with so far.
@@ -40,13 +40,13 @@ impl PetitionFactorsState {
         self.signed().snapshot()
     }
 
-    /// A set factors have been skipped so far.
-    pub fn all_skipped(&self) -> IndexSet<HierarchicalDeterministicFactorInstance> {
-        self.skipped().snapshot()
+    /// A set factors have been neglected so far.
+    pub fn all_neglected(&self) -> IndexSet<NeglectedFactorInstance> {
+        self.neglected().snapshot()
     }
 
     /// # Panics
-    /// Panics if this factor source has already been skipped or signed with.
+    /// Panics if this factor source has already been neglected or signed with.
     fn assert_not_referencing_factor_source(&self, factor_source_id: FactorSourceIDFromHash) {
         assert!(
             !self.references_factor_source_by_id(factor_source_id),
@@ -56,35 +56,31 @@ impl PetitionFactorsState {
     }
 
     /// # Panics
-    /// Panics if this factor source has already been skipped or signed and
+    /// Panics if this factor source has already been neglected or signed and
     /// this is not a simulation.
-    pub(crate) fn did_skip(
-        &self,
-        factor_instance: &HierarchicalDeterministicFactorInstance,
-        simulated: bool,
-    ) {
+    pub(crate) fn neglect(&self, neglected: &NeglectedFactorInstance, simulated: bool) {
         if !simulated {
-            self.assert_not_referencing_factor_source(factor_instance.factor_source_id);
+            self.assert_not_referencing_factor_source(neglected.factor_source_id());
         }
-        self.skipped.borrow_mut().insert(factor_instance);
+        self.neglected.borrow_mut().insert(neglected);
     }
 
     /// # Panics
-    /// Panics if this factor source has already been skipped or signed with.
+    /// Panics if this factor source has already been neglected or signed with.
     pub(crate) fn add_signature(&self, signature: &HDSignature) {
         self.assert_not_referencing_factor_source(signature.factor_source_id());
         self.signed.borrow_mut().insert(signature)
     }
 
     pub(super) fn snapshot(&self) -> PetitionFactorsStateSnapshot {
-        PetitionFactorsStateSnapshot::new(self.signed().snapshot(), self.skipped().snapshot())
+        PetitionFactorsStateSnapshot::new(self.signed().snapshot(), self.neglected().snapshot())
     }
 
     fn references_factor_source_by_id(&self, factor_source_id: FactorSourceIDFromHash) -> bool {
         self.signed()
             .references_factor_source_by_id(factor_source_id)
             || self
-                .skipped()
+                .neglected()
                 .references_factor_source_by_id(factor_source_id)
     }
 }
@@ -96,13 +92,25 @@ mod tests {
 
     type Sut = PetitionFactorsState;
 
+    impl PetitionFactorsState {
+        fn skip(&self, id: &HierarchicalDeterministicFactorInstance, simulated: bool) {
+            self.neglect(
+                &NeglectedFactorInstance::new(
+                    NeglectFactorReason::UserExplicitlySkipped,
+                    id.clone(),
+                ),
+                simulated,
+            )
+        }
+    }
+
     #[test]
     #[should_panic]
     fn skipping_twice_panics() {
         let sut = Sut::new();
         let fi = HierarchicalDeterministicFactorInstance::sample();
-        sut.did_skip(&fi, false);
-        sut.did_skip(&fi, false);
+        sut.skip(&fi, false);
+        sut.skip(&fi, false);
     }
 
     #[test]
@@ -133,7 +141,7 @@ mod tests {
 
         sut.add_signature(&signature);
 
-        sut.did_skip(&factor_instance, false);
+        sut.skip(&factor_instance, false);
     }
 
     #[test]
@@ -147,7 +155,7 @@ mod tests {
             FactorSourceIDFromHash::fs0(),
         );
 
-        sut.did_skip(&factor_instance, false);
+        sut.skip(&factor_instance, false);
 
         let sign_input = HDSignatureInput::new(
             intent_hash,
