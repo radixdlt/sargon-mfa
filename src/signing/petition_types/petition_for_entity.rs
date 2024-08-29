@@ -2,10 +2,10 @@ use crate::prelude::*;
 
 /// Petition of signatures from an entity in a transaction.
 /// Essentially a wrapper around a tuple
-/// `{ threshold: PetitionFactors, override: PetitionFactors }`
+/// `{ threshold: PetitionForFactors, override: PetitionForFactors }`
 #[derive(Clone, PartialEq, Eq, derive_more::Debug)]
 #[debug("{}", self.debug_str())]
-pub struct PetitionEntity {
+pub struct PetitionForEntity {
     /// The owner of these factors
     pub entity: AddressOfAccountOrPersona,
 
@@ -13,18 +13,18 @@ pub struct PetitionEntity {
     pub intent_hash: IntentHash,
 
     /// Petition with threshold factors
-    pub threshold_factors: Option<RefCell<PetitionFactors>>,
+    pub threshold_factors: Option<RefCell<PetitionForFactors>>,
 
     /// Petition with override factors
-    pub override_factors: Option<RefCell<PetitionFactors>>,
+    pub override_factors: Option<RefCell<PetitionForFactors>>,
 }
 
-impl PetitionEntity {
+impl PetitionForEntity {
     pub fn new(
         intent_hash: IntentHash,
         entity: AddressOfAccountOrPersona,
-        threshold_factors: impl Into<Option<PetitionFactors>>,
-        override_factors: impl Into<Option<PetitionFactors>>,
+        threshold_factors: impl Into<Option<PetitionForFactors>>,
+        override_factors: impl Into<Option<PetitionForFactors>>,
     ) -> Self {
         let threshold_factors = threshold_factors.into();
         let override_factors = override_factors.into();
@@ -47,8 +47,8 @@ impl PetitionEntity {
         Self::new(
             intent_hash,
             entity,
-            PetitionFactors::new_threshold(matrix.threshold_factors, matrix.threshold as i8),
-            PetitionFactors::new_override(matrix.override_factors),
+            PetitionForFactors::new_threshold(matrix.threshold_factors, matrix.threshold as i8),
+            PetitionForFactors::new_override(matrix.override_factors),
         )
     }
 
@@ -60,7 +60,7 @@ impl PetitionEntity {
         Self::new(
             intent_hash,
             entity,
-            PetitionFactors::new_unsecurified(instance),
+            PetitionForFactors::new_unsecurified(instance),
             None,
         )
     }
@@ -80,7 +80,7 @@ impl PetitionEntity {
     fn union_of<F, T>(&self, map: F) -> IndexSet<T>
     where
         T: Eq + std::hash::Hash + Clone,
-        F: Fn(&PetitionFactors) -> IndexSet<T>,
+        F: Fn(&PetitionForFactors) -> IndexSet<T>,
     {
         self.both(
             |l| map(l),
@@ -115,16 +115,16 @@ impl PetitionEntity {
         self.union_of(|f| f.all_signatures())
     }
 
-    fn with_list<F, T>(list: &Option<RefCell<PetitionFactors>>, map: F) -> Option<T>
+    fn with_list<F, T>(list: &Option<RefCell<PetitionForFactors>>, map: F) -> Option<T>
     where
-        F: Fn(&PetitionFactors) -> T,
+        F: Fn(&PetitionForFactors) -> T,
     {
         list.as_ref().map(|refcell| map(&refcell.borrow()))
     }
 
     fn on_list<F, R>(&self, kind: FactorListKind, r#do: &F) -> Option<R>
     where
-        F: Fn(&PetitionFactors) -> R,
+        F: Fn(&PetitionForFactors) -> R,
     {
         match kind {
             FactorListKind::Threshold => Self::with_list(&self.threshold_factors, r#do),
@@ -134,7 +134,7 @@ impl PetitionEntity {
 
     fn both<F, C, T, R>(&self, r#do: F, combine: C) -> R
     where
-        F: Fn(&PetitionFactors) -> T,
+        F: Fn(&PetitionForFactors) -> T,
         C: Fn(Option<T>, Option<T>) -> R,
     {
         let t = self.on_list(FactorListKind::Threshold, &r#do);
@@ -144,7 +144,7 @@ impl PetitionEntity {
 
     fn both_void<F, R>(&self, r#do: F)
     where
-        F: Fn(&PetitionFactors) -> R,
+        F: Fn(&PetitionForFactors) -> R,
     {
         self.both(r#do, |_, _| ())
     }
@@ -282,7 +282,7 @@ impl PetitionEntity {
     }
 }
 
-impl PetitionEntity {
+impl PetitionForEntity {
     fn from_entity(entity: impl Into<AccountOrPersona>, intent_hash: IntentHash) -> Self {
         let entity = entity.into();
         match entity.security_state() {
@@ -296,7 +296,7 @@ impl PetitionEntity {
     }
 }
 
-impl HasSampleValues for PetitionEntity {
+impl HasSampleValues for PetitionForEntity {
     fn sample() -> Self {
         Self::from_entity(Account::sample_securified(), IntentHash::sample())
     }
@@ -309,7 +309,7 @@ impl HasSampleValues for PetitionEntity {
 #[cfg(test)]
 mod tests {
     use super::*;
-    type Sut = PetitionEntity;
+    type Sut = PetitionForEntity;
 
     #[test]
     fn multiple_device_as_override_skipped_both_is_invalid() {
@@ -485,7 +485,7 @@ mod tests {
 
     #[test]
     fn debug() {
-        pretty_assertions::assert_eq!(format!("{:?}", Sut::sample()), "intent_hash: TXID(\"dedede\"), entity: acco_Grace, \"threshold_factors PetitionFactors(input: PetitionFactorsInput(factors: {\\n    factor_source_id: Device:00, derivation_path: 0/A/tx/6,\\n    factor_source_id: Arculus:03, derivation_path: 0/A/tx/6,\\n    factor_source_id: Yubikey:05, derivation_path: 0/A/tx/6,\\n}), state_snapshot: signatures: \\\"\\\", neglected: \\\"\\\")\"\"override_factors PetitionFactors(input: PetitionFactorsInput(factors: {\\n    factor_source_id: Ledger:01, derivation_path: 0/A/tx/6,\\n    factor_source_id: Arculus:04, derivation_path: 0/A/tx/6,\\n}), state_snapshot: signatures: \\\"\\\", neglected: \\\"\\\")\"");
+        pretty_assertions::assert_eq!(format!("{:?}", Sut::sample()), "intent_hash: TXID(\"dedede\"), entity: acco_Grace, \"threshold_factors PetitionForFactors(input: PetitionFactorsInput(factors: {\\n    factor_source_id: Device:00, derivation_path: 0/A/tx/6,\\n    factor_source_id: Arculus:03, derivation_path: 0/A/tx/6,\\n    factor_source_id: Yubikey:05, derivation_path: 0/A/tx/6,\\n}), state_snapshot: signatures: \\\"\\\", neglected: \\\"\\\")\"\"override_factors PetitionForFactors(input: PetitionFactorsInput(factors: {\\n    factor_source_id: Ledger:01, derivation_path: 0/A/tx/6,\\n    factor_source_id: Arculus:04, derivation_path: 0/A/tx/6,\\n}), state_snapshot: signatures: \\\"\\\", neglected: \\\"\\\")\"");
     }
 
     #[test]

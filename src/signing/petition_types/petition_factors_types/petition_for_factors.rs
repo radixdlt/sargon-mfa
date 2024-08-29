@@ -4,7 +4,7 @@ use crate::prelude::*;
 /// Petition of signatures from a factors list of an entity in a transaction.
 #[derive(Clone, PartialEq, Eq, derive_more::Debug)]
 #[debug("{}", self.debug_str())]
-pub struct PetitionFactors {
+pub struct PetitionForFactors {
     pub factor_list_kind: FactorListKind,
 
     /// Factors to sign with and the required number of them.
@@ -12,7 +12,7 @@ pub struct PetitionFactors {
     state: RefCell<PetitionFactorsState>,
 }
 
-impl HasSampleValues for PetitionFactors {
+impl HasSampleValues for PetitionForFactors {
     fn sample() -> Self {
         Self::new(FactorListKind::Threshold, PetitionFactorsInput::sample())
     }
@@ -25,7 +25,7 @@ impl HasSampleValues for PetitionFactors {
     }
 }
 
-impl PetitionFactors {
+impl PetitionForFactors {
     pub fn new(factor_list_kind: FactorListKind, input: PetitionFactorsInput) -> Self {
         Self {
             factor_list_kind,
@@ -77,13 +77,13 @@ impl PetitionFactors {
         let factor_source_id = &neglected.factor_source_id();
         if let Some(_x_) = self.reference_to_factor_source_with_id(factor_source_id) {
             debug!(
-                "PetitionFactors = kind {:?} neglect factor source with id: {}, reason: {}",
+                "PetitionForFactors = kind {:?} neglect factor source with id: {}, reason: {}",
                 self.factor_list_kind, factor_source_id, neglected.reason
             );
             self.neglect(neglected)
         } else {
             debug!(
-                "PetitionFactors = kind {:?} did not reference factor source with id: {}",
+                "PetitionForFactors = kind {:?} did not reference factor source with id: {}",
                 self.factor_list_kind, factor_source_id
             );
         }
@@ -189,7 +189,7 @@ impl PetitionFactors {
 
     pub fn debug_str(&self) -> String {
         format!(
-            "PetitionFactors(input: {:#?}, state_snapshot: {:#?})",
+            "PetitionForFactors(input: {:#?}, state_snapshot: {:#?})",
             self.input,
             self.state_snapshot()
         )
