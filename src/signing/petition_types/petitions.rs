@@ -178,10 +178,14 @@ impl Petitions {
 
         let per_transaction = intent_hashes
             .into_iter()
-            .map(|intent_hash| {
+            .filter_map(|intent_hash| {
                 let binding = self.txid_to_petition.borrow();
                 let petition = binding.get(intent_hash).unwrap();
-                petition.input_for_interactor(factor_source_id)
+                if petition.has_tx_failed() {
+                    None
+                } else {
+                    Some(petition.input_for_interactor(factor_source_id))
+                }
             })
             .collect::<IndexSet<BatchKeySigningRequest>>();
 

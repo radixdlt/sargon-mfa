@@ -1,7 +1,7 @@
 use crate::prelude::*;
 
 /// A list of entities which would fail in a transaction if we would
-/// neglect certain factor source, either by user explictlty skipping
+/// neglect certain factor source, either by user explicitly skipping
 /// it or if implicitly neglected due to failure.
 #[derive(Clone, Debug, PartialEq, Eq, std::hash::Hash)]
 pub struct InvalidTransactionIfNeglected {

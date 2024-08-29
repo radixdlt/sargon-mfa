@@ -296,11 +296,6 @@ impl SignaturesCollector {
         let invalid_transactions_if_neglected =
             self.invalid_transactions_if_neglected_factor_sources(factor_source_ids);
 
-        info!(
-            "Invalid if neglected: {:?}",
-            invalid_transactions_if_neglected
-        );
-
         // Prepare the request for the interactor
         ParallelBatchSigningRequest::new(per_factor_source, invalid_transactions_if_neglected)
     }

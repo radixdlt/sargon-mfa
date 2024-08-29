@@ -71,14 +71,27 @@ impl PetitionTransaction {
             .collect()
     }
 
+    pub fn has_tx_failed(&self) -> bool {
+        self.for_entities.borrow().values().any(|p| p.has_failed())
+    }
+
     pub fn all_relevant_factor_instances_of_source(
         &self,
         factor_source_id: &FactorSourceIDFromHash,
     ) -> IndexSet<OwnedFactorInstance> {
+        assert!(!self.has_tx_failed());
         self.for_entities
             .borrow()
             .values()
-            .filter(|&p| !p.has_failed())
+            .filter(|&p| {
+                if p.has_failed() {
+                    debug!("OMITTING petition since it HAS failed: {:?}", p);
+                    false
+                } else {
+                    debug!("INCLUDING petition since it has NOT failed: {:?}", p);
+                    true
+                }
+            })
             .cloned()
             .flat_map(|petition| petition.all_factor_instances())
             .filter(|f| f.factor_source_id() == *factor_source_id)
@@ -104,6 +117,9 @@ impl PetitionTransaction {
         &self,
         factor_source_id: &FactorSourceIDFromHash,
     ) -> BatchKeySigningRequest {
+        assert!(!self
+            .should_neglect_factors_due_to_irrelevant(IndexSet::from_iter([*factor_source_id])));
+        assert!(!self.has_tx_failed());
         BatchKeySigningRequest::new(
             self.intent_hash.clone(),
             *factor_source_id,

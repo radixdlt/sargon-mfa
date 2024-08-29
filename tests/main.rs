@@ -812,8 +812,8 @@ mod signing_tests {
                 let tx0 = TransactionIntent::new([a7.entity_address(), a0.entity_address()], []);
                 let tx1 = TransactionIntent::new([a0.entity_address()], []);
 
-                info!("tx0: {:?}", tx0.intent_hash);
-                info!("tx1: {:?}", tx1.intent_hash);
+                info!("tx0: {:?} (Should FAIL)", tx0.intent_hash);
+                info!("tx1: {:?} (Should SUCCEED)", tx1.intent_hash);
                 let profile = Profile::new(factor_sources.clone(), [&a7, &a0], []);
 
                 let collector = SignaturesCollector::new(
