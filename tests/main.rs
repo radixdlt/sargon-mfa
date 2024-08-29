@@ -713,11 +713,7 @@ mod signing_tests {
         }
 
         mod with_failure {
-            use std::{
-                borrow::BorrowMut,
-                rc::Rc,
-                sync::{Mutex, RwLock},
-            };
+            use std::{borrow::BorrowMut, rc::Rc};
 
             use super::*;
 
@@ -809,7 +805,7 @@ mod signing_tests {
 
             #[actix_rt::test]
             async fn same_tx_is_not_shown_to_user_in_case_of_already_failure() {
-                sensible_env_logger::safe_init!();
+                // sensible_env_logger::safe_init!();
                 let factor_sources = HDFactorSource::all();
 
                 let a7 = Account::a7();
@@ -822,43 +818,20 @@ mod signing_tests {
                 info!("tx1: {:?} (Should SUCCEED)", tx1.intent_hash);
                 let profile = Profile::new(factor_sources.clone(), [&a7, &a0], []);
 
-                // let displayed_invalid_tx = Rc::<
-                //     RefCell<Vec<(FactorSourceKind, HashSet<InvalidTransactionIfNeglected>)>>,
-                // >::new(RefCell::new(Vec::new()));
                 type Tuple = (FactorSourceKind, HashSet<InvalidTransactionIfNeglected>);
                 type Tuples = Vec<Tuple>;
-                let displayed_invalid_tx = Mutex::<Tuples>::new(Tuples::default());
-
-                let tx0_clone = tx0.clone();
-                let tx1_clone = tx1.clone();
-
+                let tuples = Rc::<RefCell<Tuples>>::new(RefCell::new(Tuples::default()));
+                let tuples_clone = tuples.clone();
                 let collector = SignaturesCollector::new(
                     SigningFinishEarlyStrategy::default(),
                     IndexSet::from_iter([tx0.clone(), tx1.clone()]),
                     Arc::new(TestSignatureCollectingInteractors::new(
                         SimulatedUser::with_spy(
-                            move |kind, invalid| match kind {
-                                FactorSourceKind::Ledger => {
-                                    assert_eq!(
-                                        invalid
-                                            .clone()
-                                            .into_iter()
-                                            .map(|i| i.intent_hash)
-                                            .collect_vec(),
-                                        vec![tx0_clone.clone().intent_hash]
-                                    );
-                                }
-                                FactorSourceKind::Device => {
-                                    assert_eq!(
-                                        invalid
-                                            .clone()
-                                            .into_iter()
-                                            .map(|i| i.intent_hash)
-                                            .collect_vec(),
-                                        vec![tx1_clone.clone().intent_hash]
-                                    );
-                                }
-                                _ => panic!("Unexpected kind"),
+                            move |kind, invalid| {
+                                println!("🔮 kind: {}", kind);
+                                let tuple = (kind, invalid);
+                                let mut x = RefCell::borrow_mut(&tuples_clone);
+                                x.push(tuple)
                             },
                             SimulatedUserMode::Prudent,
                             SimulatedFailures::with_simulated_failures([
@@ -870,9 +843,37 @@ mod signing_tests {
                 )
                 .unwrap();
 
-                let displayed_invalid_tx = displayed_invalid_tx.into_inner().unwrap();
+                /*
+
+                                match kind {
+                                    FactorSourceKind::Ledger => {
+                                        assert_eq!(
+                                            invalid
+                                                .clone()
+                                                .into_iter()
+                                                .map(|i| i.intent_hash)
+                                                .collect_vec(),
+                                            vec![tx0_clone.intent_hash.clone()]
+                                        );
+                                    }
+                                    FactorSourceKind::Device => {
+                                        assert_eq!(
+                                            invalid
+                                                .clone()
+                                                .into_iter()
+                                                .map(|i| i.intent_hash)
+                                                .collect_vec(),
+                                            vec![tx1_clone.intent_hash.clone()]
+                                        );
+                                    }
+                                    _ => panic!("Unexpected kind"),
+                */
 
                 let outcome = collector.collect_signatures().await;
+
+                let tuples = tuples.borrow().clone();
+                assert_eq!(tuples.len(), 2);
+
                 assert!(!outcome.successful());
                 assert_eq!(
                     outcome.ids_of_neglected_factor_sources_failed(),

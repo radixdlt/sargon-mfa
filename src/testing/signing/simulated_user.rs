@@ -131,6 +131,7 @@ impl SimulatedUser {
             .into_iter()
             .collect::<std::collections::HashSet<_>>();
 
+        println!("🚀 call spy");
         (self.spy_on_request)(factor_source_kind, invalid_tx_if_skipped.clone());
 
         if self.be_prudent(|| !invalid_tx_if_skipped.is_empty()) {
