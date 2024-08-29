@@ -805,17 +805,22 @@ mod signing_tests {
             async fn same_tx_is_not_shown_to_user_in_case_of_already_failure() {
                 let factor_sources = HDFactorSource::all();
 
-                let a = Account::a0();
-                let tx0 = TransactionIntent::new([], []);
-                let tx1 = TransactionIntent::new([], []);
-                let profile = Profile::new(factor_sources.clone(), [], []);
+                let a7 = Account::a7();
+                let a0 = Account::a0();
+
+                let tx0 = TransactionIntent::new([a7.entity_address(), a0.entity_address()], []);
+                let tx1 = TransactionIntent::new([a0.entity_address()], []);
+
+                let profile = Profile::new(factor_sources.clone(), [&a7, &a0], []);
+
+                sensible_env_logger::safe_init!();
                 let collector = SignaturesCollector::new(
                     SigningFinishEarlyStrategy::default(),
-                    IndexSet::from_iter([tx0, tx1]),
+                    IndexSet::from_iter([tx0.clone(), tx1.clone()]),
                     Arc::new(TestSignatureCollectingInteractors::new(
                         SimulatedUser::prudent_with_failures(
                             SimulatedFailures::with_simulated_failures([
-                                FactorSourceIDFromHash::fs0(),
+                                FactorSourceIDFromHash::fs2(), // will cause any TX with a7 to fail
                             ]),
                         ),
                     )),
@@ -824,14 +829,59 @@ mod signing_tests {
                 .unwrap();
 
                 let outcome = collector.collect_signatures().await;
-                assert!(outcome.successful());
+                assert!(!outcome.successful());
+                assert_eq!(
+                    outcome.ids_of_neglected_factor_sources_failed(),
+                    IndexSet::<FactorSourceIDFromHash>::from_iter([FactorSourceIDFromHash::fs2()])
+                );
+                assert_eq!(
+                    outcome.ids_of_neglected_factor_sources_irrelevant(),
+                    IndexSet::<FactorSourceIDFromHash>::from_iter([
+                        FactorSourceIDFromHash::fs6(),
+                        FactorSourceIDFromHash::fs7(),
+                        FactorSourceIDFromHash::fs8(),
+                        FactorSourceIDFromHash::fs9()
+                    ])
+                );
                 assert_eq!(
                     outcome
-                        .ids_of_neglected_factor_sources_irrelevant()
+                        .successful_transactions()
                         .into_iter()
+                        .map(|t| t.intent_hash)
                         .collect_vec(),
-                    vec![]
+                    vec![tx1.intent_hash.clone()]
                 );
+
+                assert_eq!(
+                    outcome
+                        .failed_transactions()
+                        .into_iter()
+                        .map(|t| t.intent_hash)
+                        .collect_vec(),
+                    vec![tx0.intent_hash.clone()]
+                );
+
+                assert_eq!(outcome.all_signatures().len(), 1);
+
+                assert!(outcome
+                    .all_signatures()
+                    .into_iter()
+                    .map(|s| s.intent_hash().clone())
+                    .all(|i| i == tx1.intent_hash));
+
+                assert_eq!(
+                    outcome
+                        .all_signatures()
+                        .into_iter()
+                        .map(|s| s.derivation_path())
+                        .collect_vec(),
+                    vec![DerivationPath::new(
+                        NetworkID::Mainnet,
+                        CAP26EntityKind::Account,
+                        CAP26KeyKind::T9n,
+                        HDPathComponent::non_hardened(0)
+                    )]
+                )
             }
         }
 

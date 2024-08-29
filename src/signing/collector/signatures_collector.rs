@@ -158,6 +158,10 @@ impl SignaturesCollector {
         factor_sources_of_kind: &FactorSourcesOfKind,
     ) -> bool {
         if self.should_neglect_factors_due_to_irrelevant(factor_sources_of_kind) {
+            info!(
+                "Neglecting all factors of kind: {} since they are all irrelevant (all TX referencing those factors have already failed)",
+                factor_sources_of_kind.kind
+            );
             self.process_batch_response(SignWithFactorsOutcome::irrelevant(factor_sources_of_kind));
             true
         } else {
