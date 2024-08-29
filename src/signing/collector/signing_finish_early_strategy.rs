@@ -34,4 +34,30 @@ impl SigningFinishEarlyStrategy {
             when_some_transaction_is_invalid,
         }
     }
+
+    pub fn r#continue() -> Self {
+        Self::new(
+            WhenAllTransactionsAreValid(SignaturesCollectingContinuation::Continue),
+            WhenSomeTransactionIsInvalid(SignaturesCollectingContinuation::Continue),
+        )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    type Sut = SigningFinishEarlyStrategy;
+
+    #[test]
+    fn test_continue() {
+        let sut = Sut::r#continue();
+        assert_eq!(
+            sut.when_all_transactions_are_valid.0,
+            SignaturesCollectingContinuation::Continue
+        );
+        assert_eq!(
+            sut.when_some_transaction_is_invalid.0,
+            SignaturesCollectingContinuation::Continue
+        );
+    }
 }

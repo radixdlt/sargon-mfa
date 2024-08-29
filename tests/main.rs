@@ -738,6 +738,7 @@ mod signing_tests {
 
             #[actix_rt::test]
             async fn many_failing_tx() {
+                sensible_env_logger::safe_init!();
                 let factor_sources = &HDFactorSource::all();
                 let a0 = &Account::a0();
                 let p3 = &Persona::p3();
@@ -777,6 +778,18 @@ mod signing_tests {
                         .map(|t| t.intent_hash.clone())
                         .collect_vec()
                 );
+
+                assert_eq!(
+                    outcome
+                        .ids_of_neglected_factor_sources_failed()
+                        .into_iter()
+                        .collect_vec(),
+                    vec![FactorSourceIDFromHash::fs0()]
+                );
+
+                assert!(outcome
+                    .ids_of_neglected_factor_sources_skipped_by_user()
+                    .is_empty());
 
                 assert_eq!(
                     outcome
@@ -1226,6 +1239,40 @@ mod signing_tests {
                 );
                 let outcome = collector.collect_signatures().await;
                 assert!(!outcome.successful());
+                assert_eq!(
+                    outcome
+                        .ids_of_neglected_factor_sources_failed()
+                        .into_iter()
+                        .collect_vec(),
+                    vec![FactorSourceIDFromHash::fs0()]
+                );
+                assert!(outcome
+                    .ids_of_neglected_factor_sources_skipped_by_user()
+                    .is_empty())
+            }
+
+            async fn failure_e5<E: IsEntity>() {
+                let collector = SignaturesCollector::new_test(
+                    SigningFinishEarlyStrategy::r#continue(),
+                    HDFactorSource::all(),
+                    [TXToSign::new([E::e5()])],
+                    SimulatedUser::prudent_with_failures(
+                        SimulatedFailures::with_simulated_failures([FactorSourceIDFromHash::fs4()]),
+                    ),
+                );
+
+                let outcome = collector.collect_signatures().await;
+                assert!(outcome.successful());
+                assert_eq!(
+                    outcome
+                        .ids_of_neglected_factor_sources_failed()
+                        .into_iter()
+                        .collect_vec(),
+                    vec![FactorSourceIDFromHash::fs4()]
+                );
+                assert!(outcome
+                    .ids_of_neglected_factor_sources_skipped_by_user()
+                    .is_empty());
             }
 
             async fn building_can_succeed_even_if_one_factor_source_fails_assert_ids_of_successful_tx_e4<
@@ -1422,8 +1469,13 @@ mod signing_tests {
                 }
 
                 #[actix_rt::test]
-                async fn failure() {
+                async fn failure_a0() {
                     failure_e0::<E>().await
+                }
+
+                #[actix_rt::test]
+                async fn failure_a5() {
+                    failure_e5::<E>().await
                 }
 
                 #[actix_rt::test]
@@ -1597,8 +1649,13 @@ mod signing_tests {
                 }
 
                 #[actix_rt::test]
-                async fn failure() {
+                async fn failure_p0() {
                     failure_e0::<E>().await
+                }
+
+                #[actix_rt::test]
+                async fn failure_p5() {
+                    failure_e5::<E>().await
                 }
 
                 #[actix_rt::test]

@@ -56,6 +56,8 @@ impl SignaturesOutcome {
             "Discrepancy, found intent hash in both successful and failed transactions, this is a programmer error."
         );
 
+        assert!(failed_transactions.is_empty() || !neglected_factor_sources.is_empty(), "Discrepancy, found failed transactions but no neglected factor sources, this is a programmer error.");
+
         Self {
             successful_transactions,
             failed_transactions,
@@ -83,11 +85,31 @@ impl SignaturesOutcome {
         self.neglected_factor_sources.clone()
     }
 
-    pub fn ids_of_neglected_factor_sources(&self) -> IndexSet<FactorSourceIDFromHash> {
+    fn ids_of_neglected_factor_sources_filter(
+        &self,
+        filter: fn(&NeglectedFactor) -> bool,
+    ) -> IndexSet<FactorSourceIDFromHash> {
         self.neglected_factor_sources()
             .into_iter()
+            .filter(filter)
             .map(|n| n.factor_source_id())
             .collect()
+    }
+
+    pub fn ids_of_neglected_factor_sources(&self) -> IndexSet<FactorSourceIDFromHash> {
+        self.ids_of_neglected_factor_sources_filter(|_| true)
+    }
+
+    pub fn ids_of_neglected_factor_sources_skipped_by_user(
+        &self,
+    ) -> IndexSet<FactorSourceIDFromHash> {
+        self.ids_of_neglected_factor_sources_filter(|nf| {
+            nf.reason == NeglectFactorReason::UserExplicitlySkipped
+        })
+    }
+
+    pub fn ids_of_neglected_factor_sources_failed(&self) -> IndexSet<FactorSourceIDFromHash> {
+        self.ids_of_neglected_factor_sources_filter(|nf| nf.reason == NeglectFactorReason::Failure)
     }
 
     pub fn signatures_of_failed_transactions(&self) -> IndexSet<HDSignature> {
@@ -116,6 +138,18 @@ mod tests {
     fn new_panics_if_intent_hash_is_in_both_failed_and_success_collection() {
         Sut::new(
             MaybeSignedTransactions::sample(),
+            MaybeSignedTransactions::sample(),
+            [],
+        );
+    }
+
+    #[test]
+    #[should_panic(
+        expected = "Discrepancy, found failed transactions but no neglected factor sources, this is a programmer error."
+    )]
+    fn new_panics_if_failed_tx_is_not_empty_but_neglected_is() {
+        Sut::new(
+            MaybeSignedTransactions::empty(),
             MaybeSignedTransactions::sample(),
             [],
         );

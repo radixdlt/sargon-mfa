@@ -27,7 +27,7 @@ impl SignWithFactorParallelInteractor for TestSigningParallelInteractor {
             .collect::<IndexSet<_>>();
 
         if self.should_simulate_failure(ids.clone()) {
-            return SignWithFactorsOutcome::user_skipped_factors(ids);
+            return SignWithFactorsOutcome::failure_with_factors(ids);
         }
 
         match self
