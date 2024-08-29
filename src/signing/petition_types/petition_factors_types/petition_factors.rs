@@ -135,12 +135,6 @@ impl PetitionFactors {
             .is_some()
     }
 
-    pub fn neglect_if_references(&self, neglected: NeglectedFactor) {
-        if self.references_factor_source_with_id(&neglected.factor_source_id()) {
-            self.neglect(neglected)
-        }
-    }
-
     fn expect_reference_to_factor_source_with_id(
         &self,
         factor_source_id: &FactorSourceIDFromHash,

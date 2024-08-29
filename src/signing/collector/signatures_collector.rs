@@ -470,6 +470,28 @@ mod tests {
     }
 
     #[test]
+    fn factor_source_kinds_order() {
+        let kinds = HDFactorSource::all()
+            .into_iter()
+            .map(|f| f.factor_source_kind())
+            .collect::<IndexSet<_>>();
+        let mut kinds = kinds.into_iter().collect_vec();
+        kinds.sort();
+        let kinds = kinds.into_iter().collect::<IndexSet<_>>();
+        assert_eq!(
+            kinds,
+            IndexSet::<FactorSourceKind>::from_iter([
+                FactorSourceKind::Ledger,
+                FactorSourceKind::Arculus,
+                FactorSourceKind::Yubikey,
+                FactorSourceKind::SecurityQuestions,
+                FactorSourceKind::OffDeviceMnemonic,
+                FactorSourceKind::Device,
+            ])
+        )
+    }
+
+    #[test]
     fn test_profile() {
         let factor_sources = &HDFactorSource::all();
         let a0 = &Account::a0();

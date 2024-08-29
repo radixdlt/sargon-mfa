@@ -739,8 +739,52 @@ mod signing_tests {
             }
 
             #[actix_rt::test]
-            async fn many_failing_tx() {
+            async fn failed_threshold_successful_override() {
                 sensible_env_logger::safe_init!();
+                let factor_sources = &HDFactorSource::all();
+                let a9 = &Account::a9();
+                let tx0 = TransactionIntent::address_of([a9], []);
+
+                let all_transactions = IndexSet::from_iter([tx0.clone()]);
+
+                let profile = Profile::new(factor_sources.clone(), [a9], []);
+
+                let collector = SignaturesCollector::new(
+                    SigningFinishEarlyStrategy::default(),
+                    all_transactions,
+                    Arc::new(TestSignatureCollectingInteractors::new(
+                        SimulatedUser::prudent_with_failures(
+                            SimulatedFailures::with_simulated_failures([
+                                FactorSourceIDFromHash::fs1(),
+                            ]),
+                        ),
+                    )),
+                    &profile,
+                )
+                .unwrap();
+
+                let outcome = collector.collect_signatures().await;
+                assert!(outcome.successful());
+                assert_eq!(
+                    outcome
+                        .successful_transactions()
+                        .into_iter()
+                        .map(|t| t.intent_hash.clone())
+                        .collect_vec(),
+                    vec![tx0.clone().intent_hash]
+                );
+                assert_eq!(
+                    outcome
+                        .all_signatures()
+                        .into_iter()
+                        .map(|s| s.factor_source_id())
+                        .collect_vec(),
+                    vec![FactorSourceIDFromHash::fs8()]
+                );
+            }
+
+            #[actix_rt::test]
+            async fn many_failing_tx() {
                 let factor_sources = &HDFactorSource::all();
                 let a0 = &Account::a0();
                 let p3 = &Persona::p3();
