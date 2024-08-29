@@ -143,10 +143,6 @@ impl PetitionEntity {
         self.both(r#do, |_, _| ())
     }
 
-    pub fn neglect_factor_source_if_referenced(&self, neglected: NeglectedFactor) {
-        self.both_void(|l| l.neglect_if_references(neglected.clone(), true));
-    }
-
     /// # Panics
     /// Panics if this factor source has already been neglected or signed with.
     ///
@@ -202,13 +198,10 @@ impl PetitionEntity {
         let simulation = self.clone();
         for factor_source_id in factor_source_ids.iter() {
             simulation
-                .neglect_if_referenced(
-                    NeglectedFactor::new(
-                        NeglectFactorReason::UserExplicitlySkipped,
-                        *factor_source_id,
-                    ),
-                    true,
-                )
+                .neglect_if_referenced(NeglectedFactor::new(
+                    NeglectFactorReason::Simulation,
+                    *factor_source_id,
+                ))
                 .unwrap();
         }
         simulation.status()
@@ -230,8 +223,8 @@ impl PetitionEntity {
         )
     }
 
-    pub fn neglect_if_referenced(&self, neglected: NeglectedFactor, simulated: bool) -> Result<()> {
-        self.both_void(|p| p.neglect_if_referenced(neglected.clone(), simulated));
+    pub fn neglect_if_referenced(&self, neglected: NeglectedFactor) -> Result<()> {
+        self.both_void(|p| p.neglect_if_referenced(neglected.clone()));
         Ok(())
     }
 

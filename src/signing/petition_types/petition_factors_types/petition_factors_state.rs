@@ -58,8 +58,8 @@ impl PetitionFactorsState {
     /// # Panics
     /// Panics if this factor source has already been neglected or signed and
     /// this is not a simulation.
-    pub(crate) fn neglect(&self, neglected: &NeglectedFactorInstance, simulated: bool) {
-        if !simulated {
+    pub(crate) fn neglect(&self, neglected: &NeglectedFactorInstance) {
+        if neglected.reason != NeglectFactorReason::Simulation {
             self.assert_not_referencing_factor_source(neglected.factor_source_id());
         }
         self.neglected.borrow_mut().insert(neglected);
@@ -93,14 +93,15 @@ mod tests {
     type Sut = PetitionFactorsState;
 
     impl PetitionFactorsState {
-        fn skip(&self, id: &HierarchicalDeterministicFactorInstance, simulated: bool) {
-            self.neglect(
-                &NeglectedFactorInstance::new(
-                    NeglectFactorReason::UserExplicitlySkipped,
-                    id.clone(),
-                ),
-                simulated,
-            )
+        fn test_neglect(&self, id: &HierarchicalDeterministicFactorInstance, simulated: bool) {
+            self.neglect(&NeglectedFactorInstance::new(
+                if simulated {
+                    NeglectFactorReason::Simulation
+                } else {
+                    NeglectFactorReason::UserExplicitlySkipped
+                },
+                id.clone(),
+            ))
         }
     }
 
@@ -109,8 +110,8 @@ mod tests {
     fn skipping_twice_panics() {
         let sut = Sut::new();
         let fi = HierarchicalDeterministicFactorInstance::sample();
-        sut.skip(&fi, false);
-        sut.skip(&fi, false);
+        sut.test_neglect(&fi, false);
+        sut.test_neglect(&fi, false);
     }
 
     #[test]
@@ -141,7 +142,7 @@ mod tests {
 
         sut.add_signature(&signature);
 
-        sut.skip(&factor_instance, false);
+        sut.test_neglect(&factor_instance, false);
     }
 
     #[test]
@@ -155,7 +156,7 @@ mod tests {
             FactorSourceIDFromHash::fs0(),
         );
 
-        sut.skip(&factor_instance, false);
+        sut.test_neglect(&factor_instance, false);
 
         let sign_input = HDSignatureInput::new(
             intent_hash,

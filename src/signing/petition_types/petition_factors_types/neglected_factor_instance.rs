@@ -88,4 +88,10 @@ pub enum NeglectFactorReason {
     #[display("Irrelevant")]
     #[debug("Irrelevant")]
     Irrelevant,
+
+    /// We simulate neglect in order to see what the status of petitions
+    /// would be if a FactorSource would be neglected.
+    #[display("Simulation")]
+    #[debug("Simulation")]
+    Simulation,
 }
