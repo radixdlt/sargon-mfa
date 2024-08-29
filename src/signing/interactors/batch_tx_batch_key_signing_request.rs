@@ -121,6 +121,9 @@ pub struct BatchTXBatchKeySigningRequest {
 impl BatchTXBatchKeySigningRequest {
     /// # Panics
     /// Panics if `per_transaction` is empty
+    ///
+    /// Also panics if `per_transaction` if the factor source id
+    /// of each request does not match `factor_source_id`.
     pub fn new(
         factor_source_id: FactorSourceIDFromHash,
         per_transaction: IndexSet<BatchKeySigningRequest>,
@@ -129,9 +132,11 @@ impl BatchTXBatchKeySigningRequest {
             !per_transaction.is_empty(),
             "Invalid input. No transaction to sign, this is a programmer error."
         );
+
         assert!(per_transaction
             .iter()
             .all(|f| f.factor_source_id == factor_source_id), "Discprepancy! Input for one of the transactions has a mismatching FactorSourceID, this is a programmer error.");
+
         Self {
             factor_source_id,
             per_transaction: per_transaction.into_iter().collect(),

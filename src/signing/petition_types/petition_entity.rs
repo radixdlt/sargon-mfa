@@ -173,7 +173,7 @@ impl PetitionEntity {
         assert!(self.references_any_factor_source(&factor_source_ids));
         match self.status() {
             PetitionFactorsStatus::Finished(PetitionFactorsStatusFinished::Fail) => true,
-            PetitionFactorsStatus::Finished(PetitionFactorsStatusFinished::Success) => false, // unsure about this...
+            PetitionFactorsStatus::Finished(PetitionFactorsStatusFinished::Success) => false,
             PetitionFactorsStatus::InProgress => false,
         }
     }

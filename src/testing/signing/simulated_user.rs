@@ -17,8 +17,7 @@ pub struct SimulatedUser {
 
 impl SimulatedUser {
     pub fn with_spy(
-        spy_on_request: impl Fn(FactorSourceKind, IndexSet<InvalidTransactionIfNeglected>)
-            + 'static,
+        spy_on_request: impl Fn(FactorSourceKind, IndexSet<InvalidTransactionIfNeglected>) + 'static,
         mode: SimulatedUserMode,
         failures: impl Into<Option<SimulatedFailures>>,
     ) -> Self {
