@@ -20,7 +20,7 @@ pub struct PetitionForEntity {
 }
 
 impl PetitionForEntity {
-    pub fn new(
+    pub(super) fn new(
         intent_hash: IntentHash,
         entity: AddressOfAccountOrPersona,
         threshold_factors: impl Into<Option<PetitionForFactors>>,
