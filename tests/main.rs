@@ -829,21 +829,36 @@ mod signing_tests {
                 type Tuples = Vec<Tuple>;
                 let displayed_invalid_tx = Mutex::<Tuples>::new(Tuples::default());
 
+                let tx0_clone = tx0.clone();
+                let tx1_clone = tx1.clone();
+
                 let collector = SignaturesCollector::new(
                     SigningFinishEarlyStrategy::default(),
                     IndexSet::from_iter([tx0.clone(), tx1.clone()]),
                     Arc::new(TestSignatureCollectingInteractors::new(
                         SimulatedUser::with_spy(
-                            |kind, invalid| {
-                                // displayed_invalid_tx.borrow_mut().push((kind, invalid));
-                                // displayed_invalid_tx
-                                //     .borrow_mut()
-                                //     .try_write()
-                                //     .unwrap()
-                                //     .push((kind, invalid));
-                                let tuple: Tuple = (kind, invalid);
-                                // displayed_invalid_tx.clone().write().unwrap().push(tuple);
-                                displayed_invalid_tx.try_lock().unwrap().push(tuple);
+                            move |kind, invalid| match kind {
+                                FactorSourceKind::Ledger => {
+                                    assert_eq!(
+                                        invalid
+                                            .clone()
+                                            .into_iter()
+                                            .map(|i| i.intent_hash)
+                                            .collect_vec(),
+                                        vec![tx0_clone.clone().intent_hash]
+                                    );
+                                }
+                                FactorSourceKind::Device => {
+                                    assert_eq!(
+                                        invalid
+                                            .clone()
+                                            .into_iter()
+                                            .map(|i| i.intent_hash)
+                                            .collect_vec(),
+                                        vec![tx1_clone.clone().intent_hash]
+                                    );
+                                }
+                                _ => panic!("Unexpected kind"),
                             },
                             SimulatedUserMode::Prudent,
                             SimulatedFailures::with_simulated_failures([
