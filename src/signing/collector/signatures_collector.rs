@@ -182,10 +182,10 @@ impl SignaturesCollector {
             .interactor_for(factor_sources_of_kind.kind);
         let factor_sources = factor_sources_of_kind.factor_sources();
         match interactor {
-            // Parallel Interactor: Many Factor Sources at once
-            SigningInteractor::Parallel(interactor) => {
+            // PolyFactor Interactor: Many Factor Sources at once
+            SigningInteractor::PolyFactor(interactor) => {
                 // Prepare the request for the interactor
-                debug!("Creating parallel request for interactor");
+                debug!("Creating poly request for interactor");
                 let request = self.request_for_parallel_interactor(factor_sources_of_kind);
                 if !request.invalid_transactions_if_neglected.is_empty() {
                     info!(
@@ -194,20 +194,20 @@ impl SignaturesCollector {
                         request.invalid_transactions_if_neglected
                     )
                 }
-                debug!("Dispatching parallel request to interactor: {:?}", request);
+                debug!("Dispatching poly request to interactor: {:?}", request);
                 let response = interactor.sign(request).await;
-                debug!("Got response from parallel interactor: {:?}", response);
+                debug!("Got response from poly interactor: {:?}", response);
                 self.process_batch_response(response);
             }
 
-            // Serial Interactor: One Factor Sources at a time
+            // MonoFactor Interactor: One Factor Sources at a time
             // After each factor source we pass the result to the collector
             // updating its internal state so that we state about being able
             // to skip the next factor source or not.
-            SigningInteractor::Serial(interactor) => {
+            SigningInteractor::MonoFactor(interactor) => {
                 for factor_source in factor_sources {
                     // Prepare the request for the interactor
-                    debug!("Creating serial request for interactor");
+                    debug!("Creating mono request for interactor");
                     let request =
                         self.request_for_serial_interactor(&factor_source.factor_source_id());
 
@@ -219,10 +219,10 @@ impl SignaturesCollector {
                         )
                     }
 
-                    debug!("Dispatching serial request to interactor: {:?}", request);
+                    debug!("Dispatching mono request to interactor: {:?}", request);
                     // Produce the results from the interactor
                     let response = interactor.sign(request).await;
-                    debug!("Got response from serial interactor: {:?}", response);
+                    debug!("Got response from mono interactor: {:?}", response);
 
                     // Report the results back to the collector
                     self.process_batch_response(response);
@@ -254,7 +254,7 @@ impl SignaturesCollector {
     fn input_for_interactor(
         &self,
         factor_source_id: &FactorSourceIDFromHash,
-    ) -> BatchTXBatchKeySigningRequest {
+    ) -> MonoFactorSignRequestInput {
         self.state
             .borrow()
             .petitions
@@ -265,10 +265,10 @@ impl SignaturesCollector {
     fn request_for_serial_interactor(
         &self,
         factor_source_id: &FactorSourceIDFromHash,
-    ) -> SerialBatchSigningRequest {
+    ) -> MonoFactorSignRequest {
         let batch_signing_request = self.input_for_interactor(factor_source_id);
 
-        SerialBatchSigningRequest::new(
+        MonoFactorSignRequest::new(
             batch_signing_request,
             self.invalid_transactions_if_neglected_factor_sources(IndexSet::from_iter([
                 *factor_source_id,
@@ -281,7 +281,7 @@ impl SignaturesCollector {
     fn request_for_parallel_interactor(
         &self,
         factor_sources_of_kind: &FactorSourcesOfKind,
-    ) -> ParallelBatchSigningRequest {
+    ) -> PolyFactorSignRequest {
         let factor_source_ids = factor_sources_of_kind
             .factor_sources()
             .iter()
@@ -291,13 +291,13 @@ impl SignaturesCollector {
             .clone()
             .iter()
             .map(|fid| (*fid, self.input_for_interactor(fid)))
-            .collect::<IndexMap<FactorSourceIDFromHash, BatchTXBatchKeySigningRequest>>();
+            .collect::<IndexMap<FactorSourceIDFromHash, MonoFactorSignRequestInput>>();
 
         let invalid_transactions_if_neglected =
             self.invalid_transactions_if_neglected_factor_sources(factor_source_ids);
 
         // Prepare the request for the interactor
-        ParallelBatchSigningRequest::new(
+        PolyFactorSignRequest::new(
             factor_sources_of_kind.kind,
             per_factor_source,
             invalid_transactions_if_neglected,

@@ -18,8 +18,8 @@ impl IsTestInteractor for TestSigningSerialInteractor {
 }
 
 #[async_trait::async_trait]
-impl SignWithFactorSerialInteractor for TestSigningSerialInteractor {
-    async fn sign(&self, request: SerialBatchSigningRequest) -> SignWithFactorsOutcome {
+impl MonoFactorSignInteractor for TestSigningSerialInteractor {
+    async fn sign(&self, request: MonoFactorSignRequest) -> SignWithFactorsOutcome {
         self.simulated_user.spy_on_request_before_handled(
             request.clone().factor_source_kind(),
             request.clone().invalid_transactions_if_neglected,

@@ -170,7 +170,7 @@ impl Petitions {
     pub(crate) fn input_for_interactor(
         &self,
         factor_source_id: &FactorSourceIDFromHash,
-    ) -> BatchTXBatchKeySigningRequest {
+    ) -> MonoFactorSignRequestInput {
         let intent_hashes = self
             .factor_source_to_intent_hash
             .get(factor_source_id)
@@ -187,9 +187,9 @@ impl Petitions {
                     Some(petition.input_for_interactor(factor_source_id))
                 }
             })
-            .collect::<IndexSet<BatchKeySigningRequest>>();
+            .collect::<IndexSet<TransactionSignRequestInput>>();
 
-        BatchTXBatchKeySigningRequest::new(*factor_source_id, per_transaction)
+        MonoFactorSignRequestInput::new(*factor_source_id, per_transaction)
     }
 
     fn add_signature(&self, signature: &HDSignature) {

@@ -66,28 +66,28 @@ impl KeysCollector {
             .interactor_for(factor_sources_of_kind.kind);
         let factor_sources = factor_sources_of_kind.factor_sources();
         match interactor {
-            KeyDerivationInteractor::Parallel(interactor) => {
+            KeyDerivationInteractor::PolyFactor(interactor) => {
                 // Prepare the request for the interactor
-                debug!("Creating parallel request for interactor");
+                debug!("Creating poly request for interactor");
                 let request = self.request_for_parallel_interactor(
                     factor_sources
                         .into_iter()
                         .map(|f| f.factor_source_id())
                         .collect(),
                 )?;
-                debug!("Dispatching parallel request to interactor: {:?}", request);
+                debug!("Dispatching poly request to interactor: {:?}", request);
                 let response = interactor.derive(request).await?;
                 self.process_batch_response(response)?;
             }
 
-            KeyDerivationInteractor::Serial(interactor) => {
+            KeyDerivationInteractor::MonoFactor(interactor) => {
                 for factor_source in factor_sources {
                     // Prepare the request for the interactor
-                    debug!("Creating serial request for interactor");
+                    debug!("Creating mono request for interactor");
                     let request =
                         self.request_for_serial_interactor(&factor_source.factor_source_id())?;
 
-                    debug!("Dispatching serial request to interactor: {:?}", request);
+                    debug!("Dispatching mono request to interactor: {:?}", request);
                     // Produce the results from the interactor
                     let response = interactor.derive(request).await?;
 

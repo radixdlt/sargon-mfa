@@ -116,11 +116,11 @@ impl PetitionForTransaction {
     pub(crate) fn input_for_interactor(
         &self,
         factor_source_id: &FactorSourceIDFromHash,
-    ) -> BatchKeySigningRequest {
+    ) -> TransactionSignRequestInput {
         assert!(!self
             .should_neglect_factors_due_to_irrelevant(IndexSet::from_iter([*factor_source_id])));
         assert!(!self.has_tx_failed());
-        BatchKeySigningRequest::new(
+        TransactionSignRequestInput::new(
             self.intent_hash.clone(),
             *factor_source_id,
             self.all_relevant_factor_instances_of_source(factor_source_id),
