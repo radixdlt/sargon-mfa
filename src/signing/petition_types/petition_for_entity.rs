@@ -204,12 +204,10 @@ impl PetitionForEntity {
     ) -> PetitionFactorsStatus {
         let simulation = self.clone();
         for factor_source_id in factor_source_ids.iter() {
-            simulation
-                .neglect_if_referenced(NeglectedFactor::new(
-                    NeglectFactorReason::Simulation,
-                    *factor_source_id,
-                ))
-                .unwrap();
+            simulation.neglect_if_referenced(NeglectedFactor::new(
+                NeglectFactorReason::Simulation,
+                *factor_source_id,
+            ))
         }
         simulation.status()
     }
@@ -230,9 +228,8 @@ impl PetitionForEntity {
         )
     }
 
-    pub fn neglect_if_referenced(&self, neglected: NeglectedFactor) -> Result<()> {
+    pub fn neglect_if_referenced(&self, neglected: NeglectedFactor) {
         self.both_void(|p| p.neglect_if_referenced(neglected.clone()));
-        Ok(())
     }
 
     pub fn status(&self) -> PetitionFactorsStatus {

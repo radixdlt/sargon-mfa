@@ -109,7 +109,7 @@ impl PetitionForTransaction {
     pub fn neglect_factor_source(&self, neglected: NeglectedFactor) {
         let mut for_entities = self.for_entities.borrow_mut();
         for petition in for_entities.values_mut() {
-            petition.neglect_if_referenced(neglected.clone()).unwrap()
+            petition.neglect_if_referenced(neglected.clone())
         }
     }
 
