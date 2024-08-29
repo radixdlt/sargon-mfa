@@ -801,7 +801,6 @@ mod signing_tests {
                 )
             }
 
-            #[ignore = "WIP"]
             #[actix_rt::test]
             async fn same_tx_is_not_shown_to_user_in_case_of_already_failure() {
                 sensible_env_logger::safe_init!();
