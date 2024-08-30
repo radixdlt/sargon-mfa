@@ -77,43 +77,6 @@ impl Petitions {
         )
     }
 
-    pub fn status(&self) -> PetitionsStatus {
-        let statuses = self
-            .txid_to_petition
-            .borrow()
-            .iter()
-            .flat_map(|(_, petition)| {
-                petition
-                    .for_entities
-                    .borrow()
-                    .iter()
-                    .map(|(_, petition)| petition.status())
-                    .collect_vec()
-            })
-            .collect::<Vec<PetitionFactorsStatus>>();
-
-        let are_all_valid = statuses.iter().all(|s| {
-            matches!(
-                s,
-                PetitionFactorsStatus::Finished(PetitionFactorsStatusFinished::Success)
-            )
-        });
-        if are_all_valid {
-            return PetitionsStatus::AllAreValid;
-        }
-
-        let is_some_invalid = statuses.iter().any(|s| {
-            matches!(
-                s,
-                PetitionFactorsStatus::Finished(PetitionFactorsStatusFinished::Fail)
-            )
-        });
-        if is_some_invalid {
-            return PetitionsStatus::SomeIsInvalid;
-        }
-        PetitionsStatus::InProgressNoneInvalid
-    }
-
     pub fn each_petition<F, T, G, U>(
         &self,
         factor_source_ids: IndexSet<FactorSourceIDFromHash>,
@@ -191,6 +154,84 @@ impl Petitions {
         );
 
         MonoFactorSignRequestInput::new(*factor_source_id, invalids)
+    }
+}
+impl PetitionFactorsStatus {
+    pub fn aggregate<T>(
+        statuses: impl IntoIterator<Item = Self>,
+        valid: T,
+        invalid: T,
+        pending: T,
+    ) -> T {
+        let statuses = statuses.into_iter().collect::<Vec<_>>();
+        let are_all_valid = statuses.iter().all(|s| {
+            matches!(
+                s,
+                PetitionFactorsStatus::Finished(PetitionFactorsStatusFinished::Success)
+            )
+        });
+        if are_all_valid {
+            // return PetitionsStatus::AllAreValid;
+            return valid;
+        }
+
+        let is_some_invalid = statuses.iter().any(|s| {
+            matches!(
+                s,
+                PetitionFactorsStatus::Finished(PetitionFactorsStatusFinished::Fail)
+            )
+        });
+        if is_some_invalid {
+            // return PetitionsStatus::SomeIsInvalid;
+            return invalid;
+        }
+        // PetitionsStatus::InProgressNoneInvalid
+        pending
+    }
+}
+impl Petitions {
+    pub fn status(&self) -> PetitionsStatus {
+        let xstatuses = self
+            .txid_to_petition
+            .borrow()
+            .iter()
+            .flat_map(|(_, petition)| {
+                petition
+                    .for_entities
+                    .borrow()
+                    .iter()
+                    .map(|(_, petition)| petition.status())
+                    .collect_vec()
+            })
+            .collect::<Vec<PetitionFactorsStatus>>();
+
+        // let statuses = self.each_petition(self.state.borrow()., each, combine)
+        let statuses = self.each_petition(
+            self.factor_source_to_intent_hash.keys().cloned().collect(),
+            |p| p.status_of_each_petition_for_entity(),
+            |i| i.into_iter().flatten().collect(),
+        );
+
+        let are_all_valid = statuses.iter().all(|s| {
+            matches!(
+                s,
+                PetitionFactorsStatus::Finished(PetitionFactorsStatusFinished::Success)
+            )
+        });
+        if are_all_valid {
+            return PetitionsStatus::AllAreValid;
+        }
+
+        let is_some_invalid = statuses.iter().any(|s| {
+            matches!(
+                s,
+                PetitionFactorsStatus::Finished(PetitionFactorsStatusFinished::Fail)
+            )
+        });
+        if is_some_invalid {
+            return PetitionsStatus::SomeIsInvalid;
+        }
+        PetitionsStatus::InProgressNoneInvalid
     }
 
     fn add_signature(&self, signature: &HDSignature) {

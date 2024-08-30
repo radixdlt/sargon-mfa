@@ -127,6 +127,14 @@ impl PetitionForTransaction {
         )
     }
 
+    pub fn status_of_each_petition_for_entity(&self) -> Vec<PetitionFactorsStatus> {
+        self.for_entities
+            .borrow()
+            .values()
+            .map(|petition| petition.status())
+            .collect()
+    }
+
     pub fn invalid_transactions_if_neglected_factors(
         &self,
         factor_source_ids: IndexSet<FactorSourceIDFromHash>,
