@@ -115,30 +115,16 @@ impl PetitionForEntity {
         self.access_both_list_then_form_union(|f| f.all_signatures())
     }
 
-    fn access_petition<F, T>(list: &Option<RefCell<PetitionForFactors>>, r#do: F) -> Option<T>
-    where
-        F: Fn(&PetitionForFactors) -> T,
-    {
-        list.as_ref().map(|refcell| r#do(&refcell.borrow()))
-    }
-
-    fn access_petition_with_list_kind<F, R>(&self, kind: FactorListKind, r#do: &F) -> Option<R>
-    where
-        F: Fn(&PetitionForFactors) -> R,
-    {
-        match kind {
-            FactorListKind::Threshold => Self::access_petition(&self.threshold_factors, r#do),
-            FactorListKind::Override => Self::access_petition(&self.override_factors, r#do),
-        }
-    }
-
     fn access_both_list<F, C, T, R>(&self, r#do: F, combine: C) -> R
     where
         F: Fn(&PetitionForFactors) -> T,
         C: Fn(Option<T>, Option<T>) -> R,
     {
-        let t = self.access_petition_with_list_kind(FactorListKind::Threshold, &r#do);
-        let o = self.access_petition_with_list_kind(FactorListKind::Override, &r#do);
+        let access = |list: &Option<RefCell<PetitionForFactors>>| {
+            list.as_ref().map(|refcell| r#do(&refcell.borrow()))
+        };
+        let t = access(&self.threshold_factors);
+        let o = access(&self.override_factors);
         combine(t, o)
     }
 
