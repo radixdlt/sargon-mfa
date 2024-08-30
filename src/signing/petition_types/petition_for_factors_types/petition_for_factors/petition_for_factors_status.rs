@@ -59,3 +59,57 @@ impl PetitionForFactorsStatus {
         pending
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    type Sut = PetitionForFactorsStatus;
+    use super::PetitionFactorsStatusFinished::*;
+    use super::PetitionForFactorsStatus::*;
+
+    #[test]
+    fn aggregate_invalid() {
+        let invalid = Some(1);
+        let irrelevant = None;
+        assert_eq!(
+            Sut::aggregate(
+                vec![InProgress, Finished(Fail), Finished(Success)],
+                irrelevant,
+                invalid,
+                irrelevant
+            ),
+            invalid
+        )
+    }
+
+    #[test]
+    fn aggregate_pending() {
+        let pending = Some(1);
+        let irrelevant = None;
+        assert_eq!(
+            Sut::aggregate(
+                vec![InProgress, Finished(Success), Finished(Success)],
+                irrelevant,
+                irrelevant,
+                pending,
+            ),
+            pending
+        )
+    }
+
+    #[test]
+    fn aggregate_valid() {
+        let valid = Some(1);
+        let irrelevant = None;
+        assert_eq!(
+            Sut::aggregate(
+                vec![Finished(Success), Finished(Success)],
+                valid,
+                irrelevant,
+                irrelevant
+            ),
+            valid
+        )
+    }
+}
