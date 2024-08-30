@@ -1,17 +1,17 @@
 use crate::prelude::*;
 
-/// An interactor which can sign transactions - either in parallel or serially.
+/// An interactor which can sign transactions - either in poly or mono.
 pub enum SigningInteractor {
-    Parallel(Arc<dyn SignWithFactorParallelInteractor>),
-    Serial(Arc<dyn SignWithFactorSerialInteractor>),
+    PolyFactor(Arc<dyn PolyFactorSignInteractor>),
+    MonoFactor(Arc<dyn MonoFactorSignInteractor>),
 }
 
 impl SigningInteractor {
-    pub fn parallel(interactor: Arc<dyn SignWithFactorParallelInteractor>) -> Self {
-        Self::Parallel(interactor)
+    pub fn poly(interactor: Arc<dyn PolyFactorSignInteractor>) -> Self {
+        Self::PolyFactor(interactor)
     }
 
-    pub fn serial(interactor: Arc<dyn SignWithFactorSerialInteractor>) -> Self {
-        Self::Serial(interactor)
+    pub fn mono(interactor: Arc<dyn MonoFactorSignInteractor>) -> Self {
+        Self::MonoFactor(interactor)
     }
 }

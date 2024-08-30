@@ -1,29 +1,29 @@
 use crate::prelude::*;
 
-/// A collection of factor sources to use to sign, transactions with multiple keys
+/// A collection of **many** factor sources to use to sign, transactions with multiple keys
 /// (derivations paths).
 #[derive(derive_more::Debug, Clone)]
 #[debug("per_factor_source: {:#?}", per_factor_source)]
-pub struct ParallelBatchSigningRequest {
+pub struct PolyFactorSignRequest {
     factor_source_kind: FactorSourceKind,
 
     /// Per factor source, a set of transactions to sign, with
     /// multiple derivations paths.
-    pub per_factor_source: IndexMap<FactorSourceIDFromHash, BatchTXBatchKeySigningRequest>,
+    pub per_factor_source: IndexMap<FactorSourceIDFromHash, MonoFactorSignRequestInput>,
 
     /// A collection of transactions which would be invalid if the user skips
     /// signing with this factor source.
     pub invalid_transactions_if_neglected: IndexSet<InvalidTransactionIfNeglected>,
 }
 
-impl ParallelBatchSigningRequest {
+impl PolyFactorSignRequest {
     /// # Panics
     /// Panics if `per_factor_source` is empty
     ///
     /// Panics if not all factor sources are of the same kind
     pub fn new(
         factor_source_kind: FactorSourceKind,
-        per_factor_source: IndexMap<FactorSourceIDFromHash, BatchTXBatchKeySigningRequest>,
+        per_factor_source: IndexMap<FactorSourceIDFromHash, MonoFactorSignRequestInput>,
         invalid_transactions_if_neglected: IndexSet<InvalidTransactionIfNeglected>,
     ) -> Self {
         assert!(
@@ -52,7 +52,7 @@ impl ParallelBatchSigningRequest {
 #[cfg(test)]
 mod tests {
     use super::*;
-    type Sut = ParallelBatchSigningRequest;
+    type Sut = PolyFactorSignRequest;
 
     #[test]
     #[should_panic(
@@ -71,7 +71,7 @@ mod tests {
             FactorSourceKind::Arculus,
             IndexMap::from_iter([(
                 FactorSourceIDFromHash::sample(),
-                BatchTXBatchKeySigningRequest::sample(),
+                MonoFactorSignRequestInput::sample(),
             )]),
             IndexSet::new(),
         );

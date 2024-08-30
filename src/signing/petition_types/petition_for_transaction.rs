@@ -1,20 +1,20 @@
 use crate::prelude::*;
 
 /// Petition of signatures for a transaction.
-/// Essentially a wrapper around `Iterator<Item = PetitionEntity>`.
+/// Essentially a wrapper around `Iterator<Item = PetitionForEntity>`.
 #[derive(derive_more::Debug, PartialEq, Eq)]
 #[debug("{}", self.debug_str())]
-pub(crate) struct PetitionTransaction {
+pub(crate) struct PetitionForTransaction {
     /// Hash of transaction to sign
     pub intent_hash: IntentHash,
 
-    pub for_entities: RefCell<HashMap<AddressOfAccountOrPersona, PetitionEntity>>,
+    pub for_entities: RefCell<HashMap<AddressOfAccountOrPersona, PetitionForEntity>>,
 }
 
-impl PetitionTransaction {
+impl PetitionForTransaction {
     pub(crate) fn new(
         intent_hash: IntentHash,
-        for_entities: HashMap<AddressOfAccountOrPersona, PetitionEntity>,
+        for_entities: HashMap<AddressOfAccountOrPersona, PetitionForEntity>,
     ) -> Self {
         Self {
             intent_hash,
@@ -109,18 +109,18 @@ impl PetitionTransaction {
     pub fn neglect_factor_source(&self, neglected: NeglectedFactor) {
         let mut for_entities = self.for_entities.borrow_mut();
         for petition in for_entities.values_mut() {
-            petition.neglect_if_referenced(neglected.clone()).unwrap()
+            petition.neglect_if_referenced(neglected.clone())
         }
     }
 
     pub(crate) fn input_for_interactor(
         &self,
         factor_source_id: &FactorSourceIDFromHash,
-    ) -> BatchKeySigningRequest {
+    ) -> TransactionSignRequestInput {
         assert!(!self
             .should_neglect_factors_due_to_irrelevant(IndexSet::from_iter([*factor_source_id])));
         assert!(!self.has_tx_failed());
-        BatchKeySigningRequest::new(
+        TransactionSignRequestInput::new(
             self.intent_hash.clone(),
             *factor_source_id,
             self.all_relevant_factor_instances_of_source(factor_source_id),
@@ -138,8 +138,8 @@ impl PetitionTransaction {
         self.for_entities
             .borrow()
             .iter()
-            .flat_map(|(_, petition)| {
-                petition.invalid_transactions_if_neglected_factors(factor_source_ids.clone())
+            .filter_map(|(_, petition)| {
+                petition.invalid_transaction_if_neglected_factors(factor_source_ids.clone())
             })
             .collect()
     }
@@ -164,14 +164,14 @@ impl PetitionTransaction {
             .for_entities
             .borrow()
             .iter()
-            .map(|p| format!("PetitionEntity({:#?})", p.1))
+            .map(|p| format!("PetitionForEntity({:#?})", p.1))
             .join(", ");
 
-        format!("PetitionTransaction(for_entities: [{}])", entities)
+        format!("PetitionForTransaction(for_entities: [{}])", entities)
     }
 }
 
-impl HasSampleValues for PetitionTransaction {
+impl HasSampleValues for PetitionForTransaction {
     fn sample() -> Self {
         let intent_hash = IntentHash::sample();
         let entity = Account::sample_securified();
@@ -179,11 +179,11 @@ impl HasSampleValues for PetitionTransaction {
             intent_hash.clone(),
             HashMap::from_iter([(
                 entity.address(),
-                PetitionEntity::new(
+                PetitionForEntity::new(
                     intent_hash.clone(),
                     entity.address(),
-                    PetitionFactors::sample(),
-                    PetitionFactors::sample_other(),
+                    PetitionForFactors::sample(),
+                    PetitionForFactors::sample_other(),
                 ),
             )]),
         )
@@ -196,10 +196,10 @@ impl HasSampleValues for PetitionTransaction {
             intent_hash.clone(),
             HashMap::from_iter([(
                 entity.address(),
-                PetitionEntity::new(
+                PetitionForEntity::new(
                     intent_hash.clone(),
                     entity.address(),
-                    PetitionFactors::sample_other(),
+                    PetitionForFactors::sample_other(),
                     None,
                 ),
             )]),
@@ -212,7 +212,7 @@ mod tests {
 
     use super::*;
 
-    type Sut = PetitionTransaction;
+    type Sut = PetitionForTransaction;
 
     #[test]
     fn equality() {
@@ -227,6 +227,6 @@ mod tests {
 
     #[test]
     fn debug() {
-        assert_eq!(format!("{:?}", Sut::sample()), "PetitionTransaction(for_entities: [PetitionEntity(intent_hash: TXID(\"dedede\"), entity: acco_Grace, \"threshold_factors PetitionFactors(input: PetitionFactorsInput(factors: {\\n    factor_source_id: Device:de, derivation_path: 0/A/tx/0,\\n    factor_source_id: Ledger:1e, derivation_path: 0/A/tx/1,\\n}), state_snapshot: signatures: \\\"\\\", neglected: \\\"\\\")\"\"override_factors PetitionFactors(input: PetitionFactorsInput(factors: {\\n    factor_source_id: Ledger:1e, derivation_path: 0/A/tx/1,\\n}), state_snapshot: signatures: \\\"\\\", neglected: \\\"\\\")\")])");
+        assert_eq!(format!("{:?}", Sut::sample()), "PetitionForTransaction(for_entities: [PetitionForEntity(intent_hash: TXID(\"dedede\"), entity: acco_Grace, \"threshold_factors PetitionForFactors(input: PetitionFactorsInput(factors: {\\n    factor_source_id: Device:de, derivation_path: 0/A/tx/0,\\n    factor_source_id: Ledger:1e, derivation_path: 0/A/tx/1,\\n}), state_snapshot: signatures: \\\"\\\", neglected: \\\"\\\")\"\"override_factors PetitionForFactors(input: PetitionFactorsInput(factors: {\\n    factor_source_id: Ledger:1e, derivation_path: 0/A/tx/1,\\n}), state_snapshot: signatures: \\\"\\\", neglected: \\\"\\\")\")])");
     }
 }

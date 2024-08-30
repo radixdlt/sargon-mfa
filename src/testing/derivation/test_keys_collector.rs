@@ -1,17 +1,17 @@
 use crate::prelude::*;
 
 pub struct TestDerivationInteractors {
-    pub parallel: Arc<dyn DeriveKeyWithFactorParallelInteractor + Send + Sync>,
-    pub serial: Arc<dyn DeriveKeyWithFactorSerialInteractor + Send + Sync>,
+    pub poly: Arc<dyn DeriveKeyWithFactorParallelInteractor + Send + Sync>,
+    pub mono: Arc<dyn DeriveKeyWithFactorSerialInteractor + Send + Sync>,
 }
 impl TestDerivationInteractors {
     pub fn new(
-        parallel: impl DeriveKeyWithFactorParallelInteractor + Send + Sync + 'static,
-        serial: impl DeriveKeyWithFactorSerialInteractor + Send + Sync + 'static,
+        poly: impl DeriveKeyWithFactorParallelInteractor + Send + Sync + 'static,
+        mono: impl DeriveKeyWithFactorSerialInteractor + Send + Sync + 'static,
     ) -> Self {
         Self {
-            parallel: Arc::new(parallel),
-            serial: Arc::new(serial),
+            poly: Arc::new(poly),
+            mono: Arc::new(mono),
         }
     }
 }
@@ -36,8 +36,8 @@ impl Default for TestDerivationInteractors {
 impl KeysCollectingInteractors for TestDerivationInteractors {
     fn interactor_for(&self, kind: FactorSourceKind) -> KeyDerivationInteractor {
         match kind {
-            FactorSourceKind::Device => KeyDerivationInteractor::parallel(self.parallel.clone()),
-            _ => KeyDerivationInteractor::serial(self.serial.clone()),
+            FactorSourceKind::Device => KeyDerivationInteractor::poly(self.poly.clone()),
+            _ => KeyDerivationInteractor::mono(self.mono.clone()),
         }
     }
 }

@@ -20,7 +20,7 @@ pub(crate) struct Petitions {
 
     /// Lookup from TXID to signatures builders, sorted according to the order of
     /// transactions passed to the SignaturesBuilder.
-    pub txid_to_petition: RefCell<IndexMap<IntentHash, PetitionTransaction>>,
+    pub txid_to_petition: RefCell<IndexMap<IntentHash, PetitionForTransaction>>,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -45,7 +45,7 @@ impl PetitionsStatus {
 impl Petitions {
     pub(crate) fn new(
         factor_source_to_intent_hash: HashMap<FactorSourceIDFromHash, IndexSet<IntentHash>>,
-        txid_to_petition: IndexMap<IntentHash, PetitionTransaction>,
+        txid_to_petition: IndexMap<IntentHash, PetitionForTransaction>,
     ) -> Self {
         Self {
             factor_source_to_intent_hash,
@@ -170,7 +170,7 @@ impl Petitions {
     pub(crate) fn input_for_interactor(
         &self,
         factor_source_id: &FactorSourceIDFromHash,
-    ) -> BatchTXBatchKeySigningRequest {
+    ) -> MonoFactorSignRequestInput {
         let intent_hashes = self
             .factor_source_to_intent_hash
             .get(factor_source_id)
@@ -187,9 +187,9 @@ impl Petitions {
                     Some(petition.input_for_interactor(factor_source_id))
                 }
             })
-            .collect::<IndexSet<BatchKeySigningRequest>>();
+            .collect::<IndexSet<TransactionSignRequestInput>>();
 
-        BatchTXBatchKeySigningRequest::new(*factor_source_id, per_transaction)
+        MonoFactorSignRequestInput::new(*factor_source_id, per_transaction)
     }
 
     fn add_signature(&self, signature: &HDSignature) {
@@ -249,7 +249,7 @@ impl Petitions {
 
 impl HasSampleValues for Petitions {
     fn sample() -> Self {
-        let p0 = PetitionTransaction::sample();
+        let p0 = PetitionForTransaction::sample();
         Self::new(
             HashMap::from_iter([(
                 FactorSourceIDFromHash::fs0(),
@@ -260,7 +260,7 @@ impl HasSampleValues for Petitions {
     }
 
     fn sample_other() -> Self {
-        let p1 = PetitionTransaction::sample();
+        let p1 = PetitionForTransaction::sample();
         Self::new(
             HashMap::from_iter([(
                 FactorSourceIDFromHash::fs1(),
@@ -290,6 +290,6 @@ mod tests {
 
     #[test]
     fn debug() {
-        pretty_assertions::assert_eq!(format!("{:?}", Sut::sample()), "Petitions(TXID(\"dedede\"): PetitionTransaction(for_entities: [PetitionEntity(intent_hash: TXID(\"dedede\"), entity: acco_Grace, \"threshold_factors PetitionFactors(input: PetitionFactorsInput(factors: {\\n    factor_source_id: Device:de, derivation_path: 0/A/tx/0,\\n    factor_source_id: Ledger:1e, derivation_path: 0/A/tx/1,\\n}), state_snapshot: signatures: \\\"\\\", neglected: \\\"\\\")\"\"override_factors PetitionFactors(input: PetitionFactorsInput(factors: {\\n    factor_source_id: Ledger:1e, derivation_path: 0/A/tx/1,\\n}), state_snapshot: signatures: \\\"\\\", neglected: \\\"\\\")\")]))");
+        pretty_assertions::assert_eq!(format!("{:?}", Sut::sample()), "Petitions(TXID(\"dedede\"): PetitionForTransaction(for_entities: [PetitionForEntity(intent_hash: TXID(\"dedede\"), entity: acco_Grace, \"threshold_factors PetitionForFactors(input: PetitionFactorsInput(factors: {\\n    factor_source_id: Device:de, derivation_path: 0/A/tx/0,\\n    factor_source_id: Ledger:1e, derivation_path: 0/A/tx/1,\\n}), state_snapshot: signatures: \\\"\\\", neglected: \\\"\\\")\"\"override_factors PetitionForFactors(input: PetitionFactorsInput(factors: {\\n    factor_source_id: Ledger:1e, derivation_path: 0/A/tx/1,\\n}), state_snapshot: signatures: \\\"\\\", neglected: \\\"\\\")\")]))");
     }
 }

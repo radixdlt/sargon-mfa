@@ -35,7 +35,8 @@ impl SignaturesCollectorPreprocessor {
         all_factor_sources_in_profile: IndexSet<HDFactorSource>,
     ) -> (Petitions, IndexSet<FactorSourcesOfKind>) {
         let transactions = self.transactions;
-        let mut petitions_for_all_transactions = IndexMap::<IntentHash, PetitionTransaction>::new();
+        let mut petitions_for_all_transactions =
+            IndexMap::<IntentHash, PetitionForTransaction>::new();
 
         let all_factor_sources_in_profile = all_factor_sources_in_profile
             .into_iter()
@@ -65,7 +66,7 @@ impl SignaturesCollectorPreprocessor {
 
         for transaction in transactions.into_iter() {
             let mut petitions_for_entities =
-                HashMap::<AddressOfAccountOrPersona, PetitionEntity>::new();
+                HashMap::<AddressOfAccountOrPersona, PetitionForEntity>::new();
 
             for entity in transaction.entities_requiring_auth() {
                 let address = entity.address();
@@ -82,7 +83,7 @@ impl SignaturesCollectorPreprocessor {
 
                         add(primary_role_matrix.override_factors.clone());
                         add(primary_role_matrix.threshold_factors.clone());
-                        let petition = PetitionEntity::new_securified(
+                        let petition = PetitionForEntity::new_securified(
                             transaction.intent_hash.clone(),
                             address.clone(),
                             primary_role_matrix,
@@ -93,7 +94,7 @@ impl SignaturesCollectorPreprocessor {
                         let factor_instance = uec;
                         let factor_source_id = factor_instance.factor_source_id;
                         use_factor_in_tx(&factor_source_id, &transaction.intent_hash);
-                        let petition = PetitionEntity::new_unsecurified(
+                        let petition = PetitionForEntity::new_unsecurified(
                             transaction.intent_hash.clone(),
                             address.clone(),
                             factor_instance,
@@ -103,8 +104,10 @@ impl SignaturesCollectorPreprocessor {
                 }
             }
 
-            let petition_of_tx =
-                PetitionTransaction::new(transaction.intent_hash.clone(), petitions_for_entities);
+            let petition_of_tx = PetitionForTransaction::new(
+                transaction.intent_hash.clone(),
+                petitions_for_entities,
+            );
 
             petitions_for_all_transactions.insert(transaction.intent_hash, petition_of_tx);
         }

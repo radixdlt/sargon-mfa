@@ -1,6 +1,6 @@
 use crate::prelude::*;
 
-/// The response of a batch signing request, either a Parallel or Serial signing
+/// The response of a batch signing request, either a PolyFactor or MonoFactor signing
 /// request, matters not, because the goal is to have signed all transactions with
 /// enough keys (derivation paths) needed for it to be valid when submitted to the
 /// Radix network.

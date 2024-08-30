@@ -3,7 +3,7 @@ use std::cell::Ref;
 use super::*;
 use crate::prelude::*;
 
-/// Mutable state of `PetitionFactors`, keeping track of which factors that
+/// Mutable state of `PetitionForFactors`, keeping track of which factors that
 /// have either signed or been neglected.
 #[derive(Clone, PartialEq, Eq, derive_more::Debug)]
 #[debug("PetitionFactorsState(signed: {:?}, neglected: {:?})", signed.borrow().clone(), neglected.borrow().clone())]

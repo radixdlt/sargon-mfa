@@ -2,10 +2,10 @@ use crate::prelude::*;
 
 /// Petition of signatures from an entity in a transaction.
 /// Essentially a wrapper around a tuple
-/// `{ threshold: PetitionFactors, override: PetitionFactors }`
+/// `{ threshold: PetitionForFactors, override: PetitionForFactors }`
 #[derive(Clone, PartialEq, Eq, derive_more::Debug)]
 #[debug("{}", self.debug_str())]
-pub struct PetitionEntity {
+pub struct PetitionForEntity {
     /// The owner of these factors
     pub entity: AddressOfAccountOrPersona,
 
@@ -13,18 +13,18 @@ pub struct PetitionEntity {
     pub intent_hash: IntentHash,
 
     /// Petition with threshold factors
-    pub threshold_factors: Option<RefCell<PetitionFactors>>,
+    pub threshold_factors: Option<RefCell<PetitionForFactors>>,
 
     /// Petition with override factors
-    pub override_factors: Option<RefCell<PetitionFactors>>,
+    pub override_factors: Option<RefCell<PetitionForFactors>>,
 }
 
-impl PetitionEntity {
-    pub fn new(
+impl PetitionForEntity {
+    pub(super) fn new(
         intent_hash: IntentHash,
         entity: AddressOfAccountOrPersona,
-        threshold_factors: impl Into<Option<PetitionFactors>>,
-        override_factors: impl Into<Option<PetitionFactors>>,
+        threshold_factors: impl Into<Option<PetitionForFactors>>,
+        override_factors: impl Into<Option<PetitionForFactors>>,
     ) -> Self {
         let threshold_factors = threshold_factors.into();
         let override_factors = override_factors.into();
@@ -47,8 +47,8 @@ impl PetitionEntity {
         Self::new(
             intent_hash,
             entity,
-            PetitionFactors::new_threshold(matrix.threshold_factors, matrix.threshold as i8),
-            PetitionFactors::new_override(matrix.override_factors),
+            PetitionForFactors::new_threshold(matrix.threshold_factors, matrix.threshold as i8),
+            PetitionForFactors::new_override(matrix.override_factors),
         )
     }
 
@@ -60,7 +60,7 @@ impl PetitionEntity {
         Self::new(
             intent_hash,
             entity,
-            PetitionFactors::new_unsecurified(instance),
+            PetitionForFactors::new_unsecurified(instance),
             None,
         )
     }
@@ -77,10 +77,10 @@ impl PetitionEntity {
         self.status() == PetitionFactorsStatus::Finished(PetitionFactorsStatusFinished::Fail)
     }
 
-    fn union_of<F, T>(&self, map: F) -> IndexSet<T>
+    fn map_list_then_form_union<F, T>(&self, map: F) -> IndexSet<T>
     where
         T: Eq + std::hash::Hash + Clone,
-        F: Fn(&PetitionFactors) -> IndexSet<T>,
+        F: Fn(&PetitionForFactors) -> IndexSet<T>,
     {
         self.both(
             |l| map(l),
@@ -94,14 +94,14 @@ impl PetitionEntity {
     }
 
     pub fn all_factor_instances(&self) -> IndexSet<OwnedFactorInstance> {
-        self.union_of(|l| l.factor_instances())
+        self.map_list_then_form_union(|l| l.factor_instances())
             .into_iter()
             .map(|f| OwnedFactorInstance::owned_factor_instance(self.entity.clone(), f.clone()))
             .collect::<IndexSet<_>>()
     }
 
     pub fn all_neglected_factor_instances(&self) -> IndexSet<NeglectedFactorInstance> {
-        self.union_of(|f| f.all_neglected())
+        self.map_list_then_form_union(|f| f.all_neglected())
     }
 
     pub fn all_neglected_factor_sources(&self) -> IndexSet<NeglectedFactor> {
@@ -112,19 +112,19 @@ impl PetitionEntity {
     }
 
     pub fn all_signatures(&self) -> IndexSet<HDSignature> {
-        self.union_of(|f| f.all_signatures())
+        self.map_list_then_form_union(|f| f.all_signatures())
     }
 
-    fn with_list<F, T>(list: &Option<RefCell<PetitionFactors>>, map: F) -> Option<T>
+    fn with_list<F, T>(list: &Option<RefCell<PetitionForFactors>>, r#do: F) -> Option<T>
     where
-        F: Fn(&PetitionFactors) -> T,
+        F: Fn(&PetitionForFactors) -> T,
     {
-        list.as_ref().map(|refcell| map(&refcell.borrow()))
+        list.as_ref().map(|refcell| r#do(&refcell.borrow()))
     }
 
-    fn on_list<F, R>(&self, kind: FactorListKind, r#do: &F) -> Option<R>
+    fn map_factor_list<F, R>(&self, kind: FactorListKind, r#do: &F) -> Option<R>
     where
-        F: Fn(&PetitionFactors) -> R,
+        F: Fn(&PetitionForFactors) -> R,
     {
         match kind {
             FactorListKind::Threshold => Self::with_list(&self.threshold_factors, r#do),
@@ -134,17 +134,17 @@ impl PetitionEntity {
 
     fn both<F, C, T, R>(&self, r#do: F, combine: C) -> R
     where
-        F: Fn(&PetitionFactors) -> T,
+        F: Fn(&PetitionForFactors) -> T,
         C: Fn(Option<T>, Option<T>) -> R,
     {
-        let t = self.on_list(FactorListKind::Threshold, &r#do);
-        let o = self.on_list(FactorListKind::Override, &r#do);
+        let t = self.map_factor_list(FactorListKind::Threshold, &r#do);
+        let o = self.map_factor_list(FactorListKind::Override, &r#do);
         combine(t, o)
     }
 
     fn both_void<F, R>(&self, r#do: F)
     where
-        F: Fn(&PetitionFactors) -> R,
+        F: Fn(&PetitionForFactors) -> R,
     {
         self.both(r#do, |_, _| ())
     }
@@ -178,22 +178,23 @@ impl PetitionEntity {
         }
     }
 
-    pub fn invalid_transactions_if_neglected_factors(
+    pub fn invalid_transaction_if_neglected_factors(
         &self,
         factor_source_ids: IndexSet<FactorSourceIDFromHash>,
-    ) -> IndexSet<InvalidTransactionIfNeglected> {
+    ) -> Option<InvalidTransactionIfNeglected> {
         let status_if_neglected = self.status_if_neglected_factors(factor_source_ids);
         match status_if_neglected {
             PetitionFactorsStatus::Finished(finished_reason) => match finished_reason {
                 PetitionFactorsStatusFinished::Fail => {
                     let intent_hash = self.intent_hash.clone();
-                    let invalid_transaction =
-                        InvalidTransactionIfNeglected::new(intent_hash, vec![self.entity.clone()]);
-                    IndexSet::from_iter([invalid_transaction])
+                    Some(InvalidTransactionIfNeglected::new(
+                        intent_hash,
+                        vec![self.entity.clone()],
+                    ))
                 }
-                PetitionFactorsStatusFinished::Success => IndexSet::new(),
+                PetitionFactorsStatusFinished::Success => None,
             },
-            PetitionFactorsStatus::InProgress => IndexSet::new(),
+            PetitionFactorsStatus::InProgress => None,
         }
     }
 
@@ -203,12 +204,10 @@ impl PetitionEntity {
     ) -> PetitionFactorsStatus {
         let simulation = self.clone();
         for factor_source_id in factor_source_ids.iter() {
-            simulation
-                .neglect_if_referenced(NeglectedFactor::new(
-                    NeglectFactorReason::Simulation,
-                    *factor_source_id,
-                ))
-                .unwrap();
+            simulation.neglect_if_referenced(NeglectedFactor::new(
+                NeglectFactorReason::Simulation,
+                *factor_source_id,
+            ))
         }
         simulation.status()
     }
@@ -229,36 +228,40 @@ impl PetitionEntity {
         )
     }
 
-    pub fn neglect_if_referenced(&self, neglected: NeglectedFactor) -> Result<()> {
+    pub fn neglect_if_referenced(&self, neglected: NeglectedFactor) {
         self.both_void(|p| p.neglect_if_referenced(neglected.clone()));
-        Ok(())
     }
 
     pub fn status(&self) -> PetitionFactorsStatus {
         use PetitionFactorsStatus::*;
         use PetitionFactorsStatusFinished::*;
 
-        let maybe_threshold = self.threshold_factors.as_ref().map(|t| t.borrow().status());
-        let maybe_override = self.override_factors.as_ref().map(|o| o.borrow().status());
-        if let Some(t) = &maybe_threshold {
-            trace!("Threshold factor status: {:?}", t);
-        }
-        if let Some(o) = &maybe_override {
-            trace!("Override factor status: {:?}", o);
-        }
-        match (maybe_threshold, maybe_override) {
-            (None, None) => panic!("Programmer error! Should have at least one factors list."),
-            (Some(threshold), None) => threshold,
-            (None, Some(r#override)) => r#override,
-            (Some(threshold), Some(r#override)) => match (threshold, r#override) {
-                (InProgress, InProgress) => PetitionFactorsStatus::InProgress,
-                (Finished(Fail), InProgress) => PetitionFactorsStatus::InProgress,
-                (InProgress, Finished(Fail)) => PetitionFactorsStatus::InProgress,
-                (Finished(Fail), Finished(Fail)) => PetitionFactorsStatus::Finished(Fail),
-                (Finished(Success), _) => PetitionFactorsStatus::Finished(Success),
-                (_, Finished(Success)) => PetitionFactorsStatus::Finished(Success),
+        self.both(
+            |p| p.status(),
+            |maybe_threshold, maybe_override| {
+                if let Some(t) = &maybe_threshold {
+                    trace!("Threshold factor status: {:?}", t);
+                }
+                if let Some(o) = &maybe_override {
+                    trace!("Override factor status: {:?}", o);
+                }
+                match (maybe_threshold, maybe_override) {
+                    (None, None) => {
+                        panic!("Programmer error! Should have at least one factors list.")
+                    }
+                    (Some(threshold), None) => threshold,
+                    (None, Some(r#override)) => r#override,
+                    (Some(threshold), Some(r#override)) => match (threshold, r#override) {
+                        (InProgress, InProgress) => PetitionFactorsStatus::InProgress,
+                        (Finished(Fail), InProgress) => PetitionFactorsStatus::InProgress,
+                        (InProgress, Finished(Fail)) => PetitionFactorsStatus::InProgress,
+                        (Finished(Fail), Finished(Fail)) => PetitionFactorsStatus::Finished(Fail),
+                        (Finished(Success), _) => PetitionFactorsStatus::Finished(Success),
+                        (_, Finished(Success)) => PetitionFactorsStatus::Finished(Success),
+                    },
+                }
             },
-        }
+        )
     }
 
     #[allow(unused)]
@@ -282,7 +285,7 @@ impl PetitionEntity {
     }
 }
 
-impl PetitionEntity {
+impl PetitionForEntity {
     fn from_entity(entity: impl Into<AccountOrPersona>, intent_hash: IntentHash) -> Self {
         let entity = entity.into();
         match entity.security_state() {
@@ -296,7 +299,7 @@ impl PetitionEntity {
     }
 }
 
-impl HasSampleValues for PetitionEntity {
+impl HasSampleValues for PetitionForEntity {
     fn sample() -> Self {
         Self::from_entity(Account::sample_securified(), IntentHash::sample())
     }
@@ -309,7 +312,7 @@ impl HasSampleValues for PetitionEntity {
 #[cfg(test)]
 mod tests {
     use super::*;
-    type Sut = PetitionEntity;
+    type Sut = PetitionForEntity;
 
     #[test]
     fn multiple_device_as_override_skipped_both_is_invalid() {
@@ -328,24 +331,17 @@ mod tests {
         let entity = AddressOfAccountOrPersona::Account(AccountAddress::sample());
         let tx = IntentHash::sample_third();
         let sut = Sut::new_securified(tx.clone(), entity.clone(), matrix);
-        let invalid = sut.invalid_transactions_if_neglected_factors(IndexSet::from_iter([
-            d0.factor_source_id(),
-            d1.factor_source_id(),
-        ]));
+        let invalid = sut
+            .invalid_transaction_if_neglected_factors(IndexSet::from_iter([
+                d0.factor_source_id(),
+                d1.factor_source_id(),
+            ]))
+            .unwrap();
+
+        assert_eq!(invalid.clone().intent_hash, tx);
         assert_eq!(
-            invalid
-                .clone()
-                .into_iter()
-                .map(|t| t.intent_hash)
-                .collect_vec(),
-            vec![tx]
-        );
-        assert_eq!(
-            invalid
-                .into_iter()
-                .flat_map(|t| t.entities_which_would_fail_auth().into_iter().collect_vec())
-                .collect_vec(),
-            vec![entity]
+            invalid.entities_which_would_fail_auth(),
+            IndexSet::<_>::from_iter([entity])
         );
     }
 
@@ -366,10 +362,9 @@ mod tests {
         let entity = AddressOfAccountOrPersona::Account(AccountAddress::sample());
         let tx = IntentHash::sample_third();
         let sut = Sut::new_securified(tx.clone(), entity.clone(), matrix);
-        let invalid = sut.invalid_transactions_if_neglected_factors(IndexSet::from_iter([
-            d0.factor_source_id()
-        ]));
-        assert!(invalid.is_empty());
+        let invalid = sut
+            .invalid_transaction_if_neglected_factors(IndexSet::from_iter([d0.factor_source_id()]));
+        assert!(invalid.is_none());
     }
 
     #[test]
@@ -392,24 +387,16 @@ mod tests {
         let entity = AddressOfAccountOrPersona::Account(AccountAddress::sample());
         let tx = IntentHash::sample_third();
         let sut = Sut::new_securified(tx.clone(), entity.clone(), matrix);
-        let invalid = sut.invalid_transactions_if_neglected_factors(IndexSet::from_iter([
-            d0.factor_source_id(),
-            d1.factor_source_id(),
-        ]));
+        let invalid = sut
+            .invalid_transaction_if_neglected_factors(IndexSet::from_iter([
+                d0.factor_source_id(),
+                d1.factor_source_id(),
+            ]))
+            .unwrap();
+        assert_eq!(invalid.clone().intent_hash, tx);
         assert_eq!(
-            invalid
-                .clone()
-                .into_iter()
-                .map(|t| t.intent_hash)
-                .collect_vec(),
-            vec![tx]
-        );
-        assert_eq!(
-            invalid
-                .into_iter()
-                .flat_map(|t| t.entities_which_would_fail_auth().into_iter().collect_vec())
-                .collect_vec(),
-            vec![entity]
+            invalid.entities_which_would_fail_auth(),
+            IndexSet::<_>::from_iter([entity])
         );
     }
 
@@ -434,24 +421,14 @@ mod tests {
         let tx = IntentHash::sample_third();
         let sut = Sut::new_securified(tx.clone(), entity.clone(), matrix);
 
-        let invalid = sut.invalid_transactions_if_neglected_factors(IndexSet::from_iter([
-            d1.factor_source_id()
-        ]));
+        let invalid = sut
+            .invalid_transaction_if_neglected_factors(IndexSet::from_iter([d1.factor_source_id()]))
+            .unwrap();
 
+        assert_eq!(invalid.clone().intent_hash, tx);
         assert_eq!(
-            invalid
-                .clone()
-                .into_iter()
-                .map(|t| t.intent_hash)
-                .collect_vec(),
-            vec![tx]
-        );
-        assert_eq!(
-            invalid
-                .into_iter()
-                .flat_map(|t| t.entities_which_would_fail_auth().into_iter().collect_vec())
-                .collect_vec(),
-            vec![entity]
+            invalid.entities_which_would_fail_auth(),
+            IndexSet::<_>::from_iter([entity])
         );
     }
 
@@ -476,16 +453,15 @@ mod tests {
         let tx = IntentHash::sample_third();
         let sut = Sut::new_securified(tx.clone(), entity.clone(), matrix);
 
-        let invalid = sut.invalid_transactions_if_neglected_factors(IndexSet::from_iter([
-            d1.factor_source_id()
-        ]));
+        let invalid = sut
+            .invalid_transaction_if_neglected_factors(IndexSet::from_iter([d1.factor_source_id()]));
 
-        assert!(invalid.is_empty());
+        assert!(invalid.is_none());
     }
 
     #[test]
     fn debug() {
-        pretty_assertions::assert_eq!(format!("{:?}", Sut::sample()), "intent_hash: TXID(\"dedede\"), entity: acco_Grace, \"threshold_factors PetitionFactors(input: PetitionFactorsInput(factors: {\\n    factor_source_id: Device:00, derivation_path: 0/A/tx/6,\\n    factor_source_id: Arculus:03, derivation_path: 0/A/tx/6,\\n    factor_source_id: Yubikey:05, derivation_path: 0/A/tx/6,\\n}), state_snapshot: signatures: \\\"\\\", neglected: \\\"\\\")\"\"override_factors PetitionFactors(input: PetitionFactorsInput(factors: {\\n    factor_source_id: Ledger:01, derivation_path: 0/A/tx/6,\\n    factor_source_id: Arculus:04, derivation_path: 0/A/tx/6,\\n}), state_snapshot: signatures: \\\"\\\", neglected: \\\"\\\")\"");
+        pretty_assertions::assert_eq!(format!("{:?}", Sut::sample()), "intent_hash: TXID(\"dedede\"), entity: acco_Grace, \"threshold_factors PetitionForFactors(input: PetitionFactorsInput(factors: {\\n    factor_source_id: Device:00, derivation_path: 0/A/tx/6,\\n    factor_source_id: Arculus:03, derivation_path: 0/A/tx/6,\\n    factor_source_id: Yubikey:05, derivation_path: 0/A/tx/6,\\n}), state_snapshot: signatures: \\\"\\\", neglected: \\\"\\\")\"\"override_factors PetitionForFactors(input: PetitionFactorsInput(factors: {\\n    factor_source_id: Ledger:01, derivation_path: 0/A/tx/6,\\n    factor_source_id: Arculus:04, derivation_path: 0/A/tx/6,\\n}), state_snapshot: signatures: \\\"\\\", neglected: \\\"\\\")\"");
     }
 
     #[test]
@@ -567,8 +543,8 @@ mod tests {
             assert!(sut
                 // Already signed with override factor `FactorSourceIDFromHash::fs1()`. Thus
                 // can skip
-                .invalid_transactions_if_neglected_factors(IndexSet::from_iter([f]))
-                .is_empty())
+                .invalid_transaction_if_neglected_factors(IndexSet::from_iter([f]))
+                .is_none())
         };
         can_skip(FactorSourceIDFromHash::fs0());
         can_skip(FactorSourceIDFromHash::fs3());
