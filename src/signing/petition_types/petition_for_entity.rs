@@ -140,20 +140,16 @@ impl PetitionForEntity {
         }
     }
 
+    /// Returns this petitions entity if the transaction would be invalid if the given factor sources
+    /// would be neglected.
     pub fn invalid_transaction_if_neglected_factors(
         &self,
         factor_source_ids: IndexSet<FactorSourceIDFromHash>,
-    ) -> Option<InvalidTransactionIfNeglected> {
+    ) -> Option<AddressOfAccountOrPersona> {
         let status_if_neglected = self.status_if_neglected_factors(factor_source_ids);
         match status_if_neglected {
             PetitionForFactorsStatus::Finished(finished_reason) => match finished_reason {
-                PetitionFactorsStatusFinished::Fail => {
-                    let intent_hash = self.intent_hash.clone();
-                    Some(InvalidTransactionIfNeglected::new(
-                        intent_hash,
-                        vec![self.entity.clone()],
-                    ))
-                }
+                PetitionFactorsStatusFinished::Fail => Some(self.entity.clone()),
                 PetitionFactorsStatusFinished::Success => None,
             },
             PetitionForFactorsStatus::InProgress => None,
@@ -358,11 +354,7 @@ mod tests {
             ]))
             .unwrap();
 
-        assert_eq!(invalid.clone().intent_hash, tx);
-        assert_eq!(
-            invalid.entities_which_would_fail_auth(),
-            IndexSet::<_>::from_iter([entity])
-        );
+        assert_eq!(invalid.clone(), entity);
     }
 
     #[test]
@@ -413,11 +405,7 @@ mod tests {
                 d1.factor_source_id(),
             ]))
             .unwrap();
-        assert_eq!(invalid.clone().intent_hash, tx);
-        assert_eq!(
-            invalid.entities_which_would_fail_auth(),
-            IndexSet::<_>::from_iter([entity])
-        );
+        assert_eq!(invalid, entity);
     }
 
     #[test]
@@ -445,11 +433,7 @@ mod tests {
             .invalid_transaction_if_neglected_factors(IndexSet::from_iter([d1.factor_source_id()]))
             .unwrap();
 
-        assert_eq!(invalid.clone().intent_hash, tx);
-        assert_eq!(
-            invalid.entities_which_would_fail_auth(),
-            IndexSet::<_>::from_iter([entity])
-        );
+        assert_eq!(invalid, entity);
     }
 
     #[test]

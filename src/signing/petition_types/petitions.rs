@@ -91,7 +91,7 @@ impl Petitions {
     ) -> IndexSet<InvalidTransactionIfNeglected> {
         self.each_petition(
             factor_source_ids.clone(),
-            |p| p.invalid_transactions_if_neglected_factors(factor_source_ids.clone()),
+            |p| p.invalid_transaction_if_neglected_factors(factor_source_ids.clone()),
             |i| i.into_iter().flatten().collect(),
         )
     }
