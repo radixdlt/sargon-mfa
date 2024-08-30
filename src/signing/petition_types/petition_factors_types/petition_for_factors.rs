@@ -60,7 +60,7 @@ impl PetitionForFactors {
     }
 
     pub fn new_unsecurified(factor: HierarchicalDeterministicFactorInstance) -> Self {
-        Self::new_threshold(vec![factor], 1).unwrap() // define as 1/1 threshold factor, which is a good definition.
+        Self::new_threshold(vec![factor], 1).expect("Factors is not empty") // define as 1/1 threshold factor, which is a good definition.
     }
 
     pub fn new_override(factors: Vec<HierarchicalDeterministicFactorInstance>) -> Option<Self> {
