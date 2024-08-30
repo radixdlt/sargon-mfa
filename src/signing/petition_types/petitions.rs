@@ -155,15 +155,11 @@ impl Petitions {
     }
 
     fn neglect_factor_source_with_id(&self, neglected: NeglectedFactor) {
-        let binding = self.txid_to_petition.borrow();
-        let intent_hashes = self
-            .factor_source_to_intent_hash
-            .get(&neglected.factor_source_id())
-            .unwrap();
-        intent_hashes.into_iter().for_each(|intent_hash| {
-            let petition = binding.get(intent_hash).unwrap();
-            petition.neglect_factor_source(neglected.clone())
-        });
+        self.each_petition(
+            IndexSet::from_iter([neglected.factor_source_id()]),
+            |p| p.neglect_factor_source(neglected.clone()),
+            |_| (),
+        )
     }
 
     pub(crate) fn process_batch_response(&self, response: SignWithFactorsOutcome) {
