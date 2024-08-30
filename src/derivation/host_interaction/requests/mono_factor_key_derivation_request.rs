@@ -5,15 +5,15 @@ use crate::prelude::*;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MonoFactorKeyDerivationRequest {
     /// ID of the FactorSource used to derive keys.
-    pub factor_source_id: FactorSourceIDFromHash,
+    pub(crate) factor_source_id: FactorSourceIDFromHash,
 
     /// The derivation paths used to derive keys using
     /// the factor source
-    pub derivation_paths: IndexSet<DerivationPath>,
+    pub(crate) derivation_paths: IndexSet<DerivationPath>,
 }
 
 impl MonoFactorKeyDerivationRequest {
-    pub fn new(
+    pub(crate) fn new(
         factor_source_id: FactorSourceIDFromHash,
         derivation_paths: IndexSet<DerivationPath>,
     ) -> Self {

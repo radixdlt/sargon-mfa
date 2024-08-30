@@ -9,7 +9,7 @@ pub struct TransactionSignRequestInput {
     intent_hash: IntentHash,
 
     /// ID of factor to use to sign
-    pub factor_source_id: FactorSourceIDFromHash,
+    pub(crate) factor_source_id: FactorSourceIDFromHash,
 
     /// The derivation paths to use to derive the private keys to sign with. The
     /// `factor_source_id` of each item must match `factor_source_id`.
@@ -21,7 +21,7 @@ impl TransactionSignRequestInput {
     /// Panics if any of the owned factor instances does not match the `factor_source_id`.
     ///
     /// Panics if `owned_factor_instances` is empty.
-    pub fn new(
+    pub(crate) fn new(
         intent_hash: IntentHash,
         factor_source_id: FactorSourceIDFromHash,
         owned_factor_instances: IndexSet<OwnedFactorInstance>,
@@ -40,7 +40,7 @@ impl TransactionSignRequestInput {
         }
     }
 
-    pub fn signature_inputs(&self) -> IndexSet<HDSignatureInput> {
+    pub(crate) fn signature_inputs(&self) -> IndexSet<HDSignatureInput> {
         self.owned_factor_instances
             .clone()
             .into_iter()

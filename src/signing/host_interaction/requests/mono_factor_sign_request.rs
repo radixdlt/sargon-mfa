@@ -13,7 +13,7 @@ pub struct MonoFactorSignRequest {
 }
 
 impl MonoFactorSignRequest {
-    pub fn new(
+    pub(crate) fn new(
         input: MonoFactorSignRequestInput,
         invalid_transactions_if_neglected: IndexSet<InvalidTransactionIfNeglected>,
     ) -> Self {
@@ -23,7 +23,7 @@ impl MonoFactorSignRequest {
         }
     }
 
-    pub fn factor_source_kind(&self) -> FactorSourceKind {
+    pub(crate) fn factor_source_kind(&self) -> FactorSourceKind {
         self.input.factor_source_kind()
     }
 }

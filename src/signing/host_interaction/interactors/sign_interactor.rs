@@ -7,11 +7,11 @@ pub enum SignInteractor {
 }
 
 impl SignInteractor {
-    pub fn poly(interactor: Arc<dyn PolyFactorSignInteractor>) -> Self {
+    pub(crate) fn poly(interactor: Arc<dyn PolyFactorSignInteractor>) -> Self {
         Self::PolyFactor(interactor)
     }
 
-    pub fn mono(interactor: Arc<dyn MonoFactorSignInteractor>) -> Self {
+    pub(crate) fn mono(interactor: Arc<dyn MonoFactorSignInteractor>) -> Self {
         Self::MonoFactor(interactor)
     }
 }

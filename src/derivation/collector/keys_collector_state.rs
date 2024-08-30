@@ -4,12 +4,12 @@ use crate::prelude::*;
 /// interior mutability to allow for mutation without `&mut self`.
 ///
 /// Holds a collection of keyrings derived from various factor sources.
-pub struct KeysCollectorState {
+pub(crate) struct KeysCollectorState {
     pub(super) keyrings: RefCell<IndexMap<FactorSourceIDFromHash, Keyring>>,
 }
 
 impl KeysCollectorState {
-    pub fn new(
+    pub(crate) fn new(
         derivation_paths: IndexMap<FactorSourceIDFromHash, IndexSet<DerivationPath>>,
     ) -> Self {
         let keyrings = derivation_paths
@@ -26,7 +26,7 @@ impl KeysCollectorState {
         }
     }
 
-    pub fn outcome(self) -> KeyDerivationOutcome {
+    pub(crate) fn outcome(self) -> KeyDerivationOutcome {
         let key_rings = self.keyrings.into_inner();
         KeyDerivationOutcome::new(
             key_rings
@@ -36,7 +36,7 @@ impl KeysCollectorState {
         )
     }
 
-    pub fn keyring_for(&self, factor_source_id: &FactorSourceIDFromHash) -> Result<Keyring> {
+    pub(crate) fn keyring_for(&self, factor_source_id: &FactorSourceIDFromHash) -> Result<Keyring> {
         self.keyrings
             .borrow()
             .get(factor_source_id)

@@ -4,6 +4,6 @@ mod poly_factor_sign_request;
 mod transaction_sign_request_input;
 
 pub use mono_factor_sign_request::*;
-pub use mono_factor_sign_request_input::*;
+pub(crate) use mono_factor_sign_request_input::*;
 pub use poly_factor_sign_request::*;
-pub use transaction_sign_request_input::*;
+pub(crate) use transaction_sign_request_input::*;

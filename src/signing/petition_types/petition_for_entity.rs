@@ -5,18 +5,18 @@ use crate::prelude::*;
 /// `{ threshold: PetitionForFactors, override: PetitionForFactors }`
 #[derive(Clone, PartialEq, Eq, derive_more::Debug)]
 #[debug("{}", self.debug_str())]
-pub struct PetitionForEntity {
+pub(crate) struct PetitionForEntity {
     /// The owner of these factors
-    pub entity: AddressOfAccountOrPersona,
+    pub(crate) entity: AddressOfAccountOrPersona,
 
     /// Index and hash of transaction
-    pub intent_hash: IntentHash,
+    pub(crate) intent_hash: IntentHash,
 
     /// Petition with threshold factors
-    pub threshold_factors: Option<RefCell<PetitionForFactors>>,
+    pub(crate) threshold_factors: Option<RefCell<PetitionForFactors>>,
 
     /// Petition with override factors
-    pub override_factors: Option<RefCell<PetitionForFactors>>,
+    pub(crate) override_factors: Option<RefCell<PetitionForFactors>>,
 }
 
 impl PetitionForEntity {
@@ -40,7 +40,7 @@ impl PetitionForEntity {
     }
 
     /// Creates a new Petition from an entity which is securified, i.e. has a matrix of factors.
-    pub fn new_securified(
+    pub(crate) fn new_securified(
         intent_hash: IntentHash,
         entity: AddressOfAccountOrPersona,
         matrix: MatrixOfFactorInstances,
@@ -54,7 +54,7 @@ impl PetitionForEntity {
     }
 
     /// Creates a new Petition from an entity which is unsecurified, i.e. has a single factor.
-    pub fn new_unsecurified(
+    pub(crate) fn new_unsecurified(
         intent_hash: IntentHash,
         entity: AddressOfAccountOrPersona,
         instance: HierarchicalDeterministicFactorInstance,
@@ -69,18 +69,18 @@ impl PetitionForEntity {
 
     /// Returns `true` if signatures requirement has been fulfilled, either by
     /// override factors or by threshold factors
-    pub fn has_signatures_requirement_been_fulfilled(&self) -> bool {
+    pub(crate) fn has_signatures_requirement_been_fulfilled(&self) -> bool {
         self.status() == PetitionForFactorsStatus::Finished(PetitionFactorsStatusFinished::Success)
     }
 
     /// Returns `true` if the transaction of this petition already has failed due
     /// to too many factors neglected
-    pub fn has_failed(&self) -> bool {
+    pub(crate) fn has_failed(&self) -> bool {
         self.status() == PetitionForFactorsStatus::Finished(PetitionFactorsStatusFinished::Fail)
     }
 
     /// Returns the aggregate of **all** owned factor instances from both lists, either threshold or override.
-    pub fn all_factor_instances(&self) -> IndexSet<OwnedFactorInstance> {
+    pub(crate) fn all_factor_instances(&self) -> IndexSet<OwnedFactorInstance> {
         self.access_both_list_then_form_union(|l| l.factor_instances())
             .into_iter()
             .map(|f| OwnedFactorInstance::owned_factor_instance(self.entity.clone(), f.clone()))
@@ -89,12 +89,12 @@ impl PetitionForEntity {
 
     /// Returns the aggregate of all **neglected** factor instances from both lists, either threshold or override,
     /// that is, all factor instances but filtered out only those from FactorSources which have been neglected.
-    pub fn all_neglected_factor_instances(&self) -> IndexSet<NeglectedFactorInstance> {
+    pub(crate) fn all_neglected_factor_instances(&self) -> IndexSet<NeglectedFactorInstance> {
         self.access_both_list_then_form_union(|f| f.all_neglected())
     }
 
     /// Returns the aggregate of all **neglected** factor sources from both lists, either threshold or override.
-    pub fn all_neglected_factor_sources(&self) -> IndexSet<NeglectedFactor> {
+    pub(crate) fn all_neglected_factor_sources(&self) -> IndexSet<NeglectedFactor> {
         self.all_neglected_factor_instances()
             .into_iter()
             .map(|n| n.as_neglected_factor())
@@ -102,7 +102,7 @@ impl PetitionForEntity {
     }
 
     /// Returrns the aggregate of all signatures from both lists, either threshold or override.
-    pub fn all_signatures(&self) -> IndexSet<HDSignature> {
+    pub(crate) fn all_signatures(&self) -> IndexSet<HDSignature> {
         self.access_both_list_then_form_union(|f| f.all_signatures())
     }
 
@@ -113,7 +113,7 @@ impl PetitionForEntity {
     /// Panics if this factor source has already been neglected or signed with.
     ///
     /// Or panics if the factor source is not known to this petition.
-    pub fn add_signature(&self, signature: HDSignature) {
+    pub(crate) fn add_signature(&self, signature: HDSignature) {
         self.access_both_list(|l| l.add_signature_if_relevant(&signature), |t, o| {
             match (t, o) {
                 (Some(true), Some(true)) => {
@@ -142,7 +142,7 @@ impl PetitionForEntity {
 
     /// Returns this petitions entity if the transaction would be invalid if the given factor sources
     /// would be neglected.
-    pub fn invalid_transaction_if_neglected_factors(
+    pub(crate) fn invalid_transaction_if_neglected_factors(
         &self,
         factor_source_ids: IndexSet<FactorSourceIDFromHash>,
     ) -> Option<AddressOfAccountOrPersona> {
@@ -156,7 +156,7 @@ impl PetitionForEntity {
         }
     }
 
-    pub fn status_if_neglected_factors(
+    pub(crate) fn status_if_neglected_factors(
         &self,
         factor_source_ids: IndexSet<FactorSourceIDFromHash>,
     ) -> PetitionForFactorsStatus {
@@ -172,7 +172,7 @@ impl PetitionForEntity {
 
     /// Queries if this petition references any of the factor sources in the set of ids
     /// by checking bot hteh threshold and the override factors list.
-    pub fn references_any_factor_source(
+    pub(crate) fn references_any_factor_source(
         &self,
         factor_source_ids: &IndexSet<FactorSourceIDFromHash>,
     ) -> bool {
@@ -183,7 +183,7 @@ impl PetitionForEntity {
 
     /// Queries if this petition references the factor source with the given id, by
     /// checking both the threshold and override factors list.
-    pub fn references_factor_source_with_id(&self, id: &FactorSourceIDFromHash) -> bool {
+    pub(crate) fn references_factor_source_with_id(&self, id: &FactorSourceIDFromHash) -> bool {
         self.access_both_list(
             |p| p.references_factor_source_with_id(id),
             |a, b| a.unwrap_or(false) || b.unwrap_or(false),
@@ -193,7 +193,7 @@ impl PetitionForEntity {
     /// If this petitions references the neglected factor source, disregarding if it is a threshold
     /// or override factor, it will be neglected. If the factor is not known to any of the lists
     /// nothing happens.
-    pub fn neglect_if_referenced(&self, neglected: NeglectedFactor) {
+    pub(crate) fn neglect_if_referenced(&self, neglected: NeglectedFactor) {
         self.access_both_list(|p| p.neglect_if_referenced(neglected.clone()), |_, _| ());
     }
 
@@ -203,7 +203,7 @@ impl PetitionForEntity {
     /// (Threshold: Finished(Fail), Override: Finished(Fail)) -> Finished(Fail) but
     /// (Threshold: Finished(Success), Override: Inprogress) -> Finished(Success) - since
     /// want to be able to finish early if the petition for this entity is already successful.
-    pub fn status(&self) -> PetitionForFactorsStatus {
+    pub(crate) fn status(&self) -> PetitionForFactorsStatus {
         use PetitionFactorsStatusFinished::*;
         use PetitionForFactorsStatus::*;
 

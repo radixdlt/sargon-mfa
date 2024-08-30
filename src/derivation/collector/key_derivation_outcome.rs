@@ -5,18 +5,22 @@ use crate::prelude::*;
 /// `FactorSource`s at the specified `DerivationPath`s
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct KeyDerivationOutcome {
+    count: usize, // hide ctor...
     pub factors_by_source:
         IndexMap<FactorSourceIDFromHash, IndexSet<HierarchicalDeterministicFactorInstance>>,
 }
 
 impl KeyDerivationOutcome {
-    pub fn new(
+    pub(crate) fn new(
         factors_by_source: IndexMap<
             FactorSourceIDFromHash,
             IndexSet<HierarchicalDeterministicFactorInstance>,
         >,
     ) -> Self {
-        Self { factors_by_source }
+        Self {
+            count: factors_by_source.len(),
+            factors_by_source,
+        }
     }
 
     /// ALL factor instances derived by the KeysCollector

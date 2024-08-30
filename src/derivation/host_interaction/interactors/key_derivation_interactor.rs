@@ -11,11 +11,11 @@ pub enum KeyDerivationInteractor {
 }
 
 impl KeyDerivationInteractor {
-    pub fn poly(interactor: Arc<dyn PolyFactorKeyDerivationInteractor>) -> Self {
+    pub(crate) fn poly(interactor: Arc<dyn PolyFactorKeyDerivationInteractor>) -> Self {
         Self::PolyFactor(interactor)
     }
 
-    pub fn mono(interactor: Arc<dyn MonoFactorKeyDerivationInteractor>) -> Self {
+    pub(crate) fn mono(interactor: Arc<dyn MonoFactorKeyDerivationInteractor>) -> Self {
         Self::MonoFactor(interactor)
     }
 }

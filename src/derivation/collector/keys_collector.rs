@@ -19,6 +19,15 @@ pub struct KeysCollector {
 }
 
 impl KeysCollector {
+    pub fn new(
+        all_factor_sources_in_profile: IndexSet<HDFactorSource>,
+        derivation_paths: IndexMap<FactorSourceIDFromHash, IndexSet<DerivationPath>>,
+        interactors: Arc<dyn KeysDerivationInteractors>,
+    ) -> Result<Self> {
+        let preprocessor = KeysCollectorPreprocessor::new(derivation_paths);
+        Self::with_preprocessor(all_factor_sources_in_profile, interactors, preprocessor)
+    }
+
     fn with_preprocessor(
         all_factor_sources_in_profile: impl Into<IndexSet<HDFactorSource>>,
         interactors: Arc<dyn KeysDerivationInteractors>,
@@ -35,19 +44,11 @@ impl KeysCollector {
             state: RefCell::new(state),
         })
     }
-
-    pub fn new(
-        all_factor_sources_in_profile: IndexSet<HDFactorSource>,
-        derivation_paths: IndexMap<FactorSourceIDFromHash, IndexSet<DerivationPath>>,
-        interactors: Arc<dyn KeysDerivationInteractors>,
-    ) -> Result<Self> {
-        let preprocessor = KeysCollectorPreprocessor::new(derivation_paths);
-        Self::with_preprocessor(all_factor_sources_in_profile, interactors, preprocessor)
-    }
 }
 
 // === PUBLIC ===
 impl KeysCollector {
+    #[allow(unused)]
     pub async fn collect_keys(self) -> KeyDerivationOutcome {
         _ = self
             .derive_with_factors() // in decreasing "friction order"

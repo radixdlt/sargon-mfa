@@ -5,18 +5,18 @@ use crate::prelude::*;
 /// set of collected signatues (might be empty) and
 /// a set of neglected factors (might be empty).
 #[derive(Clone, PartialEq, Eq)]
-pub struct PetitionTransactionOutcome {
+pub(crate) struct PetitionTransactionOutcome {
     intent_hash: IntentHash,
-    pub transaction_valid: bool,
-    pub signatures: IndexSet<HDSignature>,
-    pub neglected_factors: IndexSet<NeglectedFactor>,
+    pub(crate) transaction_valid: bool,
+    pub(crate) signatures: IndexSet<HDSignature>,
+    pub(crate) neglected_factors: IndexSet<NeglectedFactor>,
 }
 
 impl PetitionTransactionOutcome {
     /// # Panics
     /// Panics if the intent hash in any signatures does not
     /// match `intent_hash`
-    pub fn new(
+    pub(crate) fn new(
         transaction_valid: bool,
         intent_hash: IntentHash,
         signatures: IndexSet<HDSignature>,

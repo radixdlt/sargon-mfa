@@ -1,13 +1,13 @@
 use crate::prelude::*;
 
 #[derive(Clone, Debug, PartialEq, Eq, std::hash::Hash)]
-pub struct TXToSign {
-    pub intent_hash: IntentHash,
+pub(crate) struct TXToSign {
+    pub(crate) intent_hash: IntentHash,
     entities_requiring_auth: Vec<AccountOrPersona>, // should be a set but Sets are not `Hash`.
 }
 
 impl TXToSign {
-    pub fn with(
+    pub(crate) fn with(
         intent_hash: IntentHash,
         entities_requiring_auth: impl IntoIterator<Item = impl Into<AccountOrPersona>>,
     ) -> Self {
@@ -19,17 +19,19 @@ impl TXToSign {
                 .collect_vec(),
         }
     }
-    pub fn new(
+
+    #[allow(unused)]
+    pub(crate) fn new(
         entities_requiring_auth: impl IntoIterator<Item = impl Into<AccountOrPersona>>,
     ) -> Self {
         Self::with(IntentHash::generate(), entities_requiring_auth)
     }
 
-    pub fn entities_requiring_auth(&self) -> IndexSet<AccountOrPersona> {
+    pub(crate) fn entities_requiring_auth(&self) -> IndexSet<AccountOrPersona> {
         self.entities_requiring_auth.clone().into_iter().collect()
     }
 
-    pub fn extracting_from_intent_and_profile(
+    pub(crate) fn extracting_from_intent_and_profile(
         intent: &TransactionIntent,
         profile: &Profile,
     ) -> Result<Self> {

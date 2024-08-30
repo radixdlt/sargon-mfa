@@ -7,7 +7,7 @@ pub struct PolyFactorKeyDerivationRequest {
 }
 
 impl PolyFactorKeyDerivationRequest {
-    pub fn new(
+    pub(crate) fn new(
         per_factor_source: IndexMap<FactorSourceIDFromHash, MonoFactorKeyDerivationRequest>,
     ) -> Self {
         Self { per_factor_source }

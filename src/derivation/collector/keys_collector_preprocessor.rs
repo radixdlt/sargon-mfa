@@ -4,12 +4,12 @@ use crate::prelude::*;
 ///
 /// It analyzes the derivation paths and factor sources to determine the
 /// which factor sources are used to derive keys, and in what order.
-pub struct KeysCollectorPreprocessor {
+pub(crate) struct KeysCollectorPreprocessor {
     derivation_paths: IndexMap<FactorSourceIDFromHash, IndexSet<DerivationPath>>,
 }
 
 impl KeysCollectorPreprocessor {
-    pub fn new(
+    pub(crate) fn new(
         derivation_paths: IndexMap<FactorSourceIDFromHash, IndexSet<DerivationPath>>,
     ) -> Self {
         Self { derivation_paths }

@@ -3,21 +3,24 @@ use crate::prelude::*;
 /// A collection of `HierarchicalDeterministicFactorInstance` derived from a
 /// factor source.
 #[derive(Clone, Debug)]
-pub struct Keyring {
-    pub factor_source_id: FactorSourceIDFromHash,
-    pub paths: IndexSet<DerivationPath>,
+pub(crate) struct Keyring {
+    pub(crate) factor_source_id: FactorSourceIDFromHash,
+    pub(crate) paths: IndexSet<DerivationPath>,
     derived: RefCell<IndexSet<HierarchicalDeterministicFactorInstance>>,
 }
 
 impl Keyring {
-    pub fn new(factor_source_id: FactorSourceIDFromHash, paths: IndexSet<DerivationPath>) -> Self {
+    pub(crate) fn new(
+        factor_source_id: FactorSourceIDFromHash,
+        paths: IndexSet<DerivationPath>,
+    ) -> Self {
         Self {
             factor_source_id,
             paths,
             derived: RefCell::new(IndexSet::new()),
         }
     }
-    pub fn factors(&self) -> IndexSet<HierarchicalDeterministicFactorInstance> {
+    pub(crate) fn factors(&self) -> IndexSet<HierarchicalDeterministicFactorInstance> {
         self.derived.borrow().clone()
     }
 

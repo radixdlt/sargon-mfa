@@ -7,8 +7,9 @@ use crate::prelude::*;
 #[derive(Clone, PartialEq, Eq, derive_more::Debug)]
 #[debug("SignResponse {{ signatures: {:#?} }}", signatures.values().map(|f| format!("{:#?}", f)).join(", "))]
 pub struct SignResponse {
-    pub signatures: IndexMap<FactorSourceIDFromHash, IndexSet<HDSignature>>,
+    pub(crate) signatures: IndexMap<FactorSourceIDFromHash, IndexSet<HDSignature>>,
 }
+
 impl SignResponse {
     pub fn new(signatures: IndexMap<FactorSourceIDFromHash, IndexSet<HDSignature>>) -> Self {
         Self { signatures }

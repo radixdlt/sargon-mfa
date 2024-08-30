@@ -1,11 +1,11 @@
 use crate::prelude::*;
 
-pub struct TestDerivationInteractors {
-    pub poly: Arc<dyn PolyFactorKeyDerivationInteractor + Send + Sync>,
-    pub mono: Arc<dyn MonoFactorKeyDerivationInteractor + Send + Sync>,
+pub(crate) struct TestDerivationInteractors {
+    pub(crate) poly: Arc<dyn PolyFactorKeyDerivationInteractor + Send + Sync>,
+    pub(crate) mono: Arc<dyn MonoFactorKeyDerivationInteractor + Send + Sync>,
 }
 impl TestDerivationInteractors {
-    pub fn new(
+    pub(crate) fn new(
         poly: impl PolyFactorKeyDerivationInteractor + Send + Sync + 'static,
         mono: impl MonoFactorKeyDerivationInteractor + Send + Sync + 'static,
     ) -> Self {
@@ -17,7 +17,7 @@ impl TestDerivationInteractors {
 }
 
 impl TestDerivationInteractors {
-    pub fn fail() -> Self {
+    pub(crate) fn fail() -> Self {
         Self::new(
             TestDerivationParallelInteractor::fail(),
             TestDerivationSerialInteractor::fail(),
@@ -42,20 +42,20 @@ impl KeysDerivationInteractors for TestDerivationInteractors {
     }
 }
 
-pub struct TestDerivationParallelInteractor {
+pub(crate) struct TestDerivationParallelInteractor {
     handle: fn(
         MonoFactorKeyDerivationRequest,
     ) -> Result<IndexSet<HierarchicalDeterministicFactorInstance>>,
 }
 impl TestDerivationParallelInteractor {
-    pub fn new(
+    pub(crate) fn new(
         handle: fn(
             MonoFactorKeyDerivationRequest,
         ) -> Result<IndexSet<HierarchicalDeterministicFactorInstance>>,
     ) -> Self {
         Self { handle }
     }
-    pub fn fail() -> Self {
+    pub(crate) fn fail() -> Self {
         Self::new(|_| Err(CommonError::Failure))
     }
     fn derive(
@@ -105,20 +105,20 @@ impl PolyFactorKeyDerivationInteractor for TestDerivationParallelInteractor {
     }
 }
 
-pub struct TestDerivationSerialInteractor {
+pub(crate) struct TestDerivationSerialInteractor {
     handle: fn(
         MonoFactorKeyDerivationRequest,
     ) -> Result<IndexSet<HierarchicalDeterministicFactorInstance>>,
 }
 impl TestDerivationSerialInteractor {
-    pub fn new(
+    pub(crate) fn new(
         handle: fn(
             MonoFactorKeyDerivationRequest,
         ) -> Result<IndexSet<HierarchicalDeterministicFactorInstance>>,
     ) -> Self {
         Self { handle }
     }
-    pub fn fail() -> Self {
+    pub(crate) fn fail() -> Self {
         Self::new(|_| Err(CommonError::Failure))
     }
     fn derive(
@@ -149,7 +149,7 @@ impl MonoFactorKeyDerivationInteractor for TestDerivationSerialInteractor {
 }
 
 impl KeysCollector {
-    pub fn new_test_with_factor_sources(
+    pub(crate) fn new_test_with_factor_sources(
         all_factor_sources_in_profile: impl IntoIterator<Item = HDFactorSource>,
         derivation_paths: impl IntoIterator<Item = (FactorSourceIDFromHash, IndexSet<DerivationPath>)>,
     ) -> Self {
@@ -162,13 +162,13 @@ impl KeysCollector {
         .unwrap()
     }
 
-    pub fn new_test(
+    pub(crate) fn new_test(
         derivation_paths: impl IntoIterator<Item = (FactorSourceIDFromHash, IndexSet<DerivationPath>)>,
     ) -> Self {
         Self::new_test_with_factor_sources(HDFactorSource::all(), derivation_paths)
     }
 
-    pub fn with(
+    pub(crate) fn with(
         factor_source: &HDFactorSource,
         network_id: NetworkID,
         key_kind: CAP26KeyKind,

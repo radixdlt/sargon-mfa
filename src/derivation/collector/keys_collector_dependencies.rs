@@ -1,6 +1,6 @@
 use crate::prelude::*;
 
-pub struct KeysCollectorDependencies {
+pub(crate) struct KeysCollectorDependencies {
     /// A collection of "interactors" used to sign with factor sources.
     pub(super) interactors: Arc<dyn KeysDerivationInteractors>,
 
@@ -17,7 +17,7 @@ pub struct KeysCollectorDependencies {
 }
 
 impl KeysCollectorDependencies {
-    pub fn new(
+    pub(crate) fn new(
         interactors: Arc<dyn KeysDerivationInteractors>,
         factors_of_kind: IndexSet<FactorSourcesOfKind>,
     ) -> Self {
