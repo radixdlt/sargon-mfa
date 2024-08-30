@@ -135,21 +135,31 @@ impl PetitionForTransaction {
             .collect()
     }
 
-    pub fn invalid_transactions_if_neglected_factors(
+    pub fn invalid_transaction_if_neglected_factors(
         &self,
         factor_source_ids: IndexSet<FactorSourceIDFromHash>,
-    ) -> IndexSet<InvalidTransactionIfNeglected> {
+    ) -> Option<InvalidTransactionIfNeglected> {
         if self.has_tx_failed() {
             // No need to display already failed tx.
-            return IndexSet::new();
+            return None;
         }
-        self.for_entities
+        let entities = self
+            .for_entities
             .borrow()
             .iter()
             .filter_map(|(_, petition)| {
                 petition.invalid_transaction_if_neglected_factors(factor_source_ids.clone())
             })
-            .collect()
+            .collect_vec();
+
+        if entities.is_empty() {
+            return None;
+        }
+
+        Some(InvalidTransactionIfNeglected::new(
+            self.intent_hash.clone(),
+            entities,
+        ))
     }
 
     pub(crate) fn should_neglect_factors_due_to_irrelevant(

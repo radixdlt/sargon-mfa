@@ -16,7 +16,7 @@ pub(crate) struct Petitions {
     ///
     /// Where A, B, C and D, all use the factor source, e.g. some arculus
     /// card which the user has setup as a factor (source) for all these accounts.
-    pub factor_source_to_intent_hash: HashMap<FactorSourceIDFromHash, IndexSet<IntentHash>>,
+    pub factor_source_to_intent_hashes: HashMap<FactorSourceIDFromHash, IndexSet<IntentHash>>,
 
     /// Lookup from TXID to signatures builders, sorted according to the order of
     /// transactions passed to the SignaturesBuilder.
@@ -25,11 +25,11 @@ pub(crate) struct Petitions {
 
 impl Petitions {
     pub(crate) fn new(
-        factor_source_to_intent_hash: HashMap<FactorSourceIDFromHash, IndexSet<IntentHash>>,
+        factor_source_to_intent_hashes: HashMap<FactorSourceIDFromHash, IndexSet<IntentHash>>,
         txid_to_petition: IndexMap<IntentHash, PetitionForTransaction>,
     ) -> Self {
         Self {
-            factor_source_to_intent_hash,
+            factor_source_to_intent_hashes,
             txid_to_petition: RefCell::new(txid_to_petition),
         }
     }
@@ -72,7 +72,7 @@ impl Petitions {
             .clone()
             .iter()
             .flat_map(|f| {
-                self.factor_source_to_intent_hash
+                self.factor_source_to_intent_hashes
                     .get(f)
                     .expect("Should be able to lookup intent hash for each factor source, did you call this method with irrelevant factor sources? Or did you recently change the preprocessor logic of the SignaturesCollector, if you did you've missed adding an entry for `factor_source_to_intent_hash`.map")
                     .iter()
@@ -91,7 +91,7 @@ impl Petitions {
     ) -> IndexSet<InvalidTransactionIfNeglected> {
         self.each_petition(
             factor_source_ids.clone(),
-            |p| p.invalid_transactions_if_neglected_factors(factor_source_ids.clone()),
+            |p| p.invalid_transaction_if_neglected_factors(factor_source_ids.clone()),
             |i| i.into_iter().flatten().collect(),
         )
     }
@@ -142,7 +142,10 @@ impl Petitions {
 
     pub fn status(&self) -> PetitionsStatus {
         self.each_petition(
-            self.factor_source_to_intent_hash.keys().cloned().collect(),
+            self.factor_source_to_intent_hashes
+                .keys()
+                .cloned()
+                .collect(),
             |p| p.status_of_each_petition_for_entity(),
             |i| PetitionsStatus::reducing(i.into_iter().flatten()),
         )
