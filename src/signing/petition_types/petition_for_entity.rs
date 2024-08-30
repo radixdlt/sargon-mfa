@@ -68,13 +68,13 @@ impl PetitionForEntity {
     /// Returns `true` if signatures requirement has been fulfilled, either by
     /// override factors or by threshold factors
     pub fn has_signatures_requirement_been_fulfilled(&self) -> bool {
-        self.status() == PetitionFactorsStatus::Finished(PetitionFactorsStatusFinished::Success)
+        self.status() == PetitionForFactorsStatus::Finished(PetitionFactorsStatusFinished::Success)
     }
 
     /// Returns `true` if the transaction of this petition already has failed due
     /// to too many factors neglected
     pub fn has_failed(&self) -> bool {
-        self.status() == PetitionFactorsStatus::Finished(PetitionFactorsStatusFinished::Fail)
+        self.status() == PetitionForFactorsStatus::Finished(PetitionFactorsStatusFinished::Fail)
     }
 
     fn map_list_then_form_union<F, T>(&self, map: F) -> IndexSet<T>
@@ -172,9 +172,9 @@ impl PetitionForEntity {
     ) -> bool {
         assert!(self.references_any_factor_source(&factor_source_ids));
         match self.status() {
-            PetitionFactorsStatus::Finished(PetitionFactorsStatusFinished::Fail) => true,
-            PetitionFactorsStatus::Finished(PetitionFactorsStatusFinished::Success) => false,
-            PetitionFactorsStatus::InProgress => false,
+            PetitionForFactorsStatus::Finished(PetitionFactorsStatusFinished::Fail) => true,
+            PetitionForFactorsStatus::Finished(PetitionFactorsStatusFinished::Success) => false,
+            PetitionForFactorsStatus::InProgress => false,
         }
     }
 
@@ -184,7 +184,7 @@ impl PetitionForEntity {
     ) -> Option<InvalidTransactionIfNeglected> {
         let status_if_neglected = self.status_if_neglected_factors(factor_source_ids);
         match status_if_neglected {
-            PetitionFactorsStatus::Finished(finished_reason) => match finished_reason {
+            PetitionForFactorsStatus::Finished(finished_reason) => match finished_reason {
                 PetitionFactorsStatusFinished::Fail => {
                     let intent_hash = self.intent_hash.clone();
                     Some(InvalidTransactionIfNeglected::new(
@@ -194,14 +194,14 @@ impl PetitionForEntity {
                 }
                 PetitionFactorsStatusFinished::Success => None,
             },
-            PetitionFactorsStatus::InProgress => None,
+            PetitionForFactorsStatus::InProgress => None,
         }
     }
 
     pub fn status_if_neglected_factors(
         &self,
         factor_source_ids: IndexSet<FactorSourceIDFromHash>,
-    ) -> PetitionFactorsStatus {
+    ) -> PetitionForFactorsStatus {
         let simulation = self.clone();
         for factor_source_id in factor_source_ids.iter() {
             simulation.neglect_if_referenced(NeglectedFactor::new(
@@ -232,9 +232,9 @@ impl PetitionForEntity {
         self.both_void(|p| p.neglect_if_referenced(neglected.clone()));
     }
 
-    pub fn status(&self) -> PetitionFactorsStatus {
-        use PetitionFactorsStatus::*;
+    pub fn status(&self) -> PetitionForFactorsStatus {
         use PetitionFactorsStatusFinished::*;
+        use PetitionForFactorsStatus::*;
 
         self.both(
             |p| p.status(),
@@ -252,12 +252,14 @@ impl PetitionForEntity {
                     (Some(threshold), None) => threshold,
                     (None, Some(r#override)) => r#override,
                     (Some(threshold), Some(r#override)) => match (threshold, r#override) {
-                        (InProgress, InProgress) => PetitionFactorsStatus::InProgress,
-                        (Finished(Fail), InProgress) => PetitionFactorsStatus::InProgress,
-                        (InProgress, Finished(Fail)) => PetitionFactorsStatus::InProgress,
-                        (Finished(Fail), Finished(Fail)) => PetitionFactorsStatus::Finished(Fail),
-                        (Finished(Success), _) => PetitionFactorsStatus::Finished(Success),
-                        (_, Finished(Success)) => PetitionFactorsStatus::Finished(Success),
+                        (InProgress, InProgress) => PetitionForFactorsStatus::InProgress,
+                        (Finished(Fail), InProgress) => PetitionForFactorsStatus::InProgress,
+                        (InProgress, Finished(Fail)) => PetitionForFactorsStatus::InProgress,
+                        (Finished(Fail), Finished(Fail)) => {
+                            PetitionForFactorsStatus::Finished(Fail)
+                        }
+                        (Finished(Success), _) => PetitionForFactorsStatus::Finished(Success),
+                        (_, Finished(Success)) => PetitionForFactorsStatus::Finished(Success),
                     },
                 }
             },
@@ -461,7 +463,7 @@ mod tests {
 
     #[test]
     fn debug() {
-        pretty_assertions::assert_eq!(format!("{:?}", Sut::sample()), "intent_hash: TXID(\"dedede\"), entity: acco_Grace, \"threshold_factors PetitionForFactors(input: PetitionFactorsInput(factors: {\\n    factor_source_id: Device:00, derivation_path: 0/A/tx/6,\\n    factor_source_id: Arculus:03, derivation_path: 0/A/tx/6,\\n    factor_source_id: Yubikey:05, derivation_path: 0/A/tx/6,\\n}), state_snapshot: signatures: \\\"\\\", neglected: \\\"\\\")\"\"override_factors PetitionForFactors(input: PetitionFactorsInput(factors: {\\n    factor_source_id: Ledger:01, derivation_path: 0/A/tx/6,\\n    factor_source_id: Arculus:04, derivation_path: 0/A/tx/6,\\n}), state_snapshot: signatures: \\\"\\\", neglected: \\\"\\\")\"");
+        pretty_assertions::assert_eq!(format!("{:?}", Sut::sample()), "intent_hash: TXID(\"dedede\"), entity: acco_Grace, \"threshold_factors PetitionForFactors(input: PetitionForFactorsInput(factors: {\\n    factor_source_id: Device:00, derivation_path: 0/A/tx/6,\\n    factor_source_id: Arculus:03, derivation_path: 0/A/tx/6,\\n    factor_source_id: Yubikey:05, derivation_path: 0/A/tx/6,\\n}), state_snapshot: signatures: \\\"\\\", neglected: \\\"\\\")\"\"override_factors PetitionForFactors(input: PetitionForFactorsInput(factors: {\\n    factor_source_id: Ledger:01, derivation_path: 0/A/tx/6,\\n    factor_source_id: Arculus:04, derivation_path: 0/A/tx/6,\\n}), state_snapshot: signatures: \\\"\\\", neglected: \\\"\\\")\"");
     }
 
     #[test]

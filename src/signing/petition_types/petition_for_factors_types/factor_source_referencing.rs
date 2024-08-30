@@ -1,5 +1,6 @@
 use crate::prelude::*;
 
+/// A trait for types which reference a factor source.
 pub(crate) trait FactorSourceReferencing: std::hash::Hash + PartialEq + Eq + Clone {
     fn factor_source_id(&self) -> FactorSourceIDFromHash;
 }

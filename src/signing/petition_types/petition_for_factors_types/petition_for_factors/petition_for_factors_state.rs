@@ -6,32 +6,32 @@ use crate::prelude::*;
 /// Mutable state of `PetitionForFactors`, keeping track of which factors that
 /// have either signed or been neglected.
 #[derive(Clone, PartialEq, Eq, derive_more::Debug)]
-#[debug("PetitionFactorsState(signed: {:?}, neglected: {:?})", signed.borrow().clone(), neglected.borrow().clone())]
-pub struct PetitionFactorsState {
+#[debug("PetitionForFactorsState(signed: {:?}, neglected: {:?})", signed.borrow().clone(), neglected.borrow().clone())]
+pub struct PetitionForFactorsState {
     /// Factors that have signed.
-    signed: RefCell<PetitionFactorsSubState<HDSignature>>,
+    signed: RefCell<PetitionForFactorsSubState<HDSignature>>,
 
     /// Neglected factors, either due to user explicitly skipping, or due
     /// implicitly neglected to failure.
-    neglected: RefCell<PetitionFactorsSubState<NeglectedFactorInstance>>,
+    neglected: RefCell<PetitionForFactorsSubState<NeglectedFactorInstance>>,
 }
 
-impl PetitionFactorsState {
-    /// Creates a new `PetitionFactorsState`.
+impl PetitionForFactorsState {
+    /// Creates a new `PetitionForFactorsState`.
     pub(super) fn new() -> Self {
         Self {
-            signed: RefCell::new(PetitionFactorsSubState::<_>::new()),
-            neglected: RefCell::new(PetitionFactorsSubState::<_>::new()),
+            signed: RefCell::new(PetitionForFactorsSubState::<_>::new()),
+            neglected: RefCell::new(PetitionForFactorsSubState::<_>::new()),
         }
     }
 
     /// A reference to the neglected factors so far.
-    pub(super) fn neglected(&self) -> Ref<PetitionFactorsSubState<NeglectedFactorInstance>> {
+    pub(super) fn neglected(&self) -> Ref<PetitionForFactorsSubState<NeglectedFactorInstance>> {
         self.neglected.borrow()
     }
 
     /// A reference to the factors which have been signed with so far.
-    pub(super) fn signed(&self) -> Ref<PetitionFactorsSubState<HDSignature>> {
+    pub(super) fn signed(&self) -> Ref<PetitionForFactorsSubState<HDSignature>> {
         self.signed.borrow()
     }
 
@@ -72,8 +72,8 @@ impl PetitionFactorsState {
         self.signed.borrow_mut().insert(signature)
     }
 
-    pub(super) fn snapshot(&self) -> PetitionFactorsStateSnapshot {
-        PetitionFactorsStateSnapshot::new(self.signed().snapshot(), self.neglected().snapshot())
+    pub(super) fn snapshot(&self) -> PetitionForFactorsStateSnapshot {
+        PetitionForFactorsStateSnapshot::new(self.signed().snapshot(), self.neglected().snapshot())
     }
 
     fn references_factor_source_by_id(&self, factor_source_id: FactorSourceIDFromHash) -> bool {
@@ -90,9 +90,9 @@ mod tests {
 
     use super::*;
 
-    type Sut = PetitionFactorsState;
+    type Sut = PetitionForFactorsState;
 
-    impl PetitionFactorsState {
+    impl PetitionForFactorsState {
         fn test_neglect(&self, id: &HierarchicalDeterministicFactorInstance, simulated: bool) {
             self.neglect(&NeglectedFactorInstance::new(
                 if simulated {

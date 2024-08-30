@@ -23,25 +23,6 @@ pub(crate) struct Petitions {
     pub txid_to_petition: RefCell<IndexMap<IntentHash, PetitionForTransaction>>,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub enum PetitionsStatus {
-    InProgressNoneInvalid,
-    AllAreValid,
-    SomeIsInvalid,
-}
-impl PetitionsStatus {
-    // pub fn are_all_done(&self) -> bool {
-    //     matches!(self, Self::Done { .. })
-    // }
-    pub fn are_all_valid(&self) -> bool {
-        matches!(self, Self::AllAreValid)
-    }
-
-    pub fn is_some_invalid(&self) -> bool {
-        matches!(self, Self::SomeIsInvalid)
-    }
-}
-
 impl Petitions {
     pub(crate) fn new(
         factor_source_to_intent_hash: HashMap<FactorSourceIDFromHash, IndexSet<IntentHash>>,
@@ -75,43 +56,6 @@ impl Petitions {
             failed_transactions,
             neglected_factor_sources,
         )
-    }
-
-    pub fn status(&self) -> PetitionsStatus {
-        let statuses = self
-            .txid_to_petition
-            .borrow()
-            .iter()
-            .flat_map(|(_, petition)| {
-                petition
-                    .for_entities
-                    .borrow()
-                    .iter()
-                    .map(|(_, petition)| petition.status())
-                    .collect_vec()
-            })
-            .collect::<Vec<PetitionFactorsStatus>>();
-
-        let are_all_valid = statuses.iter().all(|s| {
-            matches!(
-                s,
-                PetitionFactorsStatus::Finished(PetitionFactorsStatusFinished::Success)
-            )
-        });
-        if are_all_valid {
-            return PetitionsStatus::AllAreValid;
-        }
-
-        let is_some_invalid = statuses.iter().any(|s| {
-            matches!(
-                s,
-                PetitionFactorsStatus::Finished(PetitionFactorsStatusFinished::Fail)
-            )
-        });
-        if is_some_invalid {
-            return PetitionsStatus::SomeIsInvalid;
-        }
-        PetitionsStatus::InProgressNoneInvalid
     }
 
     pub fn each_petition<F, T, G, U>(
@@ -178,7 +122,7 @@ impl Petitions {
         &self,
         factor_source_id: &FactorSourceIDFromHash,
     ) -> MonoFactorSignRequestInput {
-        let invalids = self.each_petition(
+        self.each_petition(
             IndexSet::from_iter([*factor_source_id]),
             |p| {
                 if p.has_tx_failed() {
@@ -187,28 +131,35 @@ impl Petitions {
                     Some(p.input_for_interactor(factor_source_id))
                 }
             },
-            |i| i.into_iter().flatten().collect::<IndexSet<_>>(),
-        );
+            |i| {
+                MonoFactorSignRequestInput::new(
+                    *factor_source_id,
+                    i.into_iter().flatten().collect::<IndexSet<_>>(),
+                )
+            },
+        )
+    }
 
-        MonoFactorSignRequestInput::new(*factor_source_id, invalids)
+    pub fn status(&self) -> PetitionsStatus {
+        self.each_petition(
+            self.factor_source_to_intent_hash.keys().cloned().collect(),
+            |p| p.status_of_each_petition_for_entity(),
+            |i| PetitionsStatus::reducing(i.into_iter().flatten()),
+        )
     }
 
     fn add_signature(&self, signature: &HDSignature) {
         let binding = self.txid_to_petition.borrow();
-        let petition = binding.get(signature.intent_hash()).unwrap();
+        let petition = binding.get(signature.intent_hash()).expect("Should have a petition for each transaction, did you recently change the preprocessor logic of the SignaturesCollector, if you did you've missed adding an entry for `txid_to_petition`.map");
         petition.add_signature(signature.clone())
     }
 
     fn neglect_factor_source_with_id(&self, neglected: NeglectedFactor) {
-        let binding = self.txid_to_petition.borrow();
-        let intent_hashes = self
-            .factor_source_to_intent_hash
-            .get(&neglected.factor_source_id())
-            .unwrap();
-        intent_hashes.into_iter().for_each(|intent_hash| {
-            let petition = binding.get(intent_hash).unwrap();
-            petition.neglect_factor_source(neglected.clone())
-        });
+        self.each_petition(
+            IndexSet::from_iter([neglected.factor_source_id()]),
+            |p| p.neglect_factor_source(neglected.clone()),
+            |_| (),
+        )
     }
 
     pub(crate) fn process_batch_response(&self, response: SignWithFactorsOutcome) {
@@ -291,6 +242,6 @@ mod tests {
 
     #[test]
     fn debug() {
-        pretty_assertions::assert_eq!(format!("{:?}", Sut::sample()), "Petitions(TXID(\"dedede\"): PetitionForTransaction(for_entities: [PetitionForEntity(intent_hash: TXID(\"dedede\"), entity: acco_Grace, \"threshold_factors PetitionForFactors(input: PetitionFactorsInput(factors: {\\n    factor_source_id: Device:de, derivation_path: 0/A/tx/0,\\n    factor_source_id: Ledger:1e, derivation_path: 0/A/tx/1,\\n}), state_snapshot: signatures: \\\"\\\", neglected: \\\"\\\")\"\"override_factors PetitionForFactors(input: PetitionFactorsInput(factors: {\\n    factor_source_id: Ledger:1e, derivation_path: 0/A/tx/1,\\n}), state_snapshot: signatures: \\\"\\\", neglected: \\\"\\\")\")]))");
+        pretty_assertions::assert_eq!(format!("{:?}", Sut::sample()), "Petitions(TXID(\"dedede\"): PetitionForTransaction(for_entities: [PetitionForEntity(intent_hash: TXID(\"dedede\"), entity: acco_Grace, \"threshold_factors PetitionForFactors(input: PetitionForFactorsInput(factors: {\\n    factor_source_id: Device:de, derivation_path: 0/A/tx/0,\\n    factor_source_id: Ledger:1e, derivation_path: 0/A/tx/1,\\n}), state_snapshot: signatures: \\\"\\\", neglected: \\\"\\\")\"\"override_factors PetitionForFactors(input: PetitionForFactorsInput(factors: {\\n    factor_source_id: Ledger:1e, derivation_path: 0/A/tx/1,\\n}), state_snapshot: signatures: \\\"\\\", neglected: \\\"\\\")\")]))");
     }
 }
