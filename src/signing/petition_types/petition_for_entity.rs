@@ -39,6 +39,7 @@ impl PetitionForEntity {
         }
     }
 
+    /// Creates a new Petition from an entity which is securified, i.e. has a matrix of factors.
     pub fn new_securified(
         intent_hash: IntentHash,
         entity: AddressOfAccountOrPersona,
@@ -52,6 +53,7 @@ impl PetitionForEntity {
         )
     }
 
+    /// Creates a new Petition from an entity which is unsecurified, i.e. has a single factor.
     pub fn new_unsecurified(
         intent_hash: IntentHash,
         entity: AddressOfAccountOrPersona,
@@ -77,6 +79,7 @@ impl PetitionForEntity {
         self.status() == PetitionForFactorsStatus::Finished(PetitionFactorsStatusFinished::Fail)
     }
 
+    /// Returns the aggregate of **all** owned factor instances from both lists, either threshold or override.
     pub fn all_factor_instances(&self) -> IndexSet<OwnedFactorInstance> {
         self.access_both_list_then_form_union(|l| l.factor_instances())
             .into_iter()
@@ -84,10 +87,13 @@ impl PetitionForEntity {
             .collect::<IndexSet<_>>()
     }
 
+    /// Returns the aggregate of all **neglected** factor instances from both lists, either threshold or override,
+    /// that is, all factor instances but filtered out only those from FactorSources which have been neglected.
     pub fn all_neglected_factor_instances(&self) -> IndexSet<NeglectedFactorInstance> {
         self.access_both_list_then_form_union(|f| f.all_neglected())
     }
 
+    /// Returns the aggregate of all **neglected** factor sources from both lists, either threshold or override.
     pub fn all_neglected_factor_sources(&self) -> IndexSet<NeglectedFactor> {
         self.all_neglected_factor_instances()
             .into_iter()
@@ -95,10 +101,14 @@ impl PetitionForEntity {
             .collect::<IndexSet<_>>()
     }
 
+    /// Returrns the aggregate of all signatures from both lists, either threshold or override.
     pub fn all_signatures(&self) -> IndexSet<HDSignature> {
         self.access_both_list_then_form_union(|f| f.all_signatures())
     }
 
+    /// Mutates this petition by adding a signature to it. The signature is added to the relevant
+    /// list, either threshold or override.
+    ///
     /// # Panics
     /// Panics if this factor source has already been neglected or signed with.
     ///
@@ -116,6 +126,8 @@ impl PetitionForEntity {
         })
     }
 
+    /// Queries if the authorization of the entity in this transaction already is irrelevant, since
+    /// too many factors have been neglected.
     pub(crate) fn should_neglect_factors_due_to_irrelevant(
         &self,
         factor_source_ids: IndexSet<FactorSourceIDFromHash>,
