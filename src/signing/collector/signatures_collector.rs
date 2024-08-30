@@ -30,7 +30,7 @@ impl SignaturesCollector {
         finish_early_strategy: SigningFinishEarlyStrategy,
         all_factor_sources_in_profile: IndexSet<HDFactorSource>,
         transactions: IndexSet<TXToSign>,
-        interactors: Arc<dyn SignatureCollectingInteractors>,
+        interactors: Arc<dyn SignInteractors>,
     ) -> Self {
         debug!("Init SignaturesCollector");
         let preprocessor = SignaturesCollectorPreprocessor::new(transactions);
@@ -50,7 +50,7 @@ impl SignaturesCollector {
         finish_early_strategy: SigningFinishEarlyStrategy,
         all_factor_sources_in_profile: IndexSet<HDFactorSource>,
         transactions: IndexSet<TransactionIntent>,
-        interactors: Arc<dyn SignatureCollectingInteractors>,
+        interactors: Arc<dyn SignInteractors>,
         extract_signers: F,
     ) -> Result<Self>
     where
@@ -74,7 +74,7 @@ impl SignaturesCollector {
     pub fn new(
         finish_early_strategy: SigningFinishEarlyStrategy,
         transactions: IndexSet<TransactionIntent>,
-        interactors: Arc<dyn SignatureCollectingInteractors>,
+        interactors: Arc<dyn SignInteractors>,
         profile: &Profile,
     ) -> Result<Self> {
         Self::with_signers_extraction(
@@ -183,7 +183,7 @@ impl SignaturesCollector {
         let factor_sources = factor_sources_of_kind.factor_sources();
         match interactor {
             // PolyFactor Interactor: Many Factor Sources at once
-            SigningInteractor::PolyFactor(interactor) => {
+            SignInteractor::PolyFactor(interactor) => {
                 // Prepare the request for the interactor
                 debug!("Creating poly request for interactor");
                 let request = self.request_for_parallel_interactor(factor_sources_of_kind);
@@ -204,7 +204,7 @@ impl SignaturesCollector {
             // After each factor source we pass the result to the collector
             // updating its internal state so that we state about being able
             // to skip the next factor source or not.
-            SigningInteractor::MonoFactor(interactor) => {
+            SignInteractor::MonoFactor(interactor) => {
                 for factor_source in factor_sources {
                     // Prepare the request for the interactor
                     debug!("Creating mono request for interactor");

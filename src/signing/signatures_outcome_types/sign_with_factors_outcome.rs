@@ -5,9 +5,7 @@ pub enum SignWithFactorsOutcome {
     /// The user successfully signed with the factor source(s), the associated
     /// value contains the produces signatures and any relevant metadata.
     #[debug("Signed: {:#?}", produced_signatures)]
-    Signed {
-        produced_signatures: BatchSigningResponse,
-    },
+    Signed { produced_signatures: SignResponse },
 
     /// The factor source got neglected, either due to user explicitly skipping
     /// or due to failure
@@ -16,7 +14,7 @@ pub enum SignWithFactorsOutcome {
 }
 
 impl SignWithFactorsOutcome {
-    pub fn signed(produced_signatures: BatchSigningResponse) -> Self {
+    pub fn signed(produced_signatures: SignResponse) -> Self {
         Self::Signed {
             produced_signatures,
         }

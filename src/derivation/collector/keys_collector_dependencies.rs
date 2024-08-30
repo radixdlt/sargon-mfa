@@ -2,7 +2,7 @@ use crate::prelude::*;
 
 pub struct KeysCollectorDependencies {
     /// A collection of "interactors" used to sign with factor sources.
-    pub(super) interactors: Arc<dyn KeysCollectingInteractors>,
+    pub(super) interactors: Arc<dyn KeysDerivationInteractors>,
 
     /// Factor sources grouped by kind, sorted according to "friction order",
     /// that is, we want to control which FactorSourceKind users sign with
@@ -18,7 +18,7 @@ pub struct KeysCollectorDependencies {
 
 impl KeysCollectorDependencies {
     pub fn new(
-        interactors: Arc<dyn KeysCollectingInteractors>,
+        interactors: Arc<dyn KeysDerivationInteractors>,
         factors_of_kind: IndexSet<FactorSourcesOfKind>,
     ) -> Self {
         Self {

@@ -1,5 +1,7 @@
 use crate::prelude::*;
 
+/// A collection of `HierarchicalDeterministicFactorInstance` derived from a
+/// factor source.
 #[derive(Clone, Debug)]
 pub struct Keyring {
     pub factor_source_id: FactorSourceIDFromHash,

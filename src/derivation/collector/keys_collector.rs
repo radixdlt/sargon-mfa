@@ -21,7 +21,7 @@ pub struct KeysCollector {
 impl KeysCollector {
     fn with_preprocessor(
         all_factor_sources_in_profile: impl Into<IndexSet<HDFactorSource>>,
-        interactors: Arc<dyn KeysCollectingInteractors>,
+        interactors: Arc<dyn KeysDerivationInteractors>,
         preprocessor: KeysCollectorPreprocessor,
     ) -> Result<Self> {
         debug!("Init KeysCollector");
@@ -39,7 +39,7 @@ impl KeysCollector {
     pub fn new(
         all_factor_sources_in_profile: IndexSet<HDFactorSource>,
         derivation_paths: IndexMap<FactorSourceIDFromHash, IndexSet<DerivationPath>>,
-        interactors: Arc<dyn KeysCollectingInteractors>,
+        interactors: Arc<dyn KeysDerivationInteractors>,
     ) -> Result<Self> {
         let preprocessor = KeysCollectorPreprocessor::new(derivation_paths);
         Self::with_preprocessor(all_factor_sources_in_profile, interactors, preprocessor)
@@ -115,11 +115,11 @@ impl KeysCollector {
     fn input_for_interactor(
         &self,
         factor_source_id: &FactorSourceIDFromHash,
-    ) -> Result<SerialBatchKeyDerivationRequest> {
+    ) -> Result<MonoFactorKeyDerivationRequest> {
         let keyring = self.state.borrow().keyring_for(factor_source_id)?;
         assert_eq!(keyring.factors().len(), 0);
         let paths = keyring.paths.clone();
-        Ok(SerialBatchKeyDerivationRequest::new(
+        Ok(MonoFactorKeyDerivationRequest::new(
             *factor_source_id,
             paths,
         ))
@@ -128,12 +128,12 @@ impl KeysCollector {
     fn request_for_parallel_interactor(
         &self,
         factor_sources_ids: IndexSet<FactorSourceIDFromHash>,
-    ) -> Result<ParallelBatchKeyDerivationRequest> {
+    ) -> Result<PolyFactorKeyDerivationRequest> {
         let per_factor_source = factor_sources_ids
             .into_iter()
             .map(|f| self.input_for_interactor(&f))
-            .collect::<Result<Vec<SerialBatchKeyDerivationRequest>>>()?;
-        Ok(ParallelBatchKeyDerivationRequest::new(
+            .collect::<Result<Vec<MonoFactorKeyDerivationRequest>>>()?;
+        Ok(PolyFactorKeyDerivationRequest::new(
             per_factor_source
                 .into_iter()
                 .map(|r| (r.factor_source_id, r))
@@ -144,11 +144,11 @@ impl KeysCollector {
     fn request_for_serial_interactor(
         &self,
         factor_source_id: &FactorSourceIDFromHash,
-    ) -> Result<SerialBatchKeyDerivationRequest> {
+    ) -> Result<MonoFactorKeyDerivationRequest> {
         self.input_for_interactor(factor_source_id)
     }
 
-    fn process_batch_response(&self, response: BatchDerivationResponse) -> Result<()> {
+    fn process_batch_response(&self, response: KeyDerivationResponse) -> Result<()> {
         self.state.borrow_mut().process_batch_response(response)
     }
 }

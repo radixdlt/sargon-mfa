@@ -1,13 +1,13 @@
 use crate::prelude::*;
 
 pub struct TestDerivationInteractors {
-    pub poly: Arc<dyn DeriveKeyWithFactorParallelInteractor + Send + Sync>,
-    pub mono: Arc<dyn DeriveKeyWithFactorSerialInteractor + Send + Sync>,
+    pub poly: Arc<dyn PolyFactorKeyDerivationInteractor + Send + Sync>,
+    pub mono: Arc<dyn MonoFactorKeyDerivationInteractor + Send + Sync>,
 }
 impl TestDerivationInteractors {
     pub fn new(
-        poly: impl DeriveKeyWithFactorParallelInteractor + Send + Sync + 'static,
-        mono: impl DeriveKeyWithFactorSerialInteractor + Send + Sync + 'static,
+        poly: impl PolyFactorKeyDerivationInteractor + Send + Sync + 'static,
+        mono: impl MonoFactorKeyDerivationInteractor + Send + Sync + 'static,
     ) -> Self {
         Self {
             poly: Arc::new(poly),
@@ -33,7 +33,7 @@ impl Default for TestDerivationInteractors {
     }
 }
 
-impl KeysCollectingInteractors for TestDerivationInteractors {
+impl KeysDerivationInteractors for TestDerivationInteractors {
     fn interactor_for(&self, kind: FactorSourceKind) -> KeyDerivationInteractor {
         match kind {
             FactorSourceKind::Device => KeyDerivationInteractor::poly(self.poly.clone()),
@@ -44,13 +44,13 @@ impl KeysCollectingInteractors for TestDerivationInteractors {
 
 pub struct TestDerivationParallelInteractor {
     handle: fn(
-        SerialBatchKeyDerivationRequest,
+        MonoFactorKeyDerivationRequest,
     ) -> Result<IndexSet<HierarchicalDeterministicFactorInstance>>,
 }
 impl TestDerivationParallelInteractor {
     pub fn new(
         handle: fn(
-            SerialBatchKeyDerivationRequest,
+            MonoFactorKeyDerivationRequest,
         ) -> Result<IndexSet<HierarchicalDeterministicFactorInstance>>,
     ) -> Self {
         Self { handle }
@@ -60,7 +60,7 @@ impl TestDerivationParallelInteractor {
     }
     fn derive(
         &self,
-        request: SerialBatchKeyDerivationRequest,
+        request: MonoFactorKeyDerivationRequest,
     ) -> Result<IndexSet<HierarchicalDeterministicFactorInstance>> {
         (self.handle)(request)
     }
@@ -72,7 +72,7 @@ impl Default for TestDerivationParallelInteractor {
 }
 
 fn do_derive_serially(
-    request: SerialBatchKeyDerivationRequest,
+    request: MonoFactorKeyDerivationRequest,
 ) -> Result<IndexSet<HierarchicalDeterministicFactorInstance>> {
     let factor_source_id = &request.factor_source_id;
     let instances = request
@@ -85,11 +85,11 @@ fn do_derive_serially(
 }
 
 #[async_trait::async_trait]
-impl DeriveKeyWithFactorParallelInteractor for TestDerivationParallelInteractor {
+impl PolyFactorKeyDerivationInteractor for TestDerivationParallelInteractor {
     async fn derive(
         &self,
-        request: ParallelBatchKeyDerivationRequest,
-    ) -> Result<BatchDerivationResponse> {
+        request: PolyFactorKeyDerivationRequest,
+    ) -> Result<KeyDerivationResponse> {
         let pairs_result: Result<
             IndexMap<FactorSourceIDFromHash, IndexSet<HierarchicalDeterministicFactorInstance>>,
         > = request
@@ -101,19 +101,19 @@ impl DeriveKeyWithFactorParallelInteractor for TestDerivationParallelInteractor 
             })
             .collect();
         let pairs = pairs_result?;
-        Ok(BatchDerivationResponse::new(pairs))
+        Ok(KeyDerivationResponse::new(pairs))
     }
 }
 
 pub struct TestDerivationSerialInteractor {
     handle: fn(
-        SerialBatchKeyDerivationRequest,
+        MonoFactorKeyDerivationRequest,
     ) -> Result<IndexSet<HierarchicalDeterministicFactorInstance>>,
 }
 impl TestDerivationSerialInteractor {
     pub fn new(
         handle: fn(
-            SerialBatchKeyDerivationRequest,
+            MonoFactorKeyDerivationRequest,
         ) -> Result<IndexSet<HierarchicalDeterministicFactorInstance>>,
     ) -> Self {
         Self { handle }
@@ -123,7 +123,7 @@ impl TestDerivationSerialInteractor {
     }
     fn derive(
         &self,
-        request: SerialBatchKeyDerivationRequest,
+        request: MonoFactorKeyDerivationRequest,
     ) -> Result<IndexSet<HierarchicalDeterministicFactorInstance>> {
         (self.handle)(request)
     }
@@ -135,13 +135,13 @@ impl Default for TestDerivationSerialInteractor {
 }
 
 #[async_trait::async_trait]
-impl DeriveKeyWithFactorSerialInteractor for TestDerivationSerialInteractor {
+impl MonoFactorKeyDerivationInteractor for TestDerivationSerialInteractor {
     async fn derive(
         &self,
-        request: SerialBatchKeyDerivationRequest,
-    ) -> Result<BatchDerivationResponse> {
+        request: MonoFactorKeyDerivationRequest,
+    ) -> Result<KeyDerivationResponse> {
         let instances = self.derive(request.clone())?;
-        Ok(BatchDerivationResponse::new(IndexMap::from_iter([(
+        Ok(KeyDerivationResponse::new(IndexMap::from_iter([(
             request.factor_source_id,
             instances,
         )])))

@@ -1,4 +1,9 @@
 use crate::prelude::*;
+
+/// A type for preprocessing of input data for the `KeysCollector`.
+///
+/// It analyzes the derivation paths and factor sources to determine the
+/// which factor sources are used to derive keys, and in what order.
 pub struct KeysCollectorPreprocessor {
     derivation_paths: IndexMap<FactorSourceIDFromHash, IndexSet<DerivationPath>>,
 }

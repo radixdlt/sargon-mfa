@@ -7,7 +7,7 @@ impl SignaturesCollector {
         finish_early_strategy: SigningFinishEarlyStrategy,
         all_factor_sources_in_profile: IndexSet<HDFactorSource>,
         transactions: IndexSet<TXToSign>,
-        interactors: Arc<dyn SignatureCollectingInteractors>,
+        interactors: Arc<dyn SignInteractors>,
     ) -> Self {
         sensible_env_logger::safe_init!();
         Self::with(

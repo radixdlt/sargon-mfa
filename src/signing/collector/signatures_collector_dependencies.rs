@@ -7,7 +7,7 @@ pub(super) struct SignaturesCollectorDependencies {
     pub(super) finish_early_strategy: SigningFinishEarlyStrategy,
 
     /// A collection of "interactors" used to sign with factor sources.
-    pub(super) interactors: Arc<dyn SignatureCollectingInteractors>,
+    pub(super) interactors: Arc<dyn SignInteractors>,
 
     /// Factor sources grouped by kind, sorted according to "friction order",
     /// that is, we want to control which FactorSourceKind users sign with
@@ -24,7 +24,7 @@ pub(super) struct SignaturesCollectorDependencies {
 impl SignaturesCollectorDependencies {
     pub fn new(
         finish_early_strategy: SigningFinishEarlyStrategy,
-        interactors: Arc<dyn SignatureCollectingInteractors>,
+        interactors: Arc<dyn SignInteractors>,
         factors_of_kind: IndexSet<FactorSourcesOfKind>,
     ) -> Self {
         Self {

@@ -1,5 +1,5 @@
 mod collector;
-mod interactors;
+mod host_interaction;
 
 pub use collector::*;
-pub use interactors::*;
+pub use host_interaction::*;

@@ -1,12 +1,12 @@
 use crate::prelude::*;
 
 /// An interactor which can sign transactions - either in poly or mono.
-pub enum SigningInteractor {
+pub enum SignInteractor {
     PolyFactor(Arc<dyn PolyFactorSignInteractor>),
     MonoFactor(Arc<dyn MonoFactorSignInteractor>),
 }
 
-impl SigningInteractor {
+impl SignInteractor {
     pub fn poly(interactor: Arc<dyn PolyFactorSignInteractor>) -> Self {
         Self::PolyFactor(interactor)
     }

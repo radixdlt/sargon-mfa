@@ -1,13 +1,12 @@
 use crate::prelude::*;
 
-/// A batch signing request used with a MonoFactorSignInteractor, containing
-/// a collection of transactions to sign with multiple keys (derivation paths),
-/// and a collection of transactions which would be invalid if the user skips
-/// signing with this factor source, or if we fail to sign.
+/// A request to sign a batch of transactions with a single factor source.
 #[derive(derive_more::Debug, Clone)]
 #[debug("input: {:#?}", input)]
 pub struct MonoFactorSignRequest {
+    /// The input needed to sign the transactions.
     pub input: MonoFactorSignRequestInput,
+
     /// A collection of transactions which would be invalid if the user skips
     /// signing with this factor source, or if we fail to sign
     pub invalid_transactions_if_neglected: IndexSet<InvalidTransactionIfNeglected>,

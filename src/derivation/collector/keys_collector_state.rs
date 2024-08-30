@@ -1,5 +1,9 @@
 use crate::prelude::*;
 
+/// The internal mutable state of the KeysCollector, which itself uses
+/// interior mutability to allow for mutation without `&mut self`.
+///
+/// Holds a collection of keyrings derived from various factor sources.
 pub struct KeysCollectorState {
     pub(super) keyrings: RefCell<IndexMap<FactorSourceIDFromHash, Keyring>>,
 }
@@ -41,7 +45,7 @@ impl KeysCollectorState {
             .ok_or(CommonError::UnknownFactorSource)
     }
 
-    pub(crate) fn process_batch_response(&self, response: BatchDerivationResponse) -> Result<()> {
+    pub(crate) fn process_batch_response(&self, response: KeyDerivationResponse) -> Result<()> {
         for (factor_source_id, factors) in response.per_factor_source.into_iter() {
             let mut rings = self.keyrings.borrow_mut();
             let keyring = rings

@@ -58,7 +58,7 @@ impl PolyFactorSignInteractor for TestSigningParallelInteractor {
                 let signatures = signatures
                     .into_iter()
                     .into_group_map_by(|x| x.factor_source_id());
-                let response = BatchSigningResponse::new(
+                let response = SignResponse::new(
                     signatures
                         .into_iter()
                         .map(|(k, v)| (k, IndexSet::from_iter(v)))

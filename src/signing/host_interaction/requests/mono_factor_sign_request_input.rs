@@ -36,12 +36,14 @@ impl MonoFactorSignRequestInput {
         }
     }
 
+    /// Returns the factor source kind of the factor source id.
     pub fn factor_source_kind(&self) -> FactorSourceKind {
         self.factor_source_id.kind
     }
 }
 
 impl HasSampleValues for MonoFactorSignRequestInput {
+    /// Creates a new MonoFactorSignRequestInput with sample values.
     fn sample() -> Self {
         Self::new(
             FactorSourceIDFromHash::sample(),
@@ -49,6 +51,7 @@ impl HasSampleValues for MonoFactorSignRequestInput {
         )
     }
 
+    /// Creates a new MonoFactorSignRequestInput with sample values.
     fn sample_other() -> Self {
         Self::new(
             FactorSourceIDFromHash::sample_other(),
