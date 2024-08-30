@@ -115,11 +115,11 @@ impl PetitionForEntity {
         self.access_both_list_then_form_union(|f| f.all_signatures())
     }
 
-    fn access_both_list<F, C, T, R>(&self, r#do: F, combine: C) -> R
-    where
-        F: Fn(&PetitionForFactors) -> T,
-        C: Fn(Option<T>, Option<T>) -> R,
-    {
+    fn access_both_list<T, U>(
+        &self,
+        r#do: impl Fn(&PetitionForFactors) -> T,
+        combine: impl Fn(Option<T>, Option<T>) -> U,
+    ) -> U {
         let access = |list: &Option<RefCell<PetitionForFactors>>| {
             list.as_ref().map(|refcell| r#do(&refcell.borrow()))
         };
