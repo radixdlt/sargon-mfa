@@ -170,7 +170,7 @@ impl PetitionForFactors {
         is_finished_with_fail
     }
 
-    fn finished_with(&self) -> Option<PetitionFactorsStatusFinished> {
+    fn get_finished_with(&self) -> Option<PetitionFactorsStatusFinished> {
         if self.is_finished_successfully() {
             Some(PetitionFactorsStatusFinished::Success)
         } else if self.is_finished_with_fail() {
@@ -181,7 +181,7 @@ impl PetitionForFactors {
     }
 
     pub fn status(&self) -> PetitionForFactorsStatus {
-        if let Some(finished_state) = self.finished_with() {
+        if let Some(finished_state) = self.get_finished_with() {
             return PetitionForFactorsStatus::Finished(finished_state);
         }
         PetitionForFactorsStatus::InProgress
