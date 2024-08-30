@@ -1,7 +1,7 @@
 /// The status of building using a certain list of factors, e.g. threshold or
 /// override factors list.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum PetitionFactorsStatus {
+pub enum PetitionForFactorsStatus {
     /// In progress, still gathering output from factors (signatures or public keys).
     InProgress,
 
@@ -23,7 +23,9 @@ pub enum PetitionFactorsStatusFinished {
     Fail,
 }
 
-impl PetitionFactorsStatus {
+impl PetitionForFactorsStatus {
+    /// Reduces / aggergates a list of `PetitionForFactorsStatus` into some
+    /// other status, e.g. `PetitionsStatus`.
     pub fn aggregate<T>(
         statuses: impl IntoIterator<Item = Self>,
         valid: T,
@@ -31,12 +33,14 @@ impl PetitionFactorsStatus {
         pending: T,
     ) -> T {
         let statuses = statuses.into_iter().collect::<Vec<_>>();
+
         let are_all_valid = statuses.iter().all(|s| {
             matches!(
                 s,
-                PetitionFactorsStatus::Finished(PetitionFactorsStatusFinished::Success)
+                PetitionForFactorsStatus::Finished(PetitionFactorsStatusFinished::Success)
             )
         });
+
         if are_all_valid {
             return valid;
         }
@@ -44,12 +48,14 @@ impl PetitionFactorsStatus {
         let is_some_invalid = statuses.iter().any(|s| {
             matches!(
                 s,
-                PetitionFactorsStatus::Finished(PetitionFactorsStatusFinished::Fail)
+                PetitionForFactorsStatus::Finished(PetitionFactorsStatusFinished::Fail)
             )
         });
+
         if is_some_invalid {
             return invalid;
         }
+
         pending
     }
 }

@@ -8,29 +8,29 @@ pub struct PetitionForFactors {
     pub factor_list_kind: FactorListKind,
 
     /// Factors to sign with and the required number of them.
-    pub(crate) input: PetitionFactorsInput,
-    state: RefCell<PetitionFactorsState>,
+    pub(crate) input: PetitionForFactorsInput,
+    state: RefCell<PetitionForFactorsState>,
 }
 
 impl HasSampleValues for PetitionForFactors {
     fn sample() -> Self {
-        Self::new(FactorListKind::Threshold, PetitionFactorsInput::sample())
+        Self::new(FactorListKind::Threshold, PetitionForFactorsInput::sample())
     }
 
     fn sample_other() -> Self {
         Self::new(
             FactorListKind::Override,
-            PetitionFactorsInput::sample_other(),
+            PetitionForFactorsInput::sample_other(),
         )
     }
 }
 
 impl PetitionForFactors {
-    pub fn new(factor_list_kind: FactorListKind, input: PetitionFactorsInput) -> Self {
+    pub fn new(factor_list_kind: FactorListKind, input: PetitionForFactorsInput) -> Self {
         Self {
             factor_list_kind,
             input,
-            state: RefCell::new(PetitionFactorsState::new()),
+            state: RefCell::new(PetitionForFactorsState::new()),
         }
     }
 
@@ -55,7 +55,7 @@ impl PetitionForFactors {
         }
         Some(Self::new(
             FactorListKind::Threshold,
-            PetitionFactorsInput::new_threshold(IndexSet::from_iter(factors), threshold),
+            PetitionForFactorsInput::new_threshold(IndexSet::from_iter(factors), threshold),
         ))
     }
 
@@ -69,7 +69,7 @@ impl PetitionForFactors {
         }
         Some(Self::new(
             FactorListKind::Override,
-            PetitionFactorsInput::new_override(IndexSet::from_iter(factors)),
+            PetitionForFactorsInput::new_override(IndexSet::from_iter(factors)),
         ))
     }
 
@@ -150,7 +150,7 @@ impl PetitionForFactors {
         self.input.reference_factor_source_with_id(factor_source_id)
     }
 
-    fn state_snapshot(&self) -> PetitionFactorsStateSnapshot {
+    fn state_snapshot(&self) -> PetitionForFactorsStateSnapshot {
         self.state.borrow().snapshot()
     }
 
@@ -180,11 +180,11 @@ impl PetitionForFactors {
         }
     }
 
-    pub fn status(&self) -> PetitionFactorsStatus {
+    pub fn status(&self) -> PetitionForFactorsStatus {
         if let Some(finished_state) = self.finished_with() {
-            return PetitionFactorsStatus::Finished(finished_state);
+            return PetitionForFactorsStatus::Finished(finished_state);
         }
-        PetitionFactorsStatus::InProgress
+        PetitionForFactorsStatus::InProgress
     }
 
     pub fn debug_str(&self) -> String {

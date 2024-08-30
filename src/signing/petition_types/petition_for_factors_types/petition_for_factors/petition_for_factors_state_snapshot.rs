@@ -1,11 +1,9 @@
 use crate::prelude::*;
 
-use super::NeglectedFactorInstance;
-
-/// An immutable "snapshot" of `PetitionFactorsState`
+/// An immutable "snapshot" of `PetitionForFactorsState`
 #[derive(Clone, PartialEq, Eq, derive_more::Debug)]
 #[debug("{}", self.debug_str())]
-pub(super) struct PetitionFactorsStateSnapshot {
+pub(super) struct PetitionForFactorsStateSnapshot {
     /// Factors that have signed.
     signed: IndexSet<HDSignature>,
 
@@ -13,7 +11,7 @@ pub(super) struct PetitionFactorsStateSnapshot {
     neglected: IndexSet<NeglectedFactorInstance>,
 }
 
-impl PetitionFactorsStateSnapshot {
+impl PetitionForFactorsStateSnapshot {
     pub(super) fn new(
         signed: IndexSet<HDSignature>,
         neglected: IndexSet<NeglectedFactorInstance>,
@@ -53,7 +51,7 @@ impl PetitionFactorsStateSnapshot {
     }
 }
 
-impl HasSampleValues for PetitionFactorsStateSnapshot {
+impl HasSampleValues for PetitionForFactorsStateSnapshot {
     fn sample() -> Self {
         Self::new(
             IndexSet::from_iter([HDSignature::sample(), HDSignature::sample_other()]),
@@ -75,7 +73,7 @@ impl HasSampleValues for PetitionFactorsStateSnapshot {
 mod tests {
     use super::*;
 
-    type Sut = PetitionFactorsStateSnapshot;
+    type Sut = PetitionForFactorsStateSnapshot;
 
     #[test]
     fn equality() {

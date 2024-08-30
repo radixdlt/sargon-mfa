@@ -1,10 +1,10 @@
 use crate::prelude::*;
 
-/// A sub-state of `PetitionFactorsState` which can be used to track factors
+/// A sub-state of `PetitionForFactorsState` which can be used to track factors
 /// that have signed or skipped.
 #[derive(Clone, PartialEq, Eq, derive_more::Debug)]
 #[debug("[{}]", factors.borrow().clone().into_iter().map(|f| format!("{:?}", f)).join(", "))]
-pub struct PetitionFactorsSubState<F>
+pub struct PetitionForFactorsSubState<F>
 where
     F: FactorSourceReferencing + std::fmt::Debug,
 {
@@ -12,7 +12,7 @@ where
     factors: RefCell<IndexSet<F>>,
 }
 
-impl<F: FactorSourceReferencing + std::fmt::Debug> PetitionFactorsSubState<F> {
+impl<F: FactorSourceReferencing + std::fmt::Debug> PetitionForFactorsSubState<F> {
     pub(super) fn new() -> Self {
         Self {
             factors: RefCell::new(IndexSet::new()),

@@ -1,9 +1,10 @@
 use super::*;
 use crate::prelude::*;
 
+/// The input passed to a PetitionsForFactors
 #[derive(Clone, PartialEq, Eq, derive_more::Debug)]
-#[debug("PetitionFactorsInput(factors: {:#?})", self.factors)]
-pub struct PetitionFactorsInput {
+#[debug("PetitionForFactorsInput(factors: {:#?})", self.factors)]
+pub struct PetitionForFactorsInput {
     /// Factors to sign with.
     pub(super) factors: IndexSet<HierarchicalDeterministicFactorInstance>,
 
@@ -11,7 +12,7 @@ pub struct PetitionFactorsInput {
     pub(super) required: i8,
 }
 
-impl HasSampleValues for PetitionFactorsInput {
+impl HasSampleValues for PetitionForFactorsInput {
     fn sample() -> Self {
         Self::new(
             IndexSet::from_iter([
@@ -30,7 +31,7 @@ impl HasSampleValues for PetitionFactorsInput {
     }
 }
 
-impl PetitionFactorsInput {
+impl PetitionForFactorsInput {
     pub(super) fn new(
         factors: IndexSet<HierarchicalDeterministicFactorInstance>,
         required: i8,
@@ -62,19 +63,19 @@ impl PetitionFactorsInput {
         self.factors.len() as i8
     }
 
-    fn remaining_factors_until_success(&self, snapshot: PetitionFactorsStateSnapshot) -> i8 {
+    fn remaining_factors_until_success(&self, snapshot: PetitionForFactorsStateSnapshot) -> i8 {
         self.required - snapshot.signed_count()
     }
 
-    pub(super) fn is_fulfilled_by(&self, snapshot: PetitionFactorsStateSnapshot) -> bool {
+    pub(super) fn is_fulfilled_by(&self, snapshot: PetitionForFactorsStateSnapshot) -> bool {
         self.remaining_factors_until_success(snapshot) <= 0
     }
 
-    fn factors_left_to_prompt(&self, snapshot: PetitionFactorsStateSnapshot) -> i8 {
+    fn factors_left_to_prompt(&self, snapshot: PetitionForFactorsStateSnapshot) -> i8 {
         self.factors_count() - snapshot.prompted_count()
     }
 
-    pub(super) fn is_failure_with(&self, snapshot: PetitionFactorsStateSnapshot) -> bool {
+    pub(super) fn is_failure_with(&self, snapshot: PetitionForFactorsStateSnapshot) -> bool {
         let signed_or_pending =
             self.factors_left_to_prompt(snapshot.clone()) + snapshot.signed_count();
         let is_failure_with = signed_or_pending < self.required;
