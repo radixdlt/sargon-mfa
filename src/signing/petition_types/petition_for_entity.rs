@@ -77,12 +77,12 @@ impl PetitionForEntity {
         self.status() == PetitionForFactorsStatus::Finished(PetitionFactorsStatusFinished::Fail)
     }
 
-    fn map_list_then_form_union<F, T>(&self, map: F) -> IndexSet<T>
+    fn access_both_list_then_form_union<F, T>(&self, map: F) -> IndexSet<T>
     where
         T: Eq + std::hash::Hash + Clone,
         F: Fn(&PetitionForFactors) -> IndexSet<T>,
     {
-        self.both(
+        self.access_both_list(
             |l| map(l),
             |t, o| {
                 t.unwrap_or_default()
@@ -94,14 +94,14 @@ impl PetitionForEntity {
     }
 
     pub fn all_factor_instances(&self) -> IndexSet<OwnedFactorInstance> {
-        self.map_list_then_form_union(|l| l.factor_instances())
+        self.access_both_list_then_form_union(|l| l.factor_instances())
             .into_iter()
             .map(|f| OwnedFactorInstance::owned_factor_instance(self.entity.clone(), f.clone()))
             .collect::<IndexSet<_>>()
     }
 
     pub fn all_neglected_factor_instances(&self) -> IndexSet<NeglectedFactorInstance> {
-        self.map_list_then_form_union(|f| f.all_neglected())
+        self.access_both_list_then_form_union(|f| f.all_neglected())
     }
 
     pub fn all_neglected_factor_sources(&self) -> IndexSet<NeglectedFactor> {
@@ -112,41 +112,34 @@ impl PetitionForEntity {
     }
 
     pub fn all_signatures(&self) -> IndexSet<HDSignature> {
-        self.map_list_then_form_union(|f| f.all_signatures())
+        self.access_both_list_then_form_union(|f| f.all_signatures())
     }
 
-    fn with_list<F, T>(list: &Option<RefCell<PetitionForFactors>>, r#do: F) -> Option<T>
+    fn access_petition<F, T>(list: &Option<RefCell<PetitionForFactors>>, r#do: F) -> Option<T>
     where
         F: Fn(&PetitionForFactors) -> T,
     {
         list.as_ref().map(|refcell| r#do(&refcell.borrow()))
     }
 
-    fn map_factor_list<F, R>(&self, kind: FactorListKind, r#do: &F) -> Option<R>
+    fn access_petition_with_list_kind<F, R>(&self, kind: FactorListKind, r#do: &F) -> Option<R>
     where
         F: Fn(&PetitionForFactors) -> R,
     {
         match kind {
-            FactorListKind::Threshold => Self::with_list(&self.threshold_factors, r#do),
-            FactorListKind::Override => Self::with_list(&self.override_factors, r#do),
+            FactorListKind::Threshold => Self::access_petition(&self.threshold_factors, r#do),
+            FactorListKind::Override => Self::access_petition(&self.override_factors, r#do),
         }
     }
 
-    fn both<F, C, T, R>(&self, r#do: F, combine: C) -> R
+    fn access_both_list<F, C, T, R>(&self, r#do: F, combine: C) -> R
     where
         F: Fn(&PetitionForFactors) -> T,
         C: Fn(Option<T>, Option<T>) -> R,
     {
-        let t = self.map_factor_list(FactorListKind::Threshold, &r#do);
-        let o = self.map_factor_list(FactorListKind::Override, &r#do);
+        let t = self.access_petition_with_list_kind(FactorListKind::Threshold, &r#do);
+        let o = self.access_petition_with_list_kind(FactorListKind::Override, &r#do);
         combine(t, o)
-    }
-
-    fn both_void<F, R>(&self, r#do: F)
-    where
-        F: Fn(&PetitionForFactors) -> R,
-    {
-        self.both(r#do, |_, _| ())
     }
 
     /// # Panics
@@ -154,7 +147,7 @@ impl PetitionForEntity {
     ///
     /// Or panics if the factor source is not known to this petition.
     pub fn add_signature(&self, signature: HDSignature) {
-        self.both(|l| l.add_signature_if_relevant(&signature), |t, o| {
+        self.access_both_list(|l| l.add_signature_if_relevant(&signature), |t, o| {
             match (t, o) {
                 (Some(true), Some(true)) => {
                     unreachable!("Matrix of FactorInstances does not allow for a factor to be present in both threshold and override list, thus this will never happen.")
@@ -222,21 +215,21 @@ impl PetitionForEntity {
     }
 
     pub fn references_factor_source_with_id(&self, id: &FactorSourceIDFromHash) -> bool {
-        self.both(
+        self.access_both_list(
             |p| p.references_factor_source_with_id(id),
             |a, b| a.unwrap_or(false) || b.unwrap_or(false),
         )
     }
 
     pub fn neglect_if_referenced(&self, neglected: NeglectedFactor) {
-        self.both_void(|p| p.neglect_if_referenced(neglected.clone()));
+        self.access_both_list(|p| p.neglect_if_referenced(neglected.clone()), |_, _| ());
     }
 
     pub fn status(&self) -> PetitionForFactorsStatus {
         use PetitionFactorsStatusFinished::*;
         use PetitionForFactorsStatus::*;
 
-        self.both(
+        self.access_both_list(
             |p| p.status(),
             |maybe_threshold, maybe_override| {
                 if let Some(t) = &maybe_threshold {
