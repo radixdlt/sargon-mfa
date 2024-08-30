@@ -178,25 +178,19 @@ impl Petitions {
         &self,
         factor_source_id: &FactorSourceIDFromHash,
     ) -> MonoFactorSignRequestInput {
-        let intent_hashes = self
-            .factor_source_to_intent_hash
-            .get(factor_source_id)
-            .unwrap();
-
-        let per_transaction = intent_hashes
-            .into_iter()
-            .filter_map(|intent_hash| {
-                let binding = self.txid_to_petition.borrow();
-                let petition = binding.get(intent_hash).unwrap();
-                if petition.has_tx_failed() {
+        let invalids = self.each_petition(
+            IndexSet::from_iter([*factor_source_id]),
+            |p| {
+                if p.has_tx_failed() {
                     None
                 } else {
-                    Some(petition.input_for_interactor(factor_source_id))
+                    Some(p.input_for_interactor(factor_source_id))
                 }
-            })
-            .collect::<IndexSet<TransactionSignRequestInput>>();
+            },
+            |i| i.into_iter().flatten().collect::<IndexSet<_>>(),
+        );
 
-        MonoFactorSignRequestInput::new(*factor_source_id, per_transaction)
+        MonoFactorSignRequestInput::new(*factor_source_id, invalids)
     }
 
     fn add_signature(&self, signature: &HDSignature) {
