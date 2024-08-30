@@ -77,24 +77,6 @@ impl PetitionForEntity {
         self.status() == PetitionForFactorsStatus::Finished(PetitionFactorsStatusFinished::Fail)
     }
 
-    fn access_both_list_then_form_union<T>(
-        &self,
-        map: impl Fn(&PetitionForFactors) -> IndexSet<T>,
-    ) -> IndexSet<T>
-    where
-        T: Eq + std::hash::Hash + Clone,
-    {
-        self.access_both_list(
-            |l| map(l),
-            |t, o| {
-                t.unwrap_or_default()
-                    .union(&o.unwrap_or_default())
-                    .cloned()
-                    .collect::<IndexSet<T>>()
-            },
-        )
-    }
-
     pub fn all_factor_instances(&self) -> IndexSet<OwnedFactorInstance> {
         self.access_both_list_then_form_union(|l| l.factor_instances())
             .into_iter()
@@ -115,19 +97,6 @@ impl PetitionForEntity {
 
     pub fn all_signatures(&self) -> IndexSet<HDSignature> {
         self.access_both_list_then_form_union(|f| f.all_signatures())
-    }
-
-    fn access_both_list<T, U>(
-        &self,
-        r#do: impl Fn(&PetitionForFactors) -> T,
-        combine: impl Fn(Option<T>, Option<T>) -> U,
-    ) -> U {
-        let access = |list: &Option<RefCell<PetitionForFactors>>| {
-            list.as_ref().map(|refcell| r#do(&refcell.borrow()))
-        };
-        let t = access(&self.threshold_factors);
-        let o = access(&self.override_factors);
-        combine(t, o)
     }
 
     /// # Panics
@@ -193,6 +162,8 @@ impl PetitionForEntity {
         simulation.status()
     }
 
+    /// Queries if this petition references any of the factor sources in the set of ids
+    /// by checking bot hteh threshold and the override factors list.
     pub fn references_any_factor_source(
         &self,
         factor_source_ids: &IndexSet<FactorSourceIDFromHash>,
@@ -202,6 +173,8 @@ impl PetitionForEntity {
             .any(|f| self.references_factor_source_with_id(f))
     }
 
+    /// Queries if this petition references the factor source with the given id, by
+    /// checking both the threshold and override factors list.
     pub fn references_factor_source_with_id(&self, id: &FactorSourceIDFromHash) -> bool {
         self.access_both_list(
             |p| p.references_factor_source_with_id(id),
@@ -209,10 +182,19 @@ impl PetitionForEntity {
         )
     }
 
+    /// If this petitions references the neglected factor source, disregarding if it is a threshold
+    /// or override factor, it will be neglected. If the factor is not known to any of the lists
+    /// nothing happens.
     pub fn neglect_if_referenced(&self, neglected: NeglectedFactor) {
         self.access_both_list(|p| p.neglect_if_referenced(neglected.clone()), |_, _| ());
     }
 
+    /// The "aggregated" status of this petition, i.e. the status of the threshold factors
+    /// and the status of the override factors merged together. E.g. (Threshold: InProgress, Override: InProgress) ->
+    /// Inprogress. And (Threshold: Finished(Fail), Override: InProgress) -> InProgress,
+    /// (Threshold: Finished(Fail), Override: Finished(Fail)) -> Finished(Fail) but
+    /// (Threshold: Finished(Success), Override: Inprogress) -> Finished(Success) - since
+    /// want to be able to finish early if the petition for this entity is already successful.
     pub fn status(&self) -> PetitionForFactorsStatus {
         use PetitionFactorsStatusFinished::*;
         use PetitionForFactorsStatus::*;
@@ -246,6 +228,48 @@ impl PetitionForEntity {
             },
         )
     }
+}
+
+// === Private ===
+impl PetitionForEntity {
+    /// Derefs and calls `access` on both lists respectively, if they exist. Then combines the results
+    /// of each list access using `combine`.
+    ///
+    /// This method is useful when you want to read out state for both list and somehow combine
+    /// that result, e.g. to form a union of all signatures - but not wanting to juggle `RefCell`
+    /// and `Option` repeatedly.
+    fn access_both_list<T, U>(
+        &self,
+        access: impl Fn(&PetitionForFactors) -> T,
+        combine: impl Fn(Option<T>, Option<T>) -> U,
+    ) -> U {
+        let access_list_if_exists = |list: &Option<RefCell<PetitionForFactors>>| {
+            list.as_ref().map(|refcell| access(&refcell.borrow()))
+        };
+        let t = access_list_if_exists(&self.threshold_factors);
+        let o = access_list_if_exists(&self.override_factors);
+        combine(t, o)
+    }
+
+    /// Derefes and calls `access` on both lists respectively, if they exist. The result of the `access`
+    /// of each list is then combined together using `IndexSet::union` and returned.
+    fn access_both_list_then_form_union<T>(
+        &self,
+        access: impl Fn(&PetitionForFactors) -> IndexSet<T>,
+    ) -> IndexSet<T>
+    where
+        T: Eq + std::hash::Hash + Clone,
+    {
+        self.access_both_list(
+            |l| access(l),
+            |t, o| {
+                t.unwrap_or_default()
+                    .union(&o.unwrap_or_default())
+                    .cloned()
+                    .collect::<IndexSet<T>>()
+            },
+        )
+    }
 
     #[allow(unused)]
     fn debug_str(&self) -> String {
@@ -268,6 +292,7 @@ impl PetitionForEntity {
     }
 }
 
+// === SAMPLE VALUES ===
 impl PetitionForEntity {
     fn from_entity(entity: impl Into<AccountOrPersona>, intent_hash: IntentHash) -> Self {
         let entity = entity.into();
