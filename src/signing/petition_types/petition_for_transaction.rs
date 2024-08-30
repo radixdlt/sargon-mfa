@@ -102,7 +102,7 @@ impl PetitionForTransaction {
         let for_entities = self.for_entities.borrow_mut();
         let for_entity = for_entities
             .get(&signature.owned_factor_instance().owner)
-            .unwrap();
+            .expect("Should not have added signature to irrelevant PetitionForTransaction, did you pass the wrong signature to the wrong PetitionForTransaction?");
         for_entity.add_signature(signature.clone());
     }
 

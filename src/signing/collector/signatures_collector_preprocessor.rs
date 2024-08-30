@@ -21,7 +21,7 @@ pub fn sort_group_factors(
 
     factors_of_kind
         .into_iter()
-        .map(|(k, v)| FactorSourcesOfKind::new(k, v).unwrap())
+        .map(|(k, v)| FactorSourcesOfKind::new(k, v).expect("All factors should be of the same kind, since this is calling iter on a Map, using kind as key. Did you just move around lines of code?"))
         .collect::<IndexSet<_>>()
 }
 

@@ -114,51 +114,58 @@ impl Petitions {
         PetitionsStatus::InProgressNoneInvalid
     }
 
-    pub fn invalid_transactions_if_neglected_factors(
+    pub fn each_petition<F, T, G, U>(
         &self,
         factor_source_ids: IndexSet<FactorSourceIDFromHash>,
-    ) -> IndexSet<InvalidTransactionIfNeglected> {
-        factor_source_ids
+        each: F,
+        combine: G,
+    ) -> U
+    where
+        F: Fn(&PetitionForTransaction) -> T,
+        G: Fn(Vec<T>) -> U,
+    {
+        let for_each = factor_source_ids
             .clone()
             .iter()
             .flat_map(|f| {
                 self.factor_source_to_intent_hash
                     .get(f)
-                    .unwrap()
+                    .expect("Should be able to lookup intent hash for each factor source, did you call this method with irrelevant factor sources? Or did you recently change the preprocessor logic of the SignaturesCollector, if you did you've missed adding an entry for `factor_source_to_intent_hash`.map")
                     .iter()
-                    .flat_map(|intent_hash| {
+                    .map(|intent_hash| {
                         let binding = self.txid_to_petition.borrow();
-                        let value = binding.get(intent_hash).unwrap();
-                        value.invalid_transactions_if_neglected_factors(factor_source_ids.clone())
+                        let value = binding.get(intent_hash).expect("Should have a petition for each transaction, did you recently change the preprocessor logic of the SignaturesCollector, if you did you've missed adding an entry for `txid_to_petition`.map");
+                        each(value)
                     })
-            })
-            .collect::<IndexSet<_>>()
+            }).collect_vec();
+        combine(for_each)
+    }
+
+    pub fn invalid_transactions_if_neglected_factors(
+        &self,
+        factor_source_ids: IndexSet<FactorSourceIDFromHash>,
+    ) -> IndexSet<InvalidTransactionIfNeglected> {
+        self.each_petition(
+            factor_source_ids.clone(),
+            |p| p.invalid_transactions_if_neglected_factors(factor_source_ids.clone()),
+            |i| i.into_iter().flatten().collect(),
+        )
     }
 
     pub(crate) fn should_neglect_factors_due_to_irrelevant(
         &self,
         factor_sources_of_kind: &FactorSourcesOfKind,
     ) -> bool {
-        let factor_source_ids = factor_sources_of_kind
+        let ids = factor_sources_of_kind
             .factor_sources()
             .iter()
             .map(|f| f.factor_source_id())
             .collect::<IndexSet<_>>();
-        factor_sources_of_kind
-            .factor_sources()
-            .iter()
-            .map(|f| f.factor_source_id())
-            .all(|f| {
-                self.factor_source_to_intent_hash
-                    .get(&f)
-                    .unwrap()
-                    .iter()
-                    .all(|intent_hash| {
-                        let binding = self.txid_to_petition.borrow();
-                        let value = binding.get(intent_hash).unwrap();
-                        value.should_neglect_factors_due_to_irrelevant(factor_source_ids.clone())
-                    })
-            })
+        self.each_petition(
+            ids.clone(),
+            |p| p.should_neglect_factors_due_to_irrelevant(ids.clone()),
+            |i| i.into_iter().all(|x| x),
+        )
     }
 
     /// # Panics
