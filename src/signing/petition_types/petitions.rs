@@ -23,25 +23,6 @@ pub(crate) struct Petitions {
     pub txid_to_petition: RefCell<IndexMap<IntentHash, PetitionForTransaction>>,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub enum PetitionsStatus {
-    InProgressNoneInvalid,
-    AllAreValid,
-    SomeIsInvalid,
-}
-impl PetitionsStatus {
-    // pub fn are_all_done(&self) -> bool {
-    //     matches!(self, Self::Done { .. })
-    // }
-    pub fn are_all_valid(&self) -> bool {
-        matches!(self, Self::AllAreValid)
-    }
-
-    pub fn is_some_invalid(&self) -> bool {
-        matches!(self, Self::SomeIsInvalid)
-    }
-}
-
 impl Petitions {
     pub(crate) fn new(
         factor_source_to_intent_hash: HashMap<FactorSourceIDFromHash, IndexSet<IntentHash>>,
@@ -141,7 +122,7 @@ impl Petitions {
         &self,
         factor_source_id: &FactorSourceIDFromHash,
     ) -> MonoFactorSignRequestInput {
-        let invalids = self.each_petition(
+        self.each_petition(
             IndexSet::from_iter([*factor_source_id]),
             |p| {
                 if p.has_tx_failed() {
@@ -150,88 +131,21 @@ impl Petitions {
                     Some(p.input_for_interactor(factor_source_id))
                 }
             },
-            |i| i.into_iter().flatten().collect::<IndexSet<_>>(),
-        );
-
-        MonoFactorSignRequestInput::new(*factor_source_id, invalids)
+            |i| {
+                MonoFactorSignRequestInput::new(
+                    *factor_source_id,
+                    i.into_iter().flatten().collect::<IndexSet<_>>(),
+                )
+            },
+        )
     }
-}
-impl PetitionFactorsStatus {
-    pub fn aggregate<T>(
-        statuses: impl IntoIterator<Item = Self>,
-        valid: T,
-        invalid: T,
-        pending: T,
-    ) -> T {
-        let statuses = statuses.into_iter().collect::<Vec<_>>();
-        let are_all_valid = statuses.iter().all(|s| {
-            matches!(
-                s,
-                PetitionFactorsStatus::Finished(PetitionFactorsStatusFinished::Success)
-            )
-        });
-        if are_all_valid {
-            // return PetitionsStatus::AllAreValid;
-            return valid;
-        }
 
-        let is_some_invalid = statuses.iter().any(|s| {
-            matches!(
-                s,
-                PetitionFactorsStatus::Finished(PetitionFactorsStatusFinished::Fail)
-            )
-        });
-        if is_some_invalid {
-            // return PetitionsStatus::SomeIsInvalid;
-            return invalid;
-        }
-        // PetitionsStatus::InProgressNoneInvalid
-        pending
-    }
-}
-impl Petitions {
     pub fn status(&self) -> PetitionsStatus {
-        let xstatuses = self
-            .txid_to_petition
-            .borrow()
-            .iter()
-            .flat_map(|(_, petition)| {
-                petition
-                    .for_entities
-                    .borrow()
-                    .iter()
-                    .map(|(_, petition)| petition.status())
-                    .collect_vec()
-            })
-            .collect::<Vec<PetitionFactorsStatus>>();
-
-        // let statuses = self.each_petition(self.state.borrow()., each, combine)
-        let statuses = self.each_petition(
+        self.each_petition(
             self.factor_source_to_intent_hash.keys().cloned().collect(),
             |p| p.status_of_each_petition_for_entity(),
-            |i| i.into_iter().flatten().collect(),
-        );
-
-        let are_all_valid = statuses.iter().all(|s| {
-            matches!(
-                s,
-                PetitionFactorsStatus::Finished(PetitionFactorsStatusFinished::Success)
-            )
-        });
-        if are_all_valid {
-            return PetitionsStatus::AllAreValid;
-        }
-
-        let is_some_invalid = statuses.iter().any(|s| {
-            matches!(
-                s,
-                PetitionFactorsStatus::Finished(PetitionFactorsStatusFinished::Fail)
-            )
-        });
-        if is_some_invalid {
-            return PetitionsStatus::SomeIsInvalid;
-        }
-        PetitionsStatus::InProgressNoneInvalid
+            |i| PetitionsStatus::reducing(i.into_iter().flatten()),
+        )
     }
 
     fn add_signature(&self, signature: &HDSignature) {

@@ -22,3 +22,34 @@ pub enum PetitionFactorsStatusFinished {
     /// use a required factor source for what some reason.
     Fail,
 }
+
+impl PetitionFactorsStatus {
+    pub fn aggregate<T>(
+        statuses: impl IntoIterator<Item = Self>,
+        valid: T,
+        invalid: T,
+        pending: T,
+    ) -> T {
+        let statuses = statuses.into_iter().collect::<Vec<_>>();
+        let are_all_valid = statuses.iter().all(|s| {
+            matches!(
+                s,
+                PetitionFactorsStatus::Finished(PetitionFactorsStatusFinished::Success)
+            )
+        });
+        if are_all_valid {
+            return valid;
+        }
+
+        let is_some_invalid = statuses.iter().any(|s| {
+            matches!(
+                s,
+                PetitionFactorsStatus::Finished(PetitionFactorsStatusFinished::Fail)
+            )
+        });
+        if is_some_invalid {
+            return invalid;
+        }
+        pending
+    }
+}
