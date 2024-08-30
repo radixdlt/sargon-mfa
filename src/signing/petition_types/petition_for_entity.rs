@@ -77,10 +77,12 @@ impl PetitionForEntity {
         self.status() == PetitionForFactorsStatus::Finished(PetitionFactorsStatusFinished::Fail)
     }
 
-    fn access_both_list_then_form_union<F, T>(&self, map: F) -> IndexSet<T>
+    fn access_both_list_then_form_union<T>(
+        &self,
+        map: impl Fn(&PetitionForFactors) -> IndexSet<T>,
+    ) -> IndexSet<T>
     where
         T: Eq + std::hash::Hash + Clone,
-        F: Fn(&PetitionForFactors) -> IndexSet<T>,
     {
         self.access_both_list(
             |l| map(l),
