@@ -176,13 +176,7 @@ impl KeysCollector {
         key_space: KeySpace,
     ) -> Self {
         let indices = StatelessDummyIndices;
-        let path = indices.next_derivation_path(
-            factor_source.clone().factor_source_id(),
-            network_id,
-            key_kind,
-            entity_kind,
-            key_space,
-        );
+        let path = indices.next_derivation_path(network_id, key_kind, entity_kind, key_space);
         Self::new_test_with_factor_sources(
             [factor_source.clone()],
             [(
