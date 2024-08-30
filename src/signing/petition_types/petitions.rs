@@ -58,16 +58,12 @@ impl Petitions {
         )
     }
 
-    pub fn each_petition<F, T, G, U>(
+    pub fn each_petition<T, U>(
         &self,
         factor_source_ids: IndexSet<FactorSourceIDFromHash>,
-        each: F,
-        combine: G,
-    ) -> U
-    where
-        F: Fn(&PetitionForTransaction) -> T,
-        G: Fn(Vec<T>) -> U,
-    {
+        each: impl Fn(&PetitionForTransaction) -> T,
+        combine: impl Fn(Vec<T>) -> U,
+    ) -> U {
         let for_each = factor_source_ids
             .clone()
             .iter()
