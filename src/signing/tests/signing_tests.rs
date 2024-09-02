@@ -1,7 +1,7 @@
 #![cfg(test)]
 use crate::prelude::*;
 
-mod signing_tests {
+mod tests {
 
     use super::*;
 

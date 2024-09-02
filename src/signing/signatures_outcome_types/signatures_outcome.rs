@@ -98,7 +98,7 @@ impl SignaturesOutcome {
     }
 
     #[allow(unused)]
-    pub(crate) fn ids_of_neglected_factor_sources(&self) -> IndexSet<FactorSourceIDFromHash> {
+    pub fn ids_of_neglected_factor_sources(&self) -> IndexSet<FactorSourceIDFromHash> {
         self.ids_of_neglected_factor_sources_filter(|_| true)
     }
 

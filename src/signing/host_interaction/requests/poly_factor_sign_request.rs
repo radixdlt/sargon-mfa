@@ -44,6 +44,10 @@ impl PolyFactorSignRequest {
         }
     }
 
+    pub fn factor_source_ids(&self) -> IndexSet<FactorSourceIDFromHash> {
+        self.per_factor_source.keys().cloned().collect()
+    }
+
     #[allow(unused)]
     pub(crate) fn factor_source_kind(&self) -> FactorSourceKind {
         self.factor_source_kind
