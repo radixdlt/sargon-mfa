@@ -1,7 +1,6 @@
-#[cfg(test)]
+#![cfg(test)]
 use crate::prelude::*;
 
-#[cfg(test)]
 mod key_derivation_tests {
 
     use super::CAP26EntityKind::*;
