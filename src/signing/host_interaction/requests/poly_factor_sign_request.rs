@@ -21,7 +21,7 @@ impl PolyFactorSignRequest {
     /// Panics if `per_factor_source` is empty
     ///
     /// Panics if not all factor sources are of the same kind
-    pub fn new(
+    pub(crate) fn new(
         factor_source_kind: FactorSourceKind,
         per_factor_source: IndexMap<FactorSourceIDFromHash, MonoFactorSignRequestInput>,
         invalid_transactions_if_neglected: IndexSet<InvalidTransactionIfNeglected>,
@@ -44,7 +44,12 @@ impl PolyFactorSignRequest {
         }
     }
 
-    pub fn factor_source_kind(&self) -> FactorSourceKind {
+    pub fn factor_source_ids(&self) -> IndexSet<FactorSourceIDFromHash> {
+        self.per_factor_source.keys().cloned().collect()
+    }
+
+    #[allow(unused)]
+    pub(crate) fn factor_source_kind(&self) -> FactorSourceKind {
         self.factor_source_kind
     }
 }

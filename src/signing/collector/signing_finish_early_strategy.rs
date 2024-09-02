@@ -3,26 +3,44 @@ use crate::prelude::*;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct WhenAllTransactionsAreValid(pub SignaturesCollectingContinuation);
 
+impl WhenAllTransactionsAreValid {
+    pub fn finish_early() -> Self {
+        Self(SignaturesCollectingContinuation::FinishEarly)
+    }
+    pub fn r#continue() -> Self {
+        Self(SignaturesCollectingContinuation::Continue)
+    }
+}
+
 impl Default for WhenAllTransactionsAreValid {
     fn default() -> Self {
-        Self(SignaturesCollectingContinuation::FinishEarly)
+        Self::finish_early()
     }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct WhenSomeTransactionIsInvalid(pub SignaturesCollectingContinuation);
 
+impl WhenSomeTransactionIsInvalid {
+    pub fn finish_early() -> Self {
+        Self(SignaturesCollectingContinuation::FinishEarly)
+    }
+    pub fn r#continue() -> Self {
+        Self(SignaturesCollectingContinuation::Continue)
+    }
+}
+
 impl Default for WhenSomeTransactionIsInvalid {
     fn default() -> Self {
-        Self(SignaturesCollectingContinuation::Continue)
+        Self::r#continue()
     }
 }
 
 /// Strategy to use for finishing early, i.e. stop collecting more signatures
 #[derive(Clone, Default, Copy, Debug, PartialEq, Eq)]
 pub struct SigningFinishEarlyStrategy {
-    pub when_all_transactions_are_valid: WhenAllTransactionsAreValid,
-    pub when_some_transaction_is_invalid: WhenSomeTransactionIsInvalid,
+    pub(crate) when_all_transactions_are_valid: WhenAllTransactionsAreValid,
+    pub(crate) when_some_transaction_is_invalid: WhenSomeTransactionIsInvalid,
 }
 impl SigningFinishEarlyStrategy {
     pub fn new(
@@ -35,10 +53,19 @@ impl SigningFinishEarlyStrategy {
         }
     }
 
-    pub fn r#continue() -> Self {
+    #[allow(unused)]
+    pub(crate) fn r#continue() -> Self {
         Self::new(
-            WhenAllTransactionsAreValid(SignaturesCollectingContinuation::Continue),
-            WhenSomeTransactionIsInvalid(SignaturesCollectingContinuation::Continue),
+            WhenAllTransactionsAreValid::r#continue(),
+            WhenSomeTransactionIsInvalid::r#continue(),
+        )
+    }
+
+    #[allow(unused)]
+    pub(crate) fn finish_early() -> Self {
+        Self::new(
+            WhenAllTransactionsAreValid::finish_early(),
+            WhenSomeTransactionIsInvalid::finish_early(),
         )
     }
 }
@@ -58,6 +85,19 @@ mod tests {
         assert_eq!(
             sut.when_some_transaction_is_invalid.0,
             SignaturesCollectingContinuation::Continue
+        );
+    }
+
+    #[test]
+    fn test_finish_early() {
+        let sut = Sut::finish_early();
+        assert_eq!(
+            sut.when_all_transactions_are_valid.0,
+            SignaturesCollectingContinuation::FinishEarly
+        );
+        assert_eq!(
+            sut.when_some_transaction_is_invalid.0,
+            SignaturesCollectingContinuation::FinishEarly
         );
     }
 

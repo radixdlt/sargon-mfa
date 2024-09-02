@@ -1,7 +1,7 @@
 use crate::prelude::*;
 
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub struct MaybeSignedTransactions {
+pub(crate) struct MaybeSignedTransactions {
     /// Collection of transactions which might be signed or not.
     pub(super) transactions: IndexMap<IntentHash, IndexSet<HDSignature>>,
 }
@@ -9,12 +9,12 @@ pub struct MaybeSignedTransactions {
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct SignedTransaction {
     /// The transaction intent hash.
-    pub intent_hash: IntentHash,
+    pub(crate) intent_hash: IntentHash,
     /// The signatures for this transaction.
-    pub signatures: IndexSet<HDSignature>,
+    pub(crate) signatures: IndexSet<HDSignature>,
 }
 impl SignedTransaction {
-    pub fn new(intent_hash: IntentHash, signatures: IndexSet<HDSignature>) -> Self {
+    pub(crate) fn new(intent_hash: IntentHash, signatures: IndexSet<HDSignature>) -> Self {
         Self {
             intent_hash,
             signatures,
@@ -29,17 +29,17 @@ impl MaybeSignedTransactions {
 
     /// Constructs a new empty `MaybeSignedTransactions` which can be used
     /// as a "builder".
-    pub fn empty() -> Self {
+    pub(crate) fn empty() -> Self {
         Self::new(IndexMap::new())
     }
 
     /// Returns whether or not this `MaybeSignedTransactions` contains
     /// any transactions.
-    pub fn is_empty(&self) -> bool {
+    pub(crate) fn is_empty(&self) -> bool {
         self.transactions.is_empty()
     }
 
-    pub fn transactions(&self) -> Vec<SignedTransaction> {
+    pub(crate) fn transactions(&self) -> Vec<SignedTransaction> {
         self.transactions
             .clone()
             .into_iter()
@@ -86,7 +86,11 @@ impl MaybeSignedTransactions {
     ///
     /// Panics if any signatures in `signature` is not new, that is, already present
     /// in `transactions`.
-    pub fn add_signatures(&mut self, intent_hash: IntentHash, signatures: IndexSet<HDSignature>) {
+    pub(crate) fn add_signatures(
+        &mut self,
+        intent_hash: IntentHash,
+        signatures: IndexSet<HDSignature>,
+    ) {
         if let Some(ref mut sigs) = self.transactions.get_mut(&intent_hash) {
             let old_count = sigs.len();
             let delta_count = signatures.len();
@@ -103,7 +107,7 @@ impl MaybeSignedTransactions {
     }
 
     /// Returns all the signatures for all the transactions.
-    pub fn all_signatures(&self) -> IndexSet<HDSignature> {
+    pub(crate) fn all_signatures(&self) -> IndexSet<HDSignature> {
         self.transactions
             .values()
             .flat_map(|v| v.iter())

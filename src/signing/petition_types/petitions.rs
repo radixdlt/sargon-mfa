@@ -16,11 +16,12 @@ pub(crate) struct Petitions {
     ///
     /// Where A, B, C and D, all use the factor source, e.g. some arculus
     /// card which the user has setup as a factor (source) for all these accounts.
-    pub factor_source_to_intent_hashes: HashMap<FactorSourceIDFromHash, IndexSet<IntentHash>>,
+    pub(crate) factor_source_to_intent_hashes:
+        HashMap<FactorSourceIDFromHash, IndexSet<IntentHash>>,
 
     /// Lookup from TXID to signatures builders, sorted according to the order of
     /// transactions passed to the SignaturesBuilder.
-    pub txid_to_petition: RefCell<IndexMap<IntentHash, PetitionForTransaction>>,
+    pub(crate) txid_to_petition: RefCell<IndexMap<IntentHash, PetitionForTransaction>>,
 }
 
 impl Petitions {
@@ -34,7 +35,7 @@ impl Petitions {
         }
     }
 
-    pub fn outcome(self) -> SignaturesOutcome {
+    pub(crate) fn outcome(self) -> SignaturesOutcome {
         let txid_to_petition = self.txid_to_petition.into_inner();
         let mut failed_transactions = MaybeSignedTransactions::empty();
         let mut successful_transactions = MaybeSignedTransactions::empty();
@@ -58,7 +59,7 @@ impl Petitions {
         )
     }
 
-    pub fn each_petition<T, U>(
+    pub(crate) fn each_petition<T, U>(
         &self,
         factor_source_ids: IndexSet<FactorSourceIDFromHash>,
         each: impl Fn(&PetitionForTransaction) -> T,
@@ -81,7 +82,7 @@ impl Petitions {
         combine(for_each)
     }
 
-    pub fn invalid_transactions_if_neglected_factors(
+    pub(crate) fn invalid_transactions_if_neglected_factors(
         &self,
         factor_source_ids: IndexSet<FactorSourceIDFromHash>,
     ) -> IndexSet<InvalidTransactionIfNeglected> {
@@ -136,7 +137,7 @@ impl Petitions {
         )
     }
 
-    pub fn status(&self) -> PetitionsStatus {
+    pub(crate) fn status(&self) -> PetitionsStatus {
         self.each_petition(
             self.factor_source_to_intent_hashes
                 .keys()

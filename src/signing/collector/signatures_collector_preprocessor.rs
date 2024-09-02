@@ -1,10 +1,10 @@
 use crate::prelude::*;
 
-pub struct SignaturesCollectorPreprocessor {
+pub(crate) struct SignaturesCollectorPreprocessor {
     transactions: IndexSet<TXToSign>,
 }
 
-pub fn sort_group_factors(
+pub(crate) fn sort_group_factors(
     used_factor_sources: HashSet<HDFactorSource>,
 ) -> IndexSet<FactorSourcesOfKind> {
     let factors_of_kind = used_factor_sources

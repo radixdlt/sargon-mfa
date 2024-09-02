@@ -28,7 +28,7 @@ impl SignaturesOutcome {
     /// # Panics
     /// Panics if the `successful_transactions` or `failed_transactions` shared
     /// either any transaction intent hash, or any signature.
-    pub fn new(
+    pub(crate) fn new(
         successful_transactions: MaybeSignedTransactions,
         failed_transactions: MaybeSignedTransactions,
         neglected_factor_sources: impl IntoIterator<Item = NeglectedFactor>,
@@ -85,6 +85,7 @@ impl SignaturesOutcome {
         self.neglected_factor_sources.clone()
     }
 
+    #[allow(unused)]
     fn ids_of_neglected_factor_sources_filter(
         &self,
         filter: fn(&NeglectedFactor) -> bool,
@@ -96,11 +97,13 @@ impl SignaturesOutcome {
             .collect()
     }
 
+    #[allow(unused)]
     pub fn ids_of_neglected_factor_sources(&self) -> IndexSet<FactorSourceIDFromHash> {
         self.ids_of_neglected_factor_sources_filter(|_| true)
     }
 
-    pub fn ids_of_neglected_factor_sources_skipped_by_user(
+    #[allow(unused)]
+    pub(crate) fn ids_of_neglected_factor_sources_skipped_by_user(
         &self,
     ) -> IndexSet<FactorSourceIDFromHash> {
         self.ids_of_neglected_factor_sources_filter(|nf| {
@@ -108,22 +111,30 @@ impl SignaturesOutcome {
         })
     }
 
-    pub fn ids_of_neglected_factor_sources_failed(&self) -> IndexSet<FactorSourceIDFromHash> {
+    #[allow(unused)]
+    pub(crate) fn ids_of_neglected_factor_sources_failed(
+        &self,
+    ) -> IndexSet<FactorSourceIDFromHash> {
         self.ids_of_neglected_factor_sources_filter(|nf| nf.reason == NeglectFactorReason::Failure)
     }
 
-    pub fn ids_of_neglected_factor_sources_irrelevant(&self) -> IndexSet<FactorSourceIDFromHash> {
+    #[allow(unused)]
+    pub(crate) fn ids_of_neglected_factor_sources_irrelevant(
+        &self,
+    ) -> IndexSet<FactorSourceIDFromHash> {
         self.ids_of_neglected_factor_sources_filter(|nf| {
             nf.reason == NeglectFactorReason::Irrelevant
         })
     }
 
-    pub fn signatures_of_failed_transactions(&self) -> IndexSet<HDSignature> {
+    #[allow(unused)]
+    pub(crate) fn signatures_of_failed_transactions(&self) -> IndexSet<HDSignature> {
         self.failed_transactions.all_signatures()
     }
 
+    #[allow(unused)]
     /// All signatures from both successful transactions and failed transactions.
-    pub fn all_signatures(&self) -> IndexSet<HDSignature> {
+    pub(crate) fn all_signatures(&self) -> IndexSet<HDSignature> {
         self.signatures_of_successful_transactions()
             .union(&self.signatures_of_failed_transactions())
             .cloned()

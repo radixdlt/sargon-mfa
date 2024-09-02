@@ -5,6 +5,8 @@ use super::{
     signatures_collector_state::*,
 };
 
+use SignaturesCollectingContinuation::*;
+
 /// A coordinator which gathers signatures from several factor sources of different
 /// kinds, in increasing friction order, for many transactions and for
 /// potentially multiple entities and for many factor instances (derivation paths)
@@ -23,6 +25,34 @@ pub struct SignaturesCollector {
     state: RefCell<SignaturesCollectorState>,
 }
 
+// === PUBLIC ===
+impl SignaturesCollector {
+    pub fn new(
+        finish_early_strategy: SigningFinishEarlyStrategy,
+        transactions: impl IntoIterator<Item = TransactionIntent>,
+        interactors: Arc<dyn SignInteractors>,
+        profile: &Profile,
+    ) -> Result<Self> {
+        Self::with_signers_extraction(
+            finish_early_strategy,
+            profile.factor_sources.clone(),
+            transactions.into_iter().collect::<IndexSet<_>>(),
+            interactors,
+            |i| TXToSign::extracting_from_intent_and_profile(&i, profile),
+        )
+    }
+
+    pub async fn collect_signatures(self) -> SignaturesOutcome {
+        _ = self
+            .sign_with_factors() // in decreasing "friction order"
+            .await
+            .inspect_err(|e| error!("Failed to use factor sources: {:#?}", e));
+
+        self.outcome()
+    }
+}
+
+// === INTERNAL ===
 impl SignaturesCollector {
     /// Used by our tests. But Sargon will typically wanna use `SignaturesCollector::new` and passing
     /// it a
@@ -46,7 +76,7 @@ impl SignaturesCollector {
         }
     }
 
-    pub fn with_signers_extraction<F>(
+    pub(crate) fn with_signers_extraction<F>(
         finish_early_strategy: SigningFinishEarlyStrategy,
         all_factor_sources_in_profile: IndexSet<HDFactorSource>,
         transactions: IndexSet<TransactionIntent>,
@@ -70,36 +100,7 @@ impl SignaturesCollector {
 
         Ok(collector)
     }
-
-    pub fn new(
-        finish_early_strategy: SigningFinishEarlyStrategy,
-        transactions: IndexSet<TransactionIntent>,
-        interactors: Arc<dyn SignInteractors>,
-        profile: &Profile,
-    ) -> Result<Self> {
-        Self::with_signers_extraction(
-            finish_early_strategy,
-            profile.factor_sources.clone(),
-            transactions,
-            interactors,
-            |i| TXToSign::extracting_from_intent_and_profile(&i, profile),
-        )
-    }
 }
-
-// === PUBLIC ===
-impl SignaturesCollector {
-    pub async fn collect_signatures(self) -> SignaturesOutcome {
-        _ = self
-            .sign_with_factors() // in decreasing "friction order"
-            .await
-            .inspect_err(|e| error!("Failed to use factor sources: {:#?}", e));
-
-        self.outcome()
-    }
-}
-
-use SignaturesCollectingContinuation::*;
 
 // === PRIVATE ===
 impl SignaturesCollector {
@@ -361,7 +362,7 @@ mod tests {
     fn invalid_profile_unknown_account() {
         let res = SignaturesCollector::new(
             SigningFinishEarlyStrategy::default(),
-            IndexSet::from_iter([TransactionIntent::new([Account::a0().entity_address()], [])]),
+            [TransactionIntent::new([Account::a0().entity_address()], [])],
             Arc::new(TestSignatureCollectingInteractors::new(
                 SimulatedUser::prudent_no_fail(),
             )),
@@ -374,7 +375,7 @@ mod tests {
     fn invalid_profile_unknown_persona() {
         let res = SignaturesCollector::new(
             SigningFinishEarlyStrategy::default(),
-            IndexSet::from_iter([TransactionIntent::new([], [Persona::p0().entity_address()])]),
+            [TransactionIntent::new([], [Persona::p0().entity_address()])],
             Arc::new(TestSignatureCollectingInteractors::new(
                 SimulatedUser::prudent_no_fail(),
             )),
@@ -389,7 +390,7 @@ mod tests {
         let persona = Persona::p0();
         let collector = SignaturesCollector::new(
             SigningFinishEarlyStrategy::default(),
-            IndexSet::from_iter([TransactionIntent::new([], [persona.entity_address()])]),
+            [TransactionIntent::new([], [persona.entity_address()])],
             Arc::new(TestSignatureCollectingInteractors::new(
                 SimulatedUser::prudent_no_fail(),
             )),
@@ -549,7 +550,7 @@ mod tests {
                         NetworkID::Mainnet,
                         CAP26EntityKind::Account,
                         CAP26KeyKind::T9n,
-                        HDPathComponent::non_hardened(6)
+                        HDPathComponent::securified(6)
                     ),
                     5
                 )

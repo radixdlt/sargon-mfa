@@ -9,8 +9,21 @@ use crate::prelude::*;
 pub struct SignResponse {
     pub signatures: IndexMap<FactorSourceIDFromHash, IndexSet<HDSignature>>,
 }
+
 impl SignResponse {
     pub fn new(signatures: IndexMap<FactorSourceIDFromHash, IndexSet<HDSignature>>) -> Self {
         Self { signatures }
+    }
+
+    pub fn with_signatures(signatures: IndexSet<HDSignature>) -> Self {
+        let signatures = signatures
+            .into_iter()
+            .into_group_map_by(|x| x.factor_source_id());
+        Self::new(
+            signatures
+                .into_iter()
+                .map(|(k, v)| (k, IndexSet::from_iter(v)))
+                .collect(),
+        )
     }
 }

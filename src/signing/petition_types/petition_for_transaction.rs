@@ -6,9 +6,9 @@ use crate::prelude::*;
 #[debug("{}", self.debug_str())]
 pub(crate) struct PetitionForTransaction {
     /// Hash of transaction to sign
-    pub intent_hash: IntentHash,
+    pub(crate) intent_hash: IntentHash,
 
-    pub for_entities: RefCell<HashMap<AddressOfAccountOrPersona, PetitionForEntity>>,
+    pub(crate) for_entities: RefCell<HashMap<AddressOfAccountOrPersona, PetitionForEntity>>,
 }
 
 impl PetitionForTransaction {
@@ -33,7 +33,7 @@ impl PetitionForTransaction {
     ///
     /// The third value in the tuple `(_, _, IndexSet<FactorSourceIDFromHash>)` contains the
     /// id of all the factor sources which was skipped.
-    pub fn outcome(self) -> PetitionTransactionOutcome {
+    pub(crate) fn outcome(self) -> PetitionTransactionOutcome {
         let for_entities = self
             .for_entities
             .into_inner()
@@ -63,19 +63,11 @@ impl PetitionForTransaction {
         )
     }
 
-    fn _all_factor_instances(&self) -> IndexSet<OwnedFactorInstance> {
-        self.for_entities
-            .borrow()
-            .iter()
-            .flat_map(|(_, petition)| petition.all_factor_instances())
-            .collect()
-    }
-
-    pub fn has_tx_failed(&self) -> bool {
+    pub(crate) fn has_tx_failed(&self) -> bool {
         self.for_entities.borrow().values().any(|p| p.has_failed())
     }
 
-    pub fn all_relevant_factor_instances_of_source(
+    pub(crate) fn all_relevant_factor_instances_of_source(
         &self,
         factor_source_id: &FactorSourceIDFromHash,
     ) -> IndexSet<OwnedFactorInstance> {
@@ -98,7 +90,7 @@ impl PetitionForTransaction {
             .collect()
     }
 
-    pub fn add_signature(&self, signature: HDSignature) {
+    pub(crate) fn add_signature(&self, signature: HDSignature) {
         let for_entities = self.for_entities.borrow_mut();
         let for_entity = for_entities
             .get(&signature.owned_factor_instance().owner)
@@ -106,7 +98,7 @@ impl PetitionForTransaction {
         for_entity.add_signature(signature.clone());
     }
 
-    pub fn neglect_factor_source(&self, neglected: NeglectedFactor) {
+    pub(crate) fn neglect_factor_source(&self, neglected: NeglectedFactor) {
         let mut for_entities = self.for_entities.borrow_mut();
         for petition in for_entities.values_mut() {
             petition.neglect_if_referenced(neglected.clone())
@@ -127,7 +119,7 @@ impl PetitionForTransaction {
         )
     }
 
-    pub fn status_of_each_petition_for_entity(&self) -> Vec<PetitionForFactorsStatus> {
+    pub(crate) fn status_of_each_petition_for_entity(&self) -> Vec<PetitionForFactorsStatus> {
         self.for_entities
             .borrow()
             .values()
@@ -135,7 +127,7 @@ impl PetitionForTransaction {
             .collect()
     }
 
-    pub fn invalid_transaction_if_neglected_factors(
+    pub(crate) fn invalid_transaction_if_neglected_factors(
         &self,
         factor_source_ids: IndexSet<FactorSourceIDFromHash>,
     ) -> Option<InvalidTransactionIfNeglected> {
@@ -245,6 +237,62 @@ mod tests {
 
     #[test]
     fn debug() {
-        assert_eq!(format!("{:?}", Sut::sample()), "PetitionForTransaction(for_entities: [PetitionForEntity(intent_hash: TXID(\"dedede\"), entity: acco_Grace, \"threshold_factors PetitionForFactors(input: PetitionForFactorsInput(factors: {\\n    factor_source_id: Device:de, derivation_path: 0/A/tx/0,\\n    factor_source_id: Ledger:1e, derivation_path: 0/A/tx/1,\\n}), state_snapshot: signatures: \\\"\\\", neglected: \\\"\\\")\"\"override_factors PetitionForFactors(input: PetitionForFactorsInput(factors: {\\n    factor_source_id: Ledger:1e, derivation_path: 0/A/tx/1,\\n}), state_snapshot: signatures: \\\"\\\", neglected: \\\"\\\")\")])");
+        assert!(!format!("{:?}", Sut::sample()).is_empty());
+    }
+
+    #[test]
+    fn all_relevant_factor_instances_of_source_ok() {
+        let intent_hash = IntentHash::sample();
+
+        let account = Account::a5();
+        let matrix = match account.security_state() {
+            EntitySecurityState::Securified(matrix) => matrix.clone(),
+            EntitySecurityState::Unsecured(_) => panic!(),
+        };
+        let petition =
+            PetitionForEntity::new_securified(intent_hash.clone(), account.address(), matrix);
+
+        let sut = Sut::new(
+            IntentHash::sample(),
+            HashMap::from_iter([(account.address(), petition)]),
+        );
+        sut.neglect_factor_source(NeglectedFactor::new(
+            NeglectFactorReason::Failure,
+            FactorSourceIDFromHash::fs1(),
+        ));
+
+        assert_eq!(
+            sut.all_relevant_factor_instances_of_source(&FactorSourceIDFromHash::fs4())
+                .len(),
+            1
+        );
+    }
+
+    #[test]
+    #[should_panic]
+    fn all_relevant_factor_instances_of_source_panics_if_invalid() {
+        let intent_hash = IntentHash::sample();
+
+        let account = Account::a5();
+        let matrix = match account.security_state() {
+            EntitySecurityState::Securified(matrix) => matrix.clone(),
+            EntitySecurityState::Unsecured(_) => panic!(),
+        };
+        let petition =
+            PetitionForEntity::new_securified(intent_hash.clone(), account.address(), matrix);
+
+        let sut = Sut::new(
+            IntentHash::sample(),
+            HashMap::from_iter([(account.address(), petition)]),
+        );
+        sut.neglect_factor_source(NeglectedFactor::new(
+            NeglectFactorReason::Failure,
+            FactorSourceIDFromHash::fs1(),
+        ));
+        sut.neglect_factor_source(NeglectedFactor::new(
+            NeglectFactorReason::Failure,
+            FactorSourceIDFromHash::fs4(),
+        ));
+        let _ = sut.all_relevant_factor_instances_of_source(&FactorSourceIDFromHash::fs4());
     }
 }

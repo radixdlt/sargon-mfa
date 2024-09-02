@@ -808,9 +808,9 @@ impl<T: Clone + Into<AddressOfAccountOrPersona> + EntityKindSpecifier + From<Str
     pub fn securified_mainnet(
         index: u32,
         name: impl AsRef<str>,
-        make_matrix: fn(u32) -> MatrixOfFactorInstances,
+        make_matrix: impl Fn(HDPathComponent) -> MatrixOfFactorInstances,
     ) -> Self {
-        Self::new(name, make_matrix(index))
+        Self::new(name, make_matrix(HDPathComponent::securified(index)))
     }
 
     pub fn unsecurified_mainnet(

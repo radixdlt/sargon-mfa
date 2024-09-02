@@ -1,17 +1,20 @@
+#![cfg(test)]
+#![allow(unused)]
+
 use crate::prelude::*;
 
 #[derive(Default, Clone, Debug)]
-pub struct StatelessDummyIndices;
+pub(crate) struct StatelessDummyIndices;
 
 impl StatelessDummyIndices {
-    pub fn next_derivation_index_for(&self, key_space: KeySpace) -> HDPathComponent {
+    pub(crate) fn next_derivation_index_for(&self, key_space: KeySpace) -> HDPathComponent {
         match key_space {
             KeySpace::Securified => HDPathComponent::non_hardened(BIP32_SECURIFIED_HALF),
             KeySpace::Unsecurified => HDPathComponent::non_hardened(0),
         }
     }
 
-    pub fn next_derivation_path(
+    pub(crate) fn next_derivation_path(
         &self,
         network_id: NetworkID,
         key_kind: CAP26KeyKind,
@@ -24,7 +27,7 @@ impl StatelessDummyIndices {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum KeySpace {
+pub(crate) enum KeySpace {
     Unsecurified,
     Securified,
 }

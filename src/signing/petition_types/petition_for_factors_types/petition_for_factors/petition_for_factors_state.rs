@@ -7,7 +7,7 @@ use crate::prelude::*;
 /// have either signed or been neglected.
 #[derive(Clone, PartialEq, Eq, derive_more::Debug)]
 #[debug("PetitionForFactorsState(signed: {:?}, neglected: {:?})", signed.borrow().clone(), neglected.borrow().clone())]
-pub struct PetitionForFactorsState {
+pub(crate) struct PetitionForFactorsState {
     /// Factors that have signed.
     signed: RefCell<PetitionForFactorsSubState<HDSignature>>,
 
@@ -36,12 +36,12 @@ impl PetitionForFactorsState {
     }
 
     /// A set of signatures from factors that have been signed with so far.
-    pub fn all_signatures(&self) -> IndexSet<HDSignature> {
+    pub(crate) fn all_signatures(&self) -> IndexSet<HDSignature> {
         self.signed().snapshot()
     }
 
     /// A set factors have been neglected so far.
-    pub fn all_neglected(&self) -> IndexSet<NeglectedFactorInstance> {
+    pub(crate) fn all_neglected(&self) -> IndexSet<NeglectedFactorInstance> {
         self.neglected().snapshot()
     }
 

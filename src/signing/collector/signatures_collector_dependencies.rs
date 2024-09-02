@@ -22,7 +22,7 @@ pub(super) struct SignaturesCollectorDependencies {
 }
 
 impl SignaturesCollectorDependencies {
-    pub fn new(
+    pub(crate) fn new(
         finish_early_strategy: SigningFinishEarlyStrategy,
         interactors: Arc<dyn SignInteractors>,
         factors_of_kind: IndexSet<FactorSourcesOfKind>,

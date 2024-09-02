@@ -1,11 +1,14 @@
+#![cfg(test)]
+#![allow(unused)]
+
 use crate::prelude::*;
 
-pub struct TestSigningSerialInteractor {
+pub(crate) struct TestSigningSerialInteractor {
     simulated_user: SimulatedUser,
 }
 
 impl TestSigningSerialInteractor {
-    pub fn new(simulated_user: SimulatedUser) -> Self {
+    pub(crate) fn new(simulated_user: SimulatedUser) -> Self {
         Self { simulated_user }
     }
 }
@@ -46,16 +49,7 @@ impl MonoFactorSignInteractor for TestSigningSerialInteractor {
                             .collect::<IndexSet<_>>()
                     })
                     .collect::<IndexSet<HDSignature>>();
-                let signatures = signatures
-                    .into_iter()
-                    .into_group_map_by(|x| x.factor_source_id());
-                let response = SignResponse::new(
-                    signatures
-                        .into_iter()
-                        .map(|(k, v)| (k, IndexSet::from_iter(v)))
-                        .collect(),
-                );
-                SignWithFactorsOutcome::signed(response)
+                SignWithFactorsOutcome::signed(SignResponse::with_signatures(signatures))
             }
             SigningUserInput::Skip => {
                 SignWithFactorsOutcome::user_skipped_factor(request.input.factor_source_id)

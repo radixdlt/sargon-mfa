@@ -1,11 +1,14 @@
+#![cfg(test)]
+#![allow(unused)]
+
 use crate::prelude::*;
 
-pub struct TestSigningParallelInteractor {
+pub(crate) struct TestSigningParallelInteractor {
     simulated_user: SimulatedUser,
 }
 
 impl TestSigningParallelInteractor {
-    pub fn new(simulated_user: SimulatedUser) -> Self {
+    pub(crate) fn new(simulated_user: SimulatedUser) -> Self {
         Self { simulated_user }
     }
 }

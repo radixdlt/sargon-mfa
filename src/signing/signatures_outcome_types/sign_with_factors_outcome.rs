@@ -14,28 +14,32 @@ pub enum SignWithFactorsOutcome {
 }
 
 impl SignWithFactorsOutcome {
+    #[allow(unused)]
     pub fn signed(produced_signatures: SignResponse) -> Self {
         Self::Signed {
             produced_signatures,
         }
     }
 
-    pub fn failure_with_factors(ids: IndexSet<FactorSourceIDFromHash>) -> Self {
+    #[allow(unused)]
+    pub(crate) fn failure_with_factors(ids: IndexSet<FactorSourceIDFromHash>) -> Self {
         Self::Neglected(NeglectedFactors::new(NeglectFactorReason::Failure, ids))
     }
 
-    pub fn user_skipped_factors(ids: IndexSet<FactorSourceIDFromHash>) -> Self {
+    #[allow(unused)]
+    pub(crate) fn user_skipped_factors(ids: IndexSet<FactorSourceIDFromHash>) -> Self {
         Self::Neglected(NeglectedFactors::new(
             NeglectFactorReason::UserExplicitlySkipped,
             ids,
         ))
     }
 
-    pub fn user_skipped_factor(id: FactorSourceIDFromHash) -> Self {
+    #[allow(unused)]
+    pub(crate) fn user_skipped_factor(id: FactorSourceIDFromHash) -> Self {
         Self::user_skipped_factors(IndexSet::from_iter([id]))
     }
 
-    pub fn irrelevant(factor_sources_of_kind: &FactorSourcesOfKind) -> Self {
+    pub(crate) fn irrelevant(factor_sources_of_kind: &FactorSourcesOfKind) -> Self {
         Self::Neglected(NeglectedFactors::new(
             NeglectFactorReason::Irrelevant,
             factor_sources_of_kind
