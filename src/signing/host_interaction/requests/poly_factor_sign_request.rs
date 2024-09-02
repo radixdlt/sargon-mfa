@@ -44,6 +44,7 @@ impl PolyFactorSignRequest {
         }
     }
 
+    #[allow(unused)]
     pub(crate) fn factor_source_kind(&self) -> FactorSourceKind {
         self.factor_source_kind
     }

@@ -23,6 +23,7 @@ impl MonoFactorSignRequest {
         }
     }
 
+    #[allow(unused)]
     pub(crate) fn factor_source_kind(&self) -> FactorSourceKind {
         self.input.factor_source_kind()
     }

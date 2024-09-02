@@ -37,6 +37,7 @@ impl MonoFactorSignRequestInput {
     }
 
     /// Returns the factor source kind of the factor source id.
+    #[allow(unused)]
     pub(crate) fn factor_source_kind(&self) -> FactorSourceKind {
         self.factor_source_id.kind
     }

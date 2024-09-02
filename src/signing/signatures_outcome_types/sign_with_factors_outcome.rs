@@ -14,16 +14,19 @@ pub enum SignWithFactorsOutcome {
 }
 
 impl SignWithFactorsOutcome {
+    #[allow(unused)]
     pub(crate) fn signed(produced_signatures: SignResponse) -> Self {
         Self::Signed {
             produced_signatures,
         }
     }
 
+    #[allow(unused)]
     pub(crate) fn failure_with_factors(ids: IndexSet<FactorSourceIDFromHash>) -> Self {
         Self::Neglected(NeglectedFactors::new(NeglectFactorReason::Failure, ids))
     }
 
+    #[allow(unused)]
     pub(crate) fn user_skipped_factors(ids: IndexSet<FactorSourceIDFromHash>) -> Self {
         Self::Neglected(NeglectedFactors::new(
             NeglectFactorReason::UserExplicitlySkipped,
@@ -31,6 +34,7 @@ impl SignWithFactorsOutcome {
         ))
     }
 
+    #[allow(unused)]
     pub(crate) fn user_skipped_factor(id: FactorSourceIDFromHash) -> Self {
         Self::user_skipped_factors(IndexSet::from_iter([id]))
     }

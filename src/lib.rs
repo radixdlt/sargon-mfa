@@ -4,15 +4,23 @@
 #![feature(async_closure)]
 
 mod derivation;
+mod samples;
 mod signing;
-mod testing;
 mod types;
+
+#[cfg(test)]
+mod testing;
 
 pub mod prelude {
     pub use crate::derivation::*;
+
+    #[allow(unused_imports)]
+    pub(crate) use crate::samples::*;
     pub use crate::signing::*;
-    pub(crate) use crate::testing::*;
     pub use crate::types::*;
+
+    #[cfg(test)]
+    pub(crate) use crate::testing::*;
 
     pub(crate) use derive_getters::Getters;
     pub(crate) use indexmap::{IndexMap, IndexSet};

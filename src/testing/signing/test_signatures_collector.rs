@@ -1,3 +1,6 @@
+#![cfg(test)]
+#![allow(unused)]
+
 use crate::prelude::*;
 
 impl SignaturesCollector {

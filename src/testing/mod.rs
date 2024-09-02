@@ -1,3 +1,6 @@
+#![cfg(test)]
+#![allow(unused)]
+
 mod derivation;
 mod signing;
 

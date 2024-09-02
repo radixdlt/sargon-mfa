@@ -40,6 +40,7 @@ impl TransactionSignRequestInput {
         }
     }
 
+    #[allow(unused)]
     pub(crate) fn signature_inputs(&self) -> IndexSet<HDSignatureInput> {
         self.owned_factor_instances
             .clone()
