@@ -8,12 +8,12 @@ pub enum SignInteractor {
 
 impl SignInteractor {
     #[allow(unused)]
-    pub(crate) fn poly(interactor: Arc<dyn PolyFactorSignInteractor>) -> Self {
+    pub fn poly(interactor: Arc<dyn PolyFactorSignInteractor>) -> Self {
         Self::PolyFactor(interactor)
     }
 
     #[allow(unused)]
-    pub(crate) fn mono(interactor: Arc<dyn MonoFactorSignInteractor>) -> Self {
+    pub fn mono(interactor: Arc<dyn MonoFactorSignInteractor>) -> Self {
         Self::MonoFactor(interactor)
     }
 }

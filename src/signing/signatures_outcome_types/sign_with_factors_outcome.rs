@@ -15,7 +15,7 @@ pub enum SignWithFactorsOutcome {
 
 impl SignWithFactorsOutcome {
     #[allow(unused)]
-    pub(crate) fn signed(produced_signatures: SignResponse) -> Self {
+    pub fn signed(produced_signatures: SignResponse) -> Self {
         Self::Signed {
             produced_signatures,
         }

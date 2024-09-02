@@ -29,14 +29,14 @@ pub struct SignaturesCollector {
 impl SignaturesCollector {
     pub fn new(
         finish_early_strategy: SigningFinishEarlyStrategy,
-        transactions: IndexSet<TransactionIntent>,
+        transactions: impl IntoIterator<Item = TransactionIntent>,
         interactors: Arc<dyn SignInteractors>,
         profile: &Profile,
     ) -> Result<Self> {
         Self::with_signers_extraction(
             finish_early_strategy,
             profile.factor_sources.clone(),
-            transactions,
+            transactions.into_iter().collect::<IndexSet<_>>(),
             interactors,
             |i| TXToSign::extracting_from_intent_and_profile(&i, profile),
         )
@@ -362,7 +362,7 @@ mod tests {
     fn invalid_profile_unknown_account() {
         let res = SignaturesCollector::new(
             SigningFinishEarlyStrategy::default(),
-            IndexSet::from_iter([TransactionIntent::new([Account::a0().entity_address()], [])]),
+            [TransactionIntent::new([Account::a0().entity_address()], [])],
             Arc::new(TestSignatureCollectingInteractors::new(
                 SimulatedUser::prudent_no_fail(),
             )),
@@ -375,7 +375,7 @@ mod tests {
     fn invalid_profile_unknown_persona() {
         let res = SignaturesCollector::new(
             SigningFinishEarlyStrategy::default(),
-            IndexSet::from_iter([TransactionIntent::new([], [Persona::p0().entity_address()])]),
+            [TransactionIntent::new([], [Persona::p0().entity_address()])],
             Arc::new(TestSignatureCollectingInteractors::new(
                 SimulatedUser::prudent_no_fail(),
             )),
@@ -390,7 +390,7 @@ mod tests {
         let persona = Persona::p0();
         let collector = SignaturesCollector::new(
             SigningFinishEarlyStrategy::default(),
-            IndexSet::from_iter([TransactionIntent::new([], [persona.entity_address()])]),
+            [TransactionIntent::new([], [persona.entity_address()])],
             Arc::new(TestSignatureCollectingInteractors::new(
                 SimulatedUser::prudent_no_fail(),
             )),
@@ -550,7 +550,7 @@ mod tests {
                         NetworkID::Mainnet,
                         CAP26EntityKind::Account,
                         CAP26KeyKind::T9n,
-                        HDPathComponent::non_hardened(6)
+                        HDPathComponent::securified(6)
                     ),
                     5
                 )

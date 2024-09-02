@@ -225,7 +225,7 @@ mod signing_tests {
                 let a9 = &Account::a9();
                 let tx0 = TransactionIntent::address_of([a9], []);
 
-                let all_transactions = IndexSet::from_iter([tx0.clone()]);
+                let all_transactions = [tx0.clone()];
 
                 let profile = Profile::new(factor_sources.clone(), [a9], []);
 
@@ -346,7 +346,7 @@ mod signing_tests {
                 let tuples_clone = tuples.clone();
                 let collector = SignaturesCollector::new(
                     SigningFinishEarlyStrategy::default(),
-                    IndexSet::from_iter([tx0.clone(), tx1.clone()]),
+                    [tx0.clone(), tx1.clone()],
                     Arc::new(TestSignatureCollectingInteractors::new(
                         SimulatedUser::with_spy(
                             move |kind, invalid| {

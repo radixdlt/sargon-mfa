@@ -13,7 +13,7 @@ pub struct MonoFactorSignRequest {
 }
 
 impl MonoFactorSignRequest {
-    pub(crate) fn new(
+    pub fn new(
         input: MonoFactorSignRequestInput,
         invalid_transactions_if_neglected: IndexSet<InvalidTransactionIfNeglected>,
     ) -> Self {
