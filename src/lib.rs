@@ -2,9 +2,12 @@
 #![feature(core_intrinsics)]
 #![feature(iter_repeat_n)]
 #![feature(async_closure)]
+#![allow(unused_imports)]
 
 mod derivation;
+mod recovery;
 mod samples;
+mod securify;
 mod signing;
 mod types;
 
@@ -14,8 +17,9 @@ mod testing;
 pub mod prelude {
     pub use crate::derivation::*;
 
-    #[allow(unused_imports)]
+    pub use crate::recovery::*;
     pub(crate) use crate::samples::*;
+    pub use crate::securify::*;
     pub use crate::signing::*;
     pub use crate::types::*;
 
