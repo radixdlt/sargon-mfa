@@ -1,0 +1,9 @@
+[all]
+exclude-files = ["src/types/sargon_types.rs", "src/testing/*", "src/samples/*"]
+verbose = false
+force-clean = true
+timeout = "2m"
+locked = true
+all-features = true
+jobs = 1
+out = ["Html"]
