@@ -158,7 +158,7 @@ impl KeysCollector {
     ) -> Self {
         sensible_env_logger::safe_init!();
         Self::new(
-            all_factor_sources_in_profile.into_iter().collect(),
+            all_factor_sources_in_profile,
             derivation_paths.into_iter().collect(),
             Arc::new(TestDerivationInteractors::default()),
         )

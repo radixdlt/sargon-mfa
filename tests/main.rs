@@ -1,6 +1,133 @@
 use use_factors::prelude::*;
 
 #[cfg(test)]
+mod integration_test_derivation {
+    use std::sync::Arc;
+
+    use indexmap::{IndexMap, IndexSet};
+
+    use super::*;
+
+    struct TestDerivationInteractors;
+    struct TestDerivationInteractor;
+
+    #[async_trait::async_trait]
+    impl PolyFactorKeyDerivationInteractor for TestDerivationInteractor {
+        async fn derive(
+            &self,
+            request: PolyFactorKeyDerivationRequest,
+        ) -> Result<KeyDerivationResponse> {
+            let mut keys = IndexMap::<
+                FactorSourceIDFromHash,
+                IndexSet<HierarchicalDeterministicFactorInstance>,
+            >::new();
+            for (f, req) in request.per_factor_source.into_iter() {
+                let resp = <Self as MonoFactorKeyDerivationInteractor>::derive(self, req).await?;
+
+                keys.insert(f, resp.per_factor_source.into_iter().next().unwrap().1);
+            }
+            Ok(KeyDerivationResponse::new(keys))
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl MonoFactorKeyDerivationInteractor for TestDerivationInteractor {
+        async fn derive(
+            &self,
+            request: MonoFactorKeyDerivationRequest,
+        ) -> Result<KeyDerivationResponse> {
+            let factor_source_id = request.clone().factor_source_id;
+            Ok(KeyDerivationResponse::new(IndexMap::from_iter([(
+                factor_source_id,
+                request
+                    .derivation_paths
+                    .clone()
+                    .into_iter()
+                    .map(|p| {
+                        HierarchicalDeterministicFactorInstance::mocked_with(p, &factor_source_id)
+                    })
+                    .collect(),
+            )])))
+        }
+    }
+
+    impl KeysDerivationInteractors for TestDerivationInteractors {
+        fn interactor_for(&self, kind: FactorSourceKind) -> KeyDerivationInteractor {
+            match kind {
+                FactorSourceKind::Device => {
+                    KeyDerivationInteractor::MonoFactor(Arc::new(TestDerivationInteractor))
+                }
+                _ => KeyDerivationInteractor::PolyFactor(Arc::new(TestDerivationInteractor)),
+            }
+        }
+    }
+
+    #[actix_rt::test]
+    async fn valid() {
+        let f0 = HDFactorSource::ledger();
+        let f1 = HDFactorSource::device();
+        let f2 = HDFactorSource::device();
+        let f3 = HDFactorSource::arculus();
+
+        let paths = IndexMap::<_, _>::from_iter([
+            (
+                f0.factor_source_id(),
+                IndexSet::<_>::from_iter([
+                    DerivationPath::account_tx(NetworkID::Mainnet, HDPathComponent::securified(0)),
+                    DerivationPath::account_tx(NetworkID::Mainnet, HDPathComponent::securified(1)),
+                    DerivationPath::account_tx(
+                        NetworkID::Stokenet,
+                        HDPathComponent::non_hardened(2),
+                    ),
+                ]),
+            ),
+            (
+                f1.factor_source_id(),
+                IndexSet::<_>::from_iter([DerivationPath::account_tx(
+                    NetworkID::Stokenet,
+                    HDPathComponent::non_hardened(3),
+                )]),
+            ),
+            (
+                f2.factor_source_id(),
+                IndexSet::<_>::from_iter([DerivationPath::account_tx(
+                    NetworkID::Mainnet,
+                    HDPathComponent::non_hardened(4),
+                )]),
+            ),
+            (
+                f3.factor_source_id(),
+                IndexSet::<_>::from_iter([DerivationPath::new(
+                    NetworkID::Mainnet,
+                    CAP26EntityKind::Identity,
+                    CAP26KeyKind::Rola,
+                    HDPathComponent::securified(5),
+                )]),
+            ),
+        ]);
+
+        let collector = KeysCollector::new(
+            [f0, f1, f2, f3],
+            paths.clone(),
+            Arc::new(TestDerivationInteractors),
+        )
+        .unwrap();
+
+        let outcome = collector.collect_keys().await;
+        let factors = outcome.all_factors();
+        assert_eq!(
+            factors.len(),
+            paths
+                .clone()
+                .into_iter()
+                .flat_map(|(_, v)| v)
+                .collect::<IndexSet<_>>()
+                .len(),
+        );
+    }
+}
+
+#[cfg(test)]
 mod integration_test_signing {
     use std::sync::Arc;
 

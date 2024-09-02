@@ -20,12 +20,18 @@ pub struct KeysCollector {
 
 impl KeysCollector {
     pub fn new(
-        all_factor_sources_in_profile: IndexSet<HDFactorSource>,
+        all_factor_sources_in_profile: impl IntoIterator<Item = HDFactorSource>,
         derivation_paths: IndexMap<FactorSourceIDFromHash, IndexSet<DerivationPath>>,
         interactors: Arc<dyn KeysDerivationInteractors>,
     ) -> Result<Self> {
         let preprocessor = KeysCollectorPreprocessor::new(derivation_paths);
-        Self::with_preprocessor(all_factor_sources_in_profile, interactors, preprocessor)
+        Self::with_preprocessor(
+            all_factor_sources_in_profile
+                .into_iter()
+                .collect::<IndexSet<_>>(),
+            interactors,
+            preprocessor,
+        )
     }
 
     fn with_preprocessor(
