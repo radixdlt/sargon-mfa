@@ -156,6 +156,21 @@ impl<T: std::hash::Hash + Eq> Just<T> for IndexSet<T> {
         Self::from_iter([item])
     }
 }
+impl<T: std::hash::Hash + Eq> Just<T> for HashSet<T> {
+    fn just(item: T) -> Self {
+        Self::from_iter([item])
+    }
+}
+impl<K: std::hash::Hash + Eq, V> Just<(K, V)> for IndexMap<K, V> {
+    fn just(item: (K, V)) -> Self {
+        Self::from_iter([item])
+    }
+}
+impl<K: std::hash::Hash + Eq, V> Just<(K, V)> for HashMap<K, V> {
+    fn just(item: (K, V)) -> Self {
+        Self::from_iter([item])
+    }
+}
 
 #[repr(u32)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, std::hash::Hash, PartialOrd, Ord, strum::Display)]
