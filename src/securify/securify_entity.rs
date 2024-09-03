@@ -1,6 +1,6 @@
 #![cfg(test)]
 
-use crate::prelude::*;
+use crate::{derivation, prelude::*};
 use sha2::{Digest, Sha256, Sha512};
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -41,20 +41,68 @@ pub struct AccessController {
     pub metadata: ComponentMetadata,
 }
 
-pub async fn securify(account: Account, matrix: MatrixOfFactorSources) -> Result<AccessController> {
+pub trait DerivationIndexWhenSecurifiedAssigner {
+    fn assign_derivation_index(
+        &self,
+        account: Account,
+        other_accounts: HashSet<Account>,
+    ) -> HDPathValue;
+}
+
+pub async fn securify(
+    address: AccountAddress,
+    matrix: MatrixOfFactorSources,
+    profile: Profile,
+    derivation_index_assigner: impl DerivationIndexWhenSecurifiedAssigner,
+) -> Result<AccessController> {
+    let account = profile.account_by_address(address)?;
+
+    let mut other_accounts = profile
+        .accounts
+        .values()
+        .cloned()
+        .into_iter()
+        .collect::<HashSet<Account>>();
+
+    other_accounts.remove(&account);
+
+    let derivation_index =
+        derivation_index_assigner.assign_derivation_index(account, other_accounts);
+    let network_id = NetworkID::Mainnet; // TODO read from address...
+
+    let derivation_path = DerivationPath::new(
+        network_id,
+        CAP26EntityKind::Account,
+        CAP26KeyKind::T9n,
+        HDPathComponent::securified(derivation_index),
+    );
+
     let keys_collector = KeysCollector::new(
-        matrix.all_factors(),
-        IndexMap::new(),
+        profile.factor_sources,
+        matrix
+            .all_factors()
+            .clone()
+            .into_iter()
+            .map(|f| {
+                (
+                    f.factor_source_id(),
+                    IndexSet::just(derivation_path.clone()),
+                )
+            })
+            .collect::<IndexMap<FactorSourceIDFromHash, IndexSet<DerivationPath>>>(),
         Arc::new(TestDerivationInteractors::default()),
     )?;
+
     let factor_instances = keys_collector.collect_keys().await.all_factors();
+
     let component_metadata = ComponentMetadata::new(
         factor_instances
             .iter()
             .map(|fi| fi.public_key.clone().public_key)
             .collect(),
-        None,
+        Some(derivation_index),
     );
+
     Ok(AccessController {
         address: AccessControllerAddress::generate(),
         metadata: component_metadata,
