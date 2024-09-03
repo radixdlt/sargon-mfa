@@ -55,7 +55,7 @@ impl HasSampleValues for TransactionSignRequestInput {
         Self::new(
             IntentHash::sample(),
             FactorSourceIDFromHash::sample(),
-            IndexSet::from_iter([OwnedFactorInstance::sample()]),
+            IndexSet::just(OwnedFactorInstance::sample()),
         )
     }
 
@@ -63,7 +63,7 @@ impl HasSampleValues for TransactionSignRequestInput {
         Self::new(
             IntentHash::sample_other(),
             FactorSourceIDFromHash::sample_other(),
-            IndexSet::from_iter([OwnedFactorInstance::sample_other()]),
+            IndexSet::just(OwnedFactorInstance::sample_other()),
         )
     }
 }
@@ -103,7 +103,7 @@ mod tests_batch_req {
         Sut::new(
             IntentHash::sample(),
             FactorSourceIDFromHash::sample(),
-            IndexSet::from_iter([OwnedFactorInstance::sample_other()]),
+            IndexSet::just(OwnedFactorInstance::sample_other()),
         );
     }
 }

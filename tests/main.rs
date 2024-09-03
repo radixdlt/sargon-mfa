@@ -37,7 +37,7 @@ mod integration_test_derivation {
             request: MonoFactorKeyDerivationRequest,
         ) -> Result<KeyDerivationResponse> {
             let factor_source_id = request.clone().factor_source_id;
-            Ok(KeyDerivationResponse::new(IndexMap::from_iter([(
+            Ok(KeyDerivationResponse::new(IndexMap::just((
                 factor_source_id,
                 request
                     .derivation_paths
@@ -47,7 +47,7 @@ mod integration_test_derivation {
                         HierarchicalDeterministicFactorInstance::mocked_with(p, &factor_source_id)
                     })
                     .collect(),
-            )])))
+            ))))
         }
     }
 
@@ -83,26 +83,26 @@ mod integration_test_derivation {
             ),
             (
                 f1.factor_source_id(),
-                IndexSet::<_>::from_iter([DerivationPath::account_tx(
+                IndexSet::<_>::just(DerivationPath::account_tx(
                     NetworkID::Stokenet,
                     HDPathComponent::non_hardened(3),
-                )]),
+                )),
             ),
             (
                 f2.factor_source_id(),
-                IndexSet::<_>::from_iter([DerivationPath::account_tx(
+                IndexSet::<_>::just(DerivationPath::account_tx(
                     NetworkID::Mainnet,
                     HDPathComponent::non_hardened(4),
-                )]),
+                )),
             ),
             (
                 f3.factor_source_id(),
-                IndexSet::<_>::from_iter([DerivationPath::new(
+                IndexSet::<_>::just(DerivationPath::new(
                     NetworkID::Mainnet,
                     CAP26EntityKind::Identity,
                     CAP26KeyKind::Rola,
                     HDPathComponent::securified(5),
-                )]),
+                )),
             ),
         ]);
 
@@ -182,7 +182,7 @@ mod integration_test_signing {
             if request.invalid_transactions_if_neglected.is_empty() {
                 return SignWithFactorsOutcome::Neglected(NeglectedFactors::new(
                     NeglectFactorReason::UserExplicitlySkipped,
-                    IndexSet::from_iter([request.input.factor_source_id]),
+                    IndexSet::just(request.input.factor_source_id),
                 ));
             }
             let signatures = request
@@ -284,7 +284,7 @@ mod integration_test_signing {
         assert_eq!(outcome.signatures_of_successful_transactions().len(), 10);
         assert_eq!(
             outcome.ids_of_neglected_factor_sources(),
-            IndexSet::<FactorSourceIDFromHash>::from_iter([f0.factor_source_id()])
+            IndexSet::<FactorSourceIDFromHash>::just(f0.factor_source_id())
         );
     }
 }

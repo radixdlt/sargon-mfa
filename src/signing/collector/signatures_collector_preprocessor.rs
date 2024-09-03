@@ -51,7 +51,7 @@ impl SignaturesCollectorPreprocessor {
             if let Some(ref mut txids) = factor_to_payloads.get_mut(id) {
                 txids.insert(txid.clone());
             } else {
-                factor_to_payloads.insert(*id, IndexSet::from_iter([txid.clone()]));
+                factor_to_payloads.insert(*id, IndexSet::just(txid.clone()));
             }
 
             assert!(!factor_to_payloads.is_empty());

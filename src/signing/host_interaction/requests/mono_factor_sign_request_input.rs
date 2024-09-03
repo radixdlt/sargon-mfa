@@ -48,7 +48,7 @@ impl HasSampleValues for MonoFactorSignRequestInput {
     fn sample() -> Self {
         Self::new(
             FactorSourceIDFromHash::sample(),
-            IndexSet::from_iter([TransactionSignRequestInput::sample()]),
+            IndexSet::just(TransactionSignRequestInput::sample()),
         )
     }
 
@@ -56,7 +56,7 @@ impl HasSampleValues for MonoFactorSignRequestInput {
     fn sample_other() -> Self {
         Self::new(
             FactorSourceIDFromHash::sample_other(),
-            IndexSet::from_iter([TransactionSignRequestInput::sample_other()]),
+            IndexSet::just(TransactionSignRequestInput::sample_other()),
         )
     }
 }
@@ -90,7 +90,7 @@ mod tests {
     fn panics_if_factor_source_mismatch() {
         Sut::new(
             FactorSourceIDFromHash::sample(),
-            IndexSet::from_iter([TransactionSignRequestInput::sample_other()]),
+            IndexSet::just(TransactionSignRequestInput::sample_other()),
         );
     }
 }

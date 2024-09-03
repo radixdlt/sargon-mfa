@@ -271,9 +271,9 @@ impl SignaturesCollector {
 
         MonoFactorSignRequest::new(
             batch_signing_request,
-            self.invalid_transactions_if_neglected_factor_sources(IndexSet::from_iter([
+            self.invalid_transactions_if_neglected_factor_sources(IndexSet::just(
                 *factor_source_id,
-            ]))
+            ))
             .into_iter()
             .collect::<IndexSet<_>>(),
         )
@@ -450,7 +450,7 @@ mod tests {
                     when_all_valid,
                     WhenSomeTransactionIsInvalid::default(),
                 ),
-                IndexSet::<TransactionIntent>::from_iter([t0.clone()]),
+                IndexSet::<_>::just(t0.clone()),
                 Arc::new(TestSignatureCollectingInteractors::new(
                     SimulatedUser::prudent_no_fail(),
                 )),
@@ -632,22 +632,10 @@ mod tests {
         assert_petition(
             &t0,
             HashMap::from_iter([
-                (
-                    a0.address(),
-                    HashSet::from_iter([FactorSourceIDFromHash::fs0()]),
-                ),
-                (
-                    a1.address(),
-                    HashSet::from_iter([FactorSourceIDFromHash::fs1()]),
-                ),
-                (
-                    p0.address(),
-                    HashSet::from_iter([FactorSourceIDFromHash::fs0()]),
-                ),
-                (
-                    p1.address(),
-                    HashSet::from_iter([FactorSourceIDFromHash::fs1()]),
-                ),
+                (a0.address(), HashSet::just(FactorSourceIDFromHash::fs0())),
+                (a1.address(), HashSet::just(FactorSourceIDFromHash::fs1())),
+                (p0.address(), HashSet::just(FactorSourceIDFromHash::fs0())),
+                (p1.address(), HashSet::just(FactorSourceIDFromHash::fs1())),
             ]),
             HashMap::new(),
         );
@@ -655,18 +643,9 @@ mod tests {
         assert_petition(
             &t1,
             HashMap::from_iter([
-                (
-                    a0.address(),
-                    HashSet::from_iter([FactorSourceIDFromHash::fs0()]),
-                ),
-                (
-                    a1.address(),
-                    HashSet::from_iter([FactorSourceIDFromHash::fs1()]),
-                ),
-                (
-                    a2.address(),
-                    HashSet::from_iter([FactorSourceIDFromHash::fs0()]),
-                ),
+                (a0.address(), HashSet::just(FactorSourceIDFromHash::fs0())),
+                (a1.address(), HashSet::just(FactorSourceIDFromHash::fs1())),
+                (a2.address(), HashSet::just(FactorSourceIDFromHash::fs0())),
             ]),
             HashMap::new(),
         );
@@ -674,18 +653,9 @@ mod tests {
         assert_petition(
             &t2,
             HashMap::from_iter([
-                (
-                    p0.address(),
-                    HashSet::from_iter([FactorSourceIDFromHash::fs0()]),
-                ),
-                (
-                    p1.address(),
-                    HashSet::from_iter([FactorSourceIDFromHash::fs1()]),
-                ),
-                (
-                    p2.address(),
-                    HashSet::from_iter([FactorSourceIDFromHash::fs0()]),
-                ),
+                (p0.address(), HashSet::just(FactorSourceIDFromHash::fs0())),
+                (p1.address(), HashSet::just(FactorSourceIDFromHash::fs1())),
+                (p2.address(), HashSet::just(FactorSourceIDFromHash::fs0())),
             ]),
             HashMap::new(),
         );

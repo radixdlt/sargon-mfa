@@ -144,10 +144,10 @@ impl MonoFactorKeyDerivationInteractor for TestDerivationSerialInteractor {
         request: MonoFactorKeyDerivationRequest,
     ) -> Result<KeyDerivationResponse> {
         let instances = self.derive(request.clone())?;
-        Ok(KeyDerivationResponse::new(IndexMap::from_iter([(
+        Ok(KeyDerivationResponse::new(IndexMap::just((
             request.factor_source_id,
             instances,
-        )])))
+        ))))
     }
 }
 
@@ -182,10 +182,7 @@ impl KeysCollector {
         let path = indices.next_derivation_path(network_id, key_kind, entity_kind, key_space);
         Self::new_test_with_factor_sources(
             [factor_source.clone()],
-            [(
-                factor_source.factor_source_id(),
-                IndexSet::from_iter([path]),
-            )],
+            [(factor_source.factor_source_id(), IndexSet::just(path))],
         )
     }
 }

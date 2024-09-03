@@ -12,15 +12,15 @@ mod key_derivation_tests {
     async fn failure_unknown_factor() {
         let res = KeysCollector::new(
             IndexSet::new(),
-            IndexMap::from_iter([(
+            IndexMap::just((
                 FactorSourceIDFromHash::fs0(),
-                IndexSet::from_iter([DerivationPath::new(
+                IndexSet::just(DerivationPath::new(
                     Mainnet,
                     Account,
                     T9n,
                     HDPathComponent::securified(0),
-                )]),
-            )]),
+                )),
+            )),
             Arc::new(TestDerivationInteractors::default()),
         );
         assert!(matches!(res, Err(CommonError::UnknownFactorSource)));
@@ -76,7 +76,7 @@ mod key_derivation_tests {
         #[actix_rt::test]
         async fn multi_keys_multi_factor_sources_single_index_per() {
             let path = DerivationPath::account_tx(Mainnet, HDPathComponent::non_hardened(0));
-            let paths = IndexSet::from_iter([path]);
+            let paths = IndexSet::just(path);
             let factor_sources = HDFactorSource::all();
 
             let collector = KeysCollector::new_test(

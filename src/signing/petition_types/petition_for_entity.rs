@@ -374,8 +374,8 @@ mod tests {
         let entity = AddressOfAccountOrPersona::Account(AccountAddress::sample());
         let tx = IntentHash::sample_third();
         let sut = Sut::new_securified(tx.clone(), entity.clone(), matrix);
-        let invalid = sut
-            .invalid_transaction_if_neglected_factors(IndexSet::from_iter([d0.factor_source_id()]));
+        let invalid =
+            sut.invalid_transaction_if_neglected_factors(IndexSet::just(d0.factor_source_id()));
         assert!(invalid.is_none());
     }
 
@@ -430,7 +430,7 @@ mod tests {
         let sut = Sut::new_securified(tx.clone(), entity.clone(), matrix);
 
         let invalid = sut
-            .invalid_transaction_if_neglected_factors(IndexSet::from_iter([d1.factor_source_id()]))
+            .invalid_transaction_if_neglected_factors(IndexSet::just(d1.factor_source_id()))
             .unwrap();
 
         assert_eq!(invalid, entity);
@@ -457,8 +457,8 @@ mod tests {
         let tx = IntentHash::sample_third();
         let sut = Sut::new_securified(tx.clone(), entity.clone(), matrix);
 
-        let invalid = sut
-            .invalid_transaction_if_neglected_factors(IndexSet::from_iter([d1.factor_source_id()]));
+        let invalid =
+            sut.invalid_transaction_if_neglected_factors(IndexSet::just(d1.factor_source_id()));
 
         assert!(invalid.is_none());
     }
@@ -547,7 +547,7 @@ mod tests {
             assert!(sut
                 // Already signed with override factor `FactorSourceIDFromHash::fs1()`. Thus
                 // can skip
-                .invalid_transaction_if_neglected_factors(IndexSet::from_iter([f]))
+                .invalid_transaction_if_neglected_factors(IndexSet::just(f))
                 .is_none())
         };
         can_skip(FactorSourceIDFromHash::fs0());

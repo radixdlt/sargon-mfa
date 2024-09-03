@@ -372,18 +372,18 @@ mod tests {
                     vec![
                         (
                             FactorSourceKind::Ledger,
-                            IndexSet::from_iter([InvalidTransactionIfNeglected::new(
+                            IndexSet::just(InvalidTransactionIfNeglected::new(
                                 tx0.clone().intent_hash,
                                 [a7.address()]
-                            )])
+                            ))
                         ),
                         // Important that we do NOT display any mentioning of `tx0` here again!
                         (
                             FactorSourceKind::Device,
-                            IndexSet::from_iter([InvalidTransactionIfNeglected::new(
+                            IndexSet::just(InvalidTransactionIfNeglected::new(
                                 tx1.clone().intent_hash,
                                 [a0.address()]
-                            )])
+                            ))
                         ),
                     ]
                 );
@@ -391,7 +391,7 @@ mod tests {
                 assert!(!outcome.successful());
                 assert_eq!(
                     outcome.ids_of_neglected_factor_sources_failed(),
-                    IndexSet::<FactorSourceIDFromHash>::from_iter([FactorSourceIDFromHash::fs2()])
+                    IndexSet::<FactorSourceIDFromHash>::just(FactorSourceIDFromHash::fs2())
                 );
                 assert_eq!(
                     outcome.ids_of_neglected_factor_sources_irrelevant(),
@@ -800,7 +800,7 @@ mod tests {
             }
 
             async fn fail_get_neglected_e0<E: IsEntity>() {
-                let failing = IndexSet::<_>::from_iter([FactorSourceIDFromHash::fs0()]);
+                let failing = IndexSet::<_>::just(FactorSourceIDFromHash::fs0());
                 let collector = SignaturesCollector::test_prudent_with_failures(
                     [TXToSign::new([E::e0()])],
                     SimulatedFailures::with_simulated_failures(failing.clone()),
@@ -950,7 +950,7 @@ mod tests {
                 assert!(outcome.successful());
                 assert_eq!(
                     outcome.ids_of_neglected_factor_sources(),
-                    IndexSet::<_>::from_iter([FactorSourceIDFromHash::fs3()])
+                    IndexSet::<_>::just(FactorSourceIDFromHash::fs3())
                 );
             }
 

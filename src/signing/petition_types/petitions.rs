@@ -120,7 +120,7 @@ impl Petitions {
         factor_source_id: &FactorSourceIDFromHash,
     ) -> MonoFactorSignRequestInput {
         self.each_petition(
-            IndexSet::from_iter([*factor_source_id]),
+            IndexSet::just(*factor_source_id),
             |p| {
                 if p.has_tx_failed() {
                     None
@@ -156,7 +156,7 @@ impl Petitions {
 
     fn neglect_factor_source_with_id(&self, neglected: NeglectedFactor) {
         self.each_petition(
-            IndexSet::from_iter([neglected.factor_source_id()]),
+            IndexSet::just(neglected.factor_source_id()),
             |p| p.neglect_factor_source(neglected.clone()),
             |_| (),
         )
@@ -203,22 +203,22 @@ impl HasSampleValues for Petitions {
     fn sample() -> Self {
         let p0 = PetitionForTransaction::sample();
         Self::new(
-            HashMap::from_iter([(
+            HashMap::just((
                 FactorSourceIDFromHash::fs0(),
-                IndexSet::from_iter([p0.intent_hash.clone()]),
-            )]),
-            IndexMap::from_iter([(p0.intent_hash.clone(), p0)]),
+                IndexSet::just(p0.intent_hash.clone()),
+            )),
+            IndexMap::just((p0.intent_hash.clone(), p0)),
         )
     }
 
     fn sample_other() -> Self {
         let p1 = PetitionForTransaction::sample();
         Self::new(
-            HashMap::from_iter([(
+            HashMap::just((
                 FactorSourceIDFromHash::fs1(),
-                IndexSet::from_iter([p1.intent_hash.clone()]),
-            )]),
-            IndexMap::from_iter([(p1.intent_hash.clone(), p1)]),
+                IndexSet::just(p1.intent_hash.clone()),
+            )),
+            IndexMap::just((p1.intent_hash.clone(), p1)),
         )
     }
 }
