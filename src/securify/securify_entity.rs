@@ -61,7 +61,6 @@ pub async fn securify(
         .accounts
         .values()
         .cloned()
-        .into_iter()
         .collect::<HashSet<Account>>();
 
     other_accounts.remove(&account);
@@ -110,8 +109,8 @@ pub async fn securify(
 }
 
 pub async fn securify_with_matrix_of_instances(
-    account: Account,
-    matrix: MatrixOfFactorInstances,
+    _account: Account,
+    _matrix: MatrixOfFactorInstances,
 ) -> Result<AccessController> {
     todo!()
 }
