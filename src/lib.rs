@@ -22,7 +22,6 @@ pub mod prelude {
 
     pub(crate) use crate::samples::*;
 
-    #[cfg(test)]
     pub use crate::securify::*;
 
     pub use crate::signing::*;

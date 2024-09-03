@@ -71,11 +71,8 @@ impl SignaturesCollectorPreprocessor {
             for entity in transaction.entities_requiring_auth() {
                 let address = entity.address();
                 match entity.security_state() {
-                    EntitySecurityState::Securified {
-                        matrix,
-                        access_controller: _,
-                    } => {
-                        let primary_role_matrix = matrix;
+                    EntitySecurityState::Securified(sec) => {
+                        let primary_role_matrix = sec.matrix;
 
                         let mut add = |factors: Vec<HierarchicalDeterministicFactorInstance>| {
                             factors.into_iter().for_each(|f| {

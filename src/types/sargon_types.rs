@@ -219,6 +219,23 @@ impl HDPathComponent {
     pub fn to_bytes(&self) -> Vec<u8> {
         self.value.to_be_bytes().to_vec()
     }
+
+    pub(crate) fn is_hardened(&self) -> bool {
+        self.value >= BIP32_HARDENED
+    }
+
+    #[allow(unused)]
+    pub(crate) fn is_securified(&self) -> bool {
+        self.index() >= BIP32_SECURIFIED_HALF
+    }
+
+    pub(crate) fn index(&self) -> HDPathValue {
+        if self.is_hardened() {
+            self.value - BIP32_HARDENED
+        } else {
+            self.value
+        }
+    }
 }
 impl HasSampleValues for HDPathComponent {
     fn sample() -> Self {
@@ -493,20 +510,29 @@ impl HasSampleValues for Hash {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, std::hash::Hash)]
+pub struct SecurifiedEntityControl {
+    pub matrix: MatrixOfFactorInstances,
+    pub access_controller: AccessController,
+}
+impl SecurifiedEntityControl {
+    pub fn new(matrix: MatrixOfFactorInstances, access_controller: AccessController) -> Self {
+        Self {
+            matrix,
+            access_controller,
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, std::hash::Hash)]
 pub enum EntitySecurityState {
     Unsecured(HierarchicalDeterministicFactorInstance),
-    Securified {
-        matrix: MatrixOfFactorInstances,
-        access_controller: AccessController,
-    },
+    Securified(SecurifiedEntityControl),
 }
 impl EntitySecurityState {
     pub fn all_factor_instances(&self) -> IndexSet<HierarchicalDeterministicFactorInstance> {
         match self {
-            Self::Securified {
-                matrix,
-                access_controller: _,
-            } => {
+            Self::Securified(sec) => {
+                let matrix = sec.matrix.clone();
                 let mut set = IndexSet::new();
                 set.extend(matrix.threshold_factors.clone());
                 set.extend(matrix.override_factors.clone());
@@ -635,13 +661,13 @@ pub trait IsEntity: Into<AccountOrPersona> + Clone {
         let matrix = make_matrix(index);
         Self::new(
             name.as_ref(),
-            EntitySecurityState::Securified {
-                matrix: matrix.clone(),
-                access_controller: AccessController::new(
+            EntitySecurityState::Securified(SecurifiedEntityControl::new(
+                matrix.clone(),
+                AccessController::new(
                     AccessControllerAddress::new(name.as_ref()),
                     ComponentMetadata::new(matrix.all_factors(), index),
                 ),
-            },
+            )),
         )
     }
 
@@ -839,13 +865,13 @@ impl<T: Clone + Into<AddressOfAccountOrPersona> + EntityKindSpecifier + From<Str
         let matrix = make_matrix(index);
         Self::new(
             name.as_ref(),
-            EntitySecurityState::Securified {
-                matrix: matrix.clone(),
-                access_controller: AccessController::new(
+            EntitySecurityState::Securified(SecurifiedEntityControl::new(
+                matrix.clone(),
+                AccessController::new(
                     AccessControllerAddress::new(name.as_ref()),
                     ComponentMetadata::new(matrix.all_factors(), index),
                 ),
-            },
+            )),
         )
     }
 
@@ -931,6 +957,39 @@ where
 }
 
 pub type MatrixOfFactorInstances = MatrixOfFactors<HierarchicalDeterministicFactorInstance>;
+
+impl MatrixOfFactorInstances {
+    pub fn fulfilling_matrix_of_factor_sources_with_instances(
+        instances: impl IntoIterator<Item = HierarchicalDeterministicFactorInstance>,
+        matrix_of_factor_sources: MatrixOfFactorSources,
+    ) -> Result<Self> {
+        let instances = instances.into_iter().collect_vec();
+
+        let get_factors =
+            |required: Vec<HDFactorSource>| -> Result<Vec<HierarchicalDeterministicFactorInstance>> {
+                required
+                    .iter()
+                    .map(|f| {
+                        instances
+                            .iter()
+                            .find(|i| i.factor_source_id() == f.factor_source_id())
+                            .cloned()
+                            .ok_or(CommonError::Failure)
+                        })
+                    .collect::<Result<Vec<HierarchicalDeterministicFactorInstance>>>()
+            };
+
+        let threshold_factors = get_factors(matrix_of_factor_sources.threshold_factors)?;
+        let override_factors = get_factors(matrix_of_factor_sources.override_factors)?;
+
+        Ok(Self::new(
+            threshold_factors,
+            matrix_of_factor_sources.threshold,
+            override_factors,
+        ))
+    }
+}
+
 pub type MatrixOfFactorSources = MatrixOfFactors<HDFactorSource>;
 
 /// For unsecurified entities we map single factor -> single threshold factor.
@@ -1073,10 +1132,11 @@ pub struct Profile {
 
 impl Profile {
     pub fn new<'a, 'p>(
-        factor_sources: IndexSet<HDFactorSource>,
+        factor_sources: impl IntoIterator<Item = HDFactorSource>,
         accounts: impl IntoIterator<Item = &'a Account>,
         personas: impl IntoIterator<Item = &'p Persona>,
     ) -> Self {
+        let factor_sources = factor_sources.into_iter().collect::<IndexSet<_>>();
         Self {
             factor_sources,
             accounts: accounts

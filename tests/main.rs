@@ -265,7 +265,7 @@ mod integration_test_signing {
         let transactions = [tx0, tx1, tx2];
 
         let profile = Profile::new(
-            IndexSet::from_iter([f0.clone(), f1, f2, f3, f4]),
+            [f0.clone(), f1, f2, f3, f4],
             [&alice, &bob, &carol],
             [&satoshi],
         );
