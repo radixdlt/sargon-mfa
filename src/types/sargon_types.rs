@@ -1098,11 +1098,10 @@ impl Signature {
         let intent_hash_bytes = intent_hash.hash().to_bytes();
         let factor_instance_bytes = factor_instance.to_bytes();
         let input_bytes = [intent_hash_bytes, factor_instance_bytes].concat();
-        // let mut hasher = Sha256::new();
-        // hasher.update(input_bytes);
-        // let hash = hasher.finalize();
-        // Self(hash)
-        todo!()
+        let mut hasher = Sha256::new();
+        hasher.update(input_bytes);
+        let hash = hasher.finalize();
+        Self(hex::encode(hash))
     }
 
     /// Emulates signing using `input`.
