@@ -245,7 +245,10 @@ mod tests {
 
         let account = Account::a5();
         let matrix = match account.security_state() {
-            EntitySecurityState::Securified(matrix) => matrix.clone(),
+            EntitySecurityState::Securified {
+                matrix,
+                access_controller: _,
+            } => matrix.clone(),
             EntitySecurityState::Unsecured(_) => panic!(),
         };
         let petition =
@@ -274,7 +277,10 @@ mod tests {
 
         let account = Account::a5();
         let matrix = match account.security_state() {
-            EntitySecurityState::Securified(matrix) => matrix.clone(),
+            EntitySecurityState::Securified {
+                matrix,
+                access_controller: _,
+            } => matrix.clone(),
             EntitySecurityState::Unsecured(_) => panic!(),
         };
         let petition =

@@ -305,9 +305,10 @@ impl PetitionForEntity {
     fn from_entity(entity: impl Into<AccountOrPersona>, intent_hash: IntentHash) -> Self {
         let entity = entity.into();
         match entity.security_state() {
-            EntitySecurityState::Securified(matrix) => {
-                Self::new_securified(intent_hash, entity.address(), matrix)
-            }
+            EntitySecurityState::Securified {
+                matrix,
+                access_controller: _,
+            } => Self::new_securified(intent_hash, entity.address(), matrix),
             EntitySecurityState::Unsecured(factor) => {
                 Self::new_unsecurified(intent_hash, entity.address(), factor)
             }

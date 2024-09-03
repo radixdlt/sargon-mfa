@@ -495,12 +495,18 @@ impl HasSampleValues for Hash {
 #[derive(Clone, Debug, PartialEq, Eq, std::hash::Hash)]
 pub enum EntitySecurityState {
     Unsecured(HierarchicalDeterministicFactorInstance),
-    Securified(MatrixOfFactorInstances),
+    Securified {
+        matrix: MatrixOfFactorInstances,
+        access_controller: AccessController,
+    },
 }
 impl EntitySecurityState {
     pub fn all_factor_instances(&self) -> IndexSet<HierarchicalDeterministicFactorInstance> {
         match self {
-            Self::Securified(matrix) => {
+            Self::Securified {
+                matrix,
+                access_controller: _,
+            } => {
                 let mut set = IndexSet::new();
                 set.extend(matrix.threshold_factors.clone());
                 set.extend(matrix.override_factors.clone());
@@ -508,12 +514,6 @@ impl EntitySecurityState {
             }
             Self::Unsecured(fi) => IndexSet::from_iter([fi.clone()]),
         }
-    }
-}
-
-impl From<MatrixOfFactorInstances> for EntitySecurityState {
-    fn from(value: MatrixOfFactorInstances) -> Self {
-        Self::Securified(value)
     }
 }
 
@@ -632,7 +632,17 @@ pub trait IsEntity: Into<AccountOrPersona> + Clone {
         name: impl AsRef<str>,
         make_matrix: fn(HDPathComponent) -> MatrixOfFactorInstances,
     ) -> Self {
-        Self::new(name, make_matrix(index))
+        let matrix = make_matrix(index);
+        Self::new(
+            name.as_ref(),
+            EntitySecurityState::Securified {
+                matrix: matrix.clone(),
+                access_controller: AccessController::new(
+                    AccessControllerAddress::new(name.as_ref()),
+                    ComponentMetadata::new(matrix.all_factors(), index),
+                ),
+            },
+        )
     }
 
     fn unsecurified_mainnet(
@@ -825,7 +835,18 @@ impl<T: Clone + Into<AddressOfAccountOrPersona> + EntityKindSpecifier + From<Str
         name: impl AsRef<str>,
         make_matrix: impl Fn(HDPathComponent) -> MatrixOfFactorInstances,
     ) -> Self {
-        Self::new(name, make_matrix(HDPathComponent::securified(index)))
+        let index = HDPathComponent::securified(index);
+        let matrix = make_matrix(index);
+        Self::new(
+            name.as_ref(),
+            EntitySecurityState::Securified {
+                matrix: matrix.clone(),
+                access_controller: AccessController::new(
+                    AccessControllerAddress::new(name.as_ref()),
+                    ComponentMetadata::new(matrix.all_factors(), index),
+                ),
+            },
+        )
     }
 
     pub fn unsecurified_mainnet(
@@ -1156,4 +1177,58 @@ pub enum CommonError {
 
     #[error("Unknown persona")]
     UnknownPersona,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct AccessControllerAddress(pub String);
+impl AccessControllerAddress {
+    pub fn new(s: impl AsRef<str>) -> Self {
+        let s = s.as_ref();
+        let s = format!("{}{}", "x".repeat(10), s);
+        let split_pos = s.char_indices().nth_back(5).unwrap().0;
+        let part = &s[split_pos..];
+        Self(format!("access_controller_{}", part))
+    }
+    pub fn generate() -> Self {
+        Self::new(Uuid::new_v4().to_string())
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct ComponentMetadata {
+    /// Empty if not securified
+    pub public_key_hashes: Vec<[u8; 32]>,
+    /// None if not securified
+    pub derivation_index: HDPathComponent,
+}
+impl ComponentMetadata {
+    pub fn new(
+        factor_instances: impl IntoIterator<Item = HierarchicalDeterministicFactorInstance>,
+        derivation_index: impl Into<HDPathComponent>,
+    ) -> Self {
+        Self {
+            public_key_hashes: factor_instances
+                .into_iter()
+                .map(|pk| pk.public_key.to_bytes())
+                .map(|b| {
+                    let mut hasher = Sha256::new();
+                    hasher.update(b);
+                    hasher.finalize().into()
+                })
+                .collect(),
+            derivation_index: derivation_index.into(),
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct AccessController {
+    pub address: AccessControllerAddress,
+    pub metadata: ComponentMetadata,
+}
+
+impl AccessController {
+    pub fn new(address: AccessControllerAddress, metadata: ComponentMetadata) -> Self {
+        Self { address, metadata }
+    }
 }
