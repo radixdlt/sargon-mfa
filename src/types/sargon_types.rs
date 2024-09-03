@@ -882,6 +882,13 @@ where
         Self::new(factors, threshold, [])
     }
 
+    pub fn all_factors(&self) -> IndexSet<F> {
+        let mut set = IndexSet::new();
+        set.extend(self.threshold_factors.clone());
+        set.extend(self.override_factors.clone());
+        set
+    }
+
     pub fn single_threshold(factor: F) -> Self {
         Self::threshold_only([factor], 1)
     }
@@ -1076,8 +1083,11 @@ impl Signature {
         let intent_hash_bytes = intent_hash.hash().to_bytes();
         let factor_instance_bytes = factor_instance.to_bytes();
         let input_bytes = [intent_hash_bytes, factor_instance_bytes].concat();
-        let hash = sha256::digest(input_bytes);
-        Self(hash)
+        // let mut hasher = Sha256::new();
+        // hasher.update(input_bytes);
+        // let hash = hasher.finalize();
+        // Self(hash)
+        todo!()
     }
 
     /// Emulates signing using `input`.
