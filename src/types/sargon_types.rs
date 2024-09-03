@@ -1077,15 +1077,38 @@ impl Profile {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, std::hash::Hash)]
-pub struct Signature(String);
-impl HasSampleValues for Signature {
-    fn sample() -> Self {
-        Self("deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef".to_owned())
-    }
-    fn sample_other() -> Self {
-        Self("fadecafefadecafefadecafefadecafefadecafefadecafefadecafefadecafefadecafefadecafefadecafefadecafefadecafefadecafefadecafefadecafe".to_owned())
+pub struct Signature([u8; 64]);
+impl Signature {
+    pub fn new_with_hex(s: impl AsRef<str>) -> Result<Self> {
+        hex::decode(s.as_ref())
+            .map_err(|_| CommonError::Failure)
+            .and_then(|b| b.try_into().map_err(|_| CommonError::Failure))
+            .map(Self)
     }
 }
+impl HasSampleValues for Signature {
+    fn sample() -> Self {
+        Self::new_with_hex("deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef").unwrap()
+    }
+    fn sample_other() -> Self {
+        Self::new_with_hex("fadecafefadecafefadecafefadecafefadecafefadecafefadecafefadecafefadecafefadecafefadecafefadecafefadecafefadecafefadecafefadecafe").unwrap()
+    }
+}
+
+#[cfg(test)]
+mod signature_tests {
+    use super::*;
+
+    type Sut = Signature;
+
+    #[test]
+    fn eq() {
+        assert_eq!(Sut::sample(), Sut::sample());
+        assert_eq!(Sut::sample_other(), Sut::sample_other());
+        assert_ne!(Sut::sample(), Sut::sample_other());
+    }
+}
+
 impl Signature {
     /// Emulates the signing of `intent_hash` with `factor_instance` - in a
     /// deterministic manner.
@@ -1098,10 +1121,9 @@ impl Signature {
         let intent_hash_bytes = intent_hash.hash().to_bytes();
         let factor_instance_bytes = factor_instance.to_bytes();
         let input_bytes = [intent_hash_bytes, factor_instance_bytes].concat();
-        let mut hasher = Sha256::new();
+        let mut hasher = sha2::Sha512::new();
         hasher.update(input_bytes);
-        let hash = hasher.finalize();
-        Self(hex::encode(hash))
+        Self(hasher.finalize().into())
     }
 
     /// Emulates signing using `input`.
