@@ -131,7 +131,7 @@ mod tests {
         let intent_hash = IntentHash::sample();
 
         let factor_instance = HierarchicalDeterministicFactorInstance::mainnet_tx_account(
-            HDPathComponent::non_hardened(0),
+            HDPathComponent::unsecurified(0),
             FactorSourceIDFromHash::fs0(),
         );
         let sign_input = HDSignatureInput::new(
@@ -152,7 +152,7 @@ mod tests {
 
         let intent_hash = IntentHash::sample();
         let factor_instance = HierarchicalDeterministicFactorInstance::mainnet_tx_account(
-            HDPathComponent::non_hardened(0),
+            HDPathComponent::unsecurified(0),
             FactorSourceIDFromHash::fs0(),
         );
 

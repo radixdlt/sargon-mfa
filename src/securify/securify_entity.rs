@@ -1,21 +1,5 @@
 use crate::prelude::*;
 
-impl Profile {
-    fn account_and_others(&self, address: AccountAddress) -> Result<(Account, HashSet<Account>)> {
-        let account = self.account_by_address(address)?;
-
-        let mut other_accounts = self
-            .accounts
-            .values()
-            .cloned()
-            .collect::<HashSet<Account>>();
-
-        other_accounts.remove(&account);
-
-        Ok((account, other_accounts))
-    }
-}
-
 impl KeysCollector {
     pub fn securifying(
         matrix: MatrixOfFactorSources,
@@ -48,10 +32,10 @@ async fn securify_using(
     derivation_index_assigner: impl DerivationIndexWhenSecurifiedAssigner,
     derivation_interactors: Arc<dyn KeysDerivationInteractors>,
 ) -> Result<SecurifiedEntityControl> {
-    let (account, other_accounts) = profile.account_and_others(address)?;
+    let account = profile.account_by_address(address)?;
+    let network_id = account.network_id();
 
-    let derivation_index =
-        derivation_index_assigner.assign_derivation_index(account, other_accounts);
+    let derivation_index = derivation_index_assigner.assign_derivation_index(profile, network_id);
     let derivation_path = DerivationPath::account_tx(NetworkID::Mainnet, derivation_index);
 
     let keys_collector = KeysCollector::securifying(

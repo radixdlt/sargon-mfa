@@ -77,7 +77,7 @@ mod integration_test_derivation {
                     DerivationPath::account_tx(NetworkID::Mainnet, HDPathComponent::securified(1)),
                     DerivationPath::account_tx(
                         NetworkID::Stokenet,
-                        HDPathComponent::non_hardened(2),
+                        HDPathComponent::unsecurified(2),
                     ),
                 ]),
             ),
@@ -85,14 +85,14 @@ mod integration_test_derivation {
                 f1.factor_source_id(),
                 IndexSet::<_>::just(DerivationPath::account_tx(
                     NetworkID::Stokenet,
-                    HDPathComponent::non_hardened(3),
+                    HDPathComponent::unsecurified(3),
                 )),
             ),
             (
                 f2.factor_source_id(),
                 IndexSet::<_>::just(DerivationPath::account_tx(
                     NetworkID::Mainnet,
-                    HDPathComponent::non_hardened(4),
+                    HDPathComponent::unsecurified(4),
                 )),
             ),
             (

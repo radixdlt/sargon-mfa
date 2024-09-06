@@ -75,7 +75,7 @@ mod key_derivation_tests {
 
         #[actix_rt::test]
         async fn multi_keys_multi_factor_sources_single_index_per() {
-            let path = DerivationPath::account_tx(Mainnet, HDPathComponent::non_hardened(0));
+            let path = DerivationPath::account_tx(Mainnet, HDPathComponent::unsecurified(0));
             let paths = IndexSet::just(path);
             let factor_sources = HDFactorSource::all();
 
@@ -383,7 +383,7 @@ mod key_derivation_tests {
                     entity_kind,
                     key_kind,
                     Expected {
-                        index: HDPathComponent::non_hardened(BIP32_SECURIFIED_HALF),
+                        index: HDPathComponent::unsecurified(BIP32_SECURIFIED_HALF),
                     },
                 )
                 .await
@@ -421,7 +421,7 @@ mod key_derivation_tests {
                     entity_kind,
                     key_kind,
                     Expected {
-                        index: HDPathComponent::non_hardened(0),
+                        index: HDPathComponent::unsecurified(0),
                     },
                 )
                 .await

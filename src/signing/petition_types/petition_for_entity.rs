@@ -517,7 +517,7 @@ mod tests {
             OwnedFactorInstance::new(
                 entity.address(),
                 HierarchicalDeterministicFactorInstance::mainnet_tx_account(
-                    HDPathComponent::non_hardened(0),
+                    HDPathComponent::unsecurified(0),
                     FactorSourceIDFromHash::fs0(),
                 ),
             ),

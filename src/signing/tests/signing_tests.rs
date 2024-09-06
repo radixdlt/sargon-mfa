@@ -438,7 +438,7 @@ mod tests {
                         NetworkID::Mainnet,
                         CAP26EntityKind::Account,
                         CAP26KeyKind::T9n,
-                        HDPathComponent::non_hardened(0)
+                        HDPathComponent::unsecurified(0)
                     )]
                 )
             }
@@ -524,11 +524,11 @@ mod tests {
                     [
                         DerivationPath::account_tx(
                             NetworkID::Mainnet,
-                            HDPathComponent::non_hardened(0)
+                            HDPathComponent::unsecurified(0)
                         ),
                         DerivationPath::account_tx(
                             NetworkID::Mainnet,
-                            HDPathComponent::non_hardened(1)
+                            HDPathComponent::unsecurified(1)
                         ),
                     ]
                     .into_iter()

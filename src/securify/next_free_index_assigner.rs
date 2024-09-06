@@ -1,13 +1,46 @@
+#![allow(clippy::type_complexity)]
+
 use crate::prelude::*;
 
 use rand::Rng;
 use sha2::{Digest, Sha256, Sha512};
 
-pub struct NextFreeIndexAssigner {
-    next: Box<dyn Fn(&Profile, NetworkID) -> HDPathValue>,
+/// This index assigner ASSUMES CEI strategy 1 of
+/// https://radixdlt.atlassian.net/wiki/spaces/AT/pages/3640655873/Yet+Another+Page+about+Derivation+Indices
+///
+/// Meaning Canonical Entity Indexing - CEI, using "next" index for accounts, using counters per network.
+///
+/// CEI means the SAME derivation path is used for ALL FactorInstances of a security entity.
+pub struct CanonicalEntityIndexingNextFreeIndexAssigner {
+    next: Box<dyn Fn(&Profile, NetworkID) -> HDPathComponent>,
 }
-impl NextFreeIndexAssigner {
-    fn new(next: impl Fn(&Profile, NetworkID) -> HDPathValue + 'static) -> Self {
+
+impl HierarchicalDeterministicFactorInstance {
+    fn entity_index(&self) -> HDPathComponent {
+        self.derivation_path().index
+    }
+    fn network_id(&self) -> NetworkID {
+        self.derivation_path().network_id
+    }
+}
+
+fn canonical_entity_index_if_securified<E: IsEntity>(
+    entity: &E,
+    asserting_network: NetworkID,
+) -> Option<HDPathComponent> {
+    if !entity.is_securified() {
+        return None;
+    }
+    let factors = entity.all_factor_instances();
+    assert!(!factors.is_empty());
+    assert!(factors.iter().all(|f| f.network_id() == asserting_network));
+    let canonical = factors.iter().last().unwrap().entity_index();
+    assert!(factors.iter().all(|f| f.entity_index() == canonical));
+    Some(canonical)
+}
+
+impl CanonicalEntityIndexingNextFreeIndexAssigner {
+    fn new(next: impl Fn(&Profile, NetworkID) -> HDPathComponent + 'static) -> Self {
         Self {
             next: Box::new(next),
         }
@@ -17,34 +50,42 @@ impl NextFreeIndexAssigner {
             profile
                 .accounts
                 .values()
-                .filter(|a| a.address() == network)
-                .map(|a| a.derivation_path)
+                .filter(|a| a.network_id() == network)
+                .filter(|a| a.is_securified())
+                .map(|a| canonical_entity_index_if_securified(a, network).unwrap())
                 .max()
-                .unwrap_or(HDPathValue::default())
+                .map(|max| max.add_one())
+                .unwrap()
         })
     }
 
     #[cfg(test)]
     pub fn test(hardcoded: HDPathValue) -> Self {
-        Self::new(move |_, _| hardcoded + BIP32_SECURIFIED_HALF)
+        Self::new(move |_, _| HDPathComponent::securified(hardcoded))
     }
 
     fn next_path_component(&self, profile: &Profile, network_id: NetworkID) -> HDPathComponent {
-        let component = HDPathComponent::non_hardened((self.next)(profile, network_id));
+        let component = (self.next)(profile, network_id);
         assert!(component.is_securified());
         component
     }
 }
-impl Default for NextFreeIndexAssigner {
+impl Default for CanonicalEntityIndexingNextFreeIndexAssigner {
     fn default() -> Self {
         Self::live()
     }
 }
 
-impl DerivationIndexWhenSecurifiedAssigner for NextFreeIndexAssigner {
-    /// mnemonic.
+impl DerivationIndexWhenSecurifiedAssigner for CanonicalEntityIndexingNextFreeIndexAssigner {
     fn assign_derivation_index(&self, profile: &Profile, network_id: NetworkID) -> HDPathComponent {
         self.next_path_component(profile, network_id)
+    }
+}
+
+#[cfg(test)]
+impl Profile {
+    pub fn accounts<'a>(accounts: impl IntoIterator<Item = &'a Account>) -> Self {
+        Self::new([], accounts, [])
     }
 }
 
@@ -53,36 +94,43 @@ mod test_next_free_index_assigner {
 
     use super::*;
 
-    type Sut = RandomFreeIndexAssigner;
+    type Sut = CanonicalEntityIndexingNextFreeIndexAssigner;
 
     #[test]
-    #[should_panic(expected = "Incorrect implementation, 'generate' function is not random.")]
-    fn test_panics_after_too_many_failed_attempts() {
-        let sut = Sut::test(6);
-        let account = Account::sample_unsecurified();
-        let other_accounts = HashSet::<Account>::from_iter([Account::sample_securified()]);
-        let _ = sut.assign_derivation_index(account, other_accounts);
-    }
-
-    #[test]
-    fn works() {
-        let expected = 5;
-        let sut = Sut::test(expected);
-        let account = Account::sample_unsecurified();
-        let other_accounts = HashSet::<Account>::from_iter([Account::sample_securified()]);
-        let actual = sut.assign_derivation_index(account, other_accounts);
-        assert_eq!(actual, HDPathComponent::securified(expected));
-    }
-
-    #[test]
-    fn live() {
-        let account = Account::sample_unsecurified();
-        let other_accounts = HashSet::<Account>::from_iter([Account::sample_securified()]);
-        let n = 100;
+    fn live_second() {
         let sut = Sut::live();
-        let indices = (0..n)
-            .map(|_| sut.assign_derivation_index(account.clone(), other_accounts.clone()))
-            .collect::<HashSet<_>>();
-        assert_eq!(indices.len(), n);
+        let a = &Account::sample_unsecurified();
+        let b = &Account::securified_mainnet(0, "Bob", |idx| {
+            MatrixOfFactorInstances::m6(HierarchicalDeterministicFactorInstance::f(
+                Account::entity_kind(),
+                idx,
+            ))
+        });
+
+        let profile = &Profile::accounts([a, b]);
+        let index = sut.assign_derivation_index(profile, NetworkID::Mainnet);
+        assert_eq!(index.securified_index(), Some(1));
     }
+
+    // #[test]
+    // fn works() {
+    //     let expected = 5;
+    //     let sut = Sut::test(expected);
+    //     let account = Account::sample_unsecurified();
+    //     let other_accounts = HashSet::<Account>::from_iter([Account::sample_securified()]);
+    //     let actual = sut.assign_derivation_index(account, other_accounts);
+    //     assert_eq!(actual, HDPathComponent::securified(expected));
+    // }
+
+    // #[test]
+    // fn live() {
+    //     let account = Account::sample_unsecurified();
+    //     let other_accounts = HashSet::<Account>::from_iter([Account::sample_securified()]);
+    //     let n = 100;
+    //     let sut = Sut::live();
+    //     let indices = (0..n)
+    //         .map(|_| sut.assign_derivation_index(account.clone(), other_accounts.clone()))
+    //         .collect::<HashSet<_>>();
+    //     assert_eq!(indices.len(), n);
+    // }
 }
