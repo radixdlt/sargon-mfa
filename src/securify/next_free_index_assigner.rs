@@ -55,7 +55,7 @@ impl CanonicalEntityIndexingNextFreeIndexAssigner {
                 .map(|a| canonical_entity_index_if_securified(a, network).unwrap())
                 .max()
                 .map(|max| max.add_one())
-                .unwrap()
+                .unwrap_or(HDPathComponent::securified(0))
         })
     }
 
@@ -97,6 +97,16 @@ mod test_next_free_index_assigner {
     type Sut = CanonicalEntityIndexingNextFreeIndexAssigner;
 
     #[test]
+    fn live_first() {
+        let sut = Sut::live();
+        let a = &Account::sample_unsecurified();
+
+        let profile = &Profile::accounts([a]);
+        let index = sut.assign_derivation_index(profile, NetworkID::Mainnet);
+        assert_eq!(index.securified_index(), Some(0));
+    }
+
+    #[test]
     fn live_second() {
         let sut = Sut::live();
         let a = &Account::sample_unsecurified();
@@ -111,26 +121,4 @@ mod test_next_free_index_assigner {
         let index = sut.assign_derivation_index(profile, NetworkID::Mainnet);
         assert_eq!(index.securified_index(), Some(1));
     }
-
-    // #[test]
-    // fn works() {
-    //     let expected = 5;
-    //     let sut = Sut::test(expected);
-    //     let account = Account::sample_unsecurified();
-    //     let other_accounts = HashSet::<Account>::from_iter([Account::sample_securified()]);
-    //     let actual = sut.assign_derivation_index(account, other_accounts);
-    //     assert_eq!(actual, HDPathComponent::securified(expected));
-    // }
-
-    // #[test]
-    // fn live() {
-    //     let account = Account::sample_unsecurified();
-    //     let other_accounts = HashSet::<Account>::from_iter([Account::sample_securified()]);
-    //     let n = 100;
-    //     let sut = Sut::live();
-    //     let indices = (0..n)
-    //         .map(|_| sut.assign_derivation_index(account.clone(), other_accounts.clone()))
-    //         .collect::<HashSet<_>>();
-    //     assert_eq!(indices.len(), n);
-    // }
 }

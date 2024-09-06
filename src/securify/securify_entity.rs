@@ -73,7 +73,7 @@ pub async fn securify(
         address,
         matrix,
         profile,
-        RandomFreeIndexAssigner::live(),
+        CanonicalEntityIndexingNextFreeIndexAssigner::live(),
         derivation_interactors,
     )
     .await
@@ -87,41 +87,47 @@ mod securify_tests {
     #[actix_rt::test]
     async fn derivation_path_is_never_same_after_securified() {
         let all_factors = HDFactorSource::all();
-        let account = Account::sample_unsecurified();
-        let profile = Profile::new(all_factors, [&account], []);
+        let a = &Account::unsecurified_mainnet(0, "A", FactorSourceIDFromHash::fs0());
+        let b = &Account::unsecurified_mainnet(1, "B", FactorSourceIDFromHash::fs0());
+
+        let profile = Profile::new(all_factors.clone(), [a, b], []);
         let matrix = MatrixOfFactorSources::new([fs_at(0)], 1, []);
 
-        let securified = securify(
-            account.entity_address(),
-            matrix,
+        let b_sec = securify(
+            b.entity_address(),
+            matrix.clone(),
             &profile,
             Arc::new(TestDerivationInteractors::default()),
         )
         .await
         .unwrap();
 
-        assert_ne!(
-            securified
-                .access_controller
-                .metadata
-                .derivation_index
-                .index(),
-            0
+        assert_eq!(
+            b_sec.access_controller.metadata.derivation_index,
+            HDPathComponent::securified(0)
         );
 
+        // uh update profile... since we dont have proper Profile impl in this repo.
+        let profile = Profile::new(
+            all_factors,
+            [
+                a,
+                &Account::new("B", EntitySecurityState::Securified(b_sec)),
+            ],
+            [],
+        );
+        let a_sec = securify(
+            a.entity_address(),
+            matrix.clone(),
+            &profile,
+            Arc::new(TestDerivationInteractors::default()),
+        )
+        .await
+        .unwrap();
+
         assert_eq!(
-            securified
-                .matrix
-                .all_factors()
-                .into_iter()
-                .map(|fi| fi.derivation_path())
-                .collect::<HashSet<_>>(),
-            HashSet::just(DerivationPath::new(
-                NetworkID::Mainnet,
-                CAP26EntityKind::Account,
-                CAP26KeyKind::T9n,
-                securified.access_controller.metadata.derivation_index
-            ))
+            a_sec.access_controller.metadata.derivation_index,
+            HDPathComponent::securified(1)
         );
     }
 }
