@@ -106,6 +106,7 @@ mod securify_tests {
         let account = Account::sample_unsecurified();
         let profile = Profile::new(all_factors, [&account], []);
         let matrix = MatrixOfFactorSources::new([fs_at(0)], 1, []);
+
         let securified = securify(
             account.entity_address(),
             matrix,
