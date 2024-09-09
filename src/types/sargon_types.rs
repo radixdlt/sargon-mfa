@@ -588,6 +588,10 @@ impl Hash {
     pub fn sample_third() -> Self {
         Self::new(Uuid::from_bytes([0x11; 16]))
     }
+    pub fn from_bytes(bytes: &[u8]) -> Self {
+        assert_eq!(bytes.len(), 16); // mock
+        Self::new(Uuid::from_slice(bytes).unwrap())
+    }
 }
 impl HasSampleValues for Hash {
     fn sample() -> Self {
@@ -1371,12 +1375,36 @@ impl AccessControllerAddress {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct PublicKeyHash([u8; 32]);
+
+impl PublicKey {
+    pub fn hash(&self) -> PublicKeyHash {
+        let mut hasher = Sha256::new();
+        hasher.update(self.to_bytes());
+        let digest = hasher.finalize().into();
+        PublicKeyHash(digest)
+    }
+}
+
+impl HierarchicalDeterministicPublicKey {
+    pub fn hash(&self) -> PublicKeyHash {
+        self.public_key.hash()
+    }
+}
+impl HierarchicalDeterministicFactorInstance {
+    pub fn public_key_hash(&self) -> PublicKeyHash {
+        self.public_key.hash()
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct ComponentMetadata {
     /// Empty if not securified
-    pub public_key_hashes: Vec<[u8; 32]>,
+    pub public_key_hashes: Vec<PublicKeyHash>,
     /// None if not securified
     pub derivation_index: HDPathComponent,
 }
+
 impl ComponentMetadata {
     pub fn new(
         factor_instances: impl IntoIterator<Item = HierarchicalDeterministicFactorInstance>,
@@ -1385,12 +1413,7 @@ impl ComponentMetadata {
         Self {
             public_key_hashes: factor_instances
                 .into_iter()
-                .map(|pk| pk.public_key.to_bytes())
-                .map(|b| {
-                    let mut hasher = Sha256::new();
-                    hasher.update(b);
-                    hasher.finalize().into()
-                })
+                .map(|pk| pk.public_key_hash())
                 .collect(),
             derivation_index: derivation_index.into(),
         }

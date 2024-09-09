@@ -31,8 +31,9 @@ async fn securify_using(
     profile: &Profile,
     derivation_index_assigner: impl DerivationIndexWhenSecurifiedAssigner,
     derivation_interactors: Arc<dyn KeysDerivationInteractors>,
+    gateway: Arc<dyn Gateway>,
 ) -> Result<SecurifiedEntityControl> {
-    let account = profile.account_by_address(address)?;
+    let account = profile.account_by_address(address.clone())?;
     let network_id = account.network_id();
 
     let derivation_index = derivation_index_assigner.assign_derivation_index(profile, network_id);
@@ -54,13 +55,18 @@ async fn securify_using(
 
     let component_metadata = ComponentMetadata::new(matrix.all_factors(), derivation_index);
 
-    Ok(SecurifiedEntityControl::new(
+    let securified_entity_control = SecurifiedEntityControl::new(
         matrix,
         AccessController {
             address: AccessControllerAddress::generate(),
             metadata: component_metadata,
         },
-    ))
+    );
+
+    gateway
+        .set_securified_account(securified_entity_control.clone(), &address)
+        .await?;
+    Ok(securified_entity_control)
 }
 
 pub async fn securify(
@@ -68,6 +74,7 @@ pub async fn securify(
     matrix: MatrixOfFactorSources,
     profile: &Profile,
     derivation_interactors: Arc<dyn KeysDerivationInteractors>,
+    gateway: Arc<dyn Gateway>,
 ) -> Result<SecurifiedEntityControl> {
     securify_using(
         address,
@@ -75,6 +82,7 @@ pub async fn securify(
         profile,
         CanonicalEntityIndexingNextFreeIndexAssigner::live(),
         derivation_interactors,
+        gateway,
     )
     .await
 }
@@ -93,11 +101,15 @@ mod securify_tests {
         let profile = Profile::new(all_factors.clone(), [a, b], []);
         let matrix = MatrixOfFactorSources::new([fs_at(0)], 1, []);
 
+        let interactors = Arc::new(TestDerivationInteractors::default());
+        let gateway = Arc::new(TestGateway::default());
+
         let b_sec = securify(
             b.entity_address(),
             matrix.clone(),
             &profile,
-            Arc::new(TestDerivationInteractors::default()),
+            interactors.clone(),
+            gateway.clone(),
         )
         .await
         .unwrap();
@@ -120,7 +132,8 @@ mod securify_tests {
             a.entity_address(),
             matrix.clone(),
             &profile,
-            Arc::new(TestDerivationInteractors::default()),
+            interactors.clone(),
+            gateway.clone(),
         )
         .await
         .unwrap();

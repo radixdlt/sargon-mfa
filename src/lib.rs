@@ -17,7 +17,6 @@ mod testing;
 pub mod prelude {
     pub use crate::derivation::*;
 
-    #[cfg(test)]
     pub use crate::recovery::*;
 
     pub(crate) use crate::samples::*;
