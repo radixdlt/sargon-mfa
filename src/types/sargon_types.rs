@@ -448,13 +448,20 @@ impl DerivationPath {
 pub struct PublicKey {
     /// this emulates the mnemonic
     factor_source_id: FactorSourceIDFromHash,
+    /// this emulates the node in the HD tree
+    derivation_path: DerivationPath,
 }
 impl PublicKey {
-    pub fn new(factor_source_id: FactorSourceIDFromHash) -> Self {
-        Self { factor_source_id }
+    pub fn new(factor_source_id: FactorSourceIDFromHash, derivation_path: DerivationPath) -> Self {
+        Self {
+            factor_source_id,
+            derivation_path,
+        }
     }
     pub fn to_bytes(&self) -> Vec<u8> {
-        self.factor_source_id.to_bytes()
+        let mut bytes = self.factor_source_id.to_bytes();
+        bytes.extend(self.derivation_path.to_bytes());
+        bytes
     }
 }
 
@@ -478,7 +485,10 @@ impl HierarchicalDeterministicPublicKey {
         derivation_path: DerivationPath,
         factor_source_id: &FactorSourceIDFromHash,
     ) -> Self {
-        Self::new(derivation_path, PublicKey::new(*factor_source_id))
+        Self::new(
+            derivation_path.clone(),
+            PublicKey::new(*factor_source_id, derivation_path),
+        )
     }
 
     pub fn to_bytes(&self) -> Vec<u8> {
@@ -534,7 +544,7 @@ impl HierarchicalDeterministicFactorInstance {
     ) -> Self {
         let derivation_path =
             DerivationPath::new(network_id, entity_kind, CAP26KeyKind::T9n, index);
-        let public_key = PublicKey::new(factor_source_id);
+        let public_key = PublicKey::new(factor_source_id, derivation_path.clone());
         let hd_public_key = HierarchicalDeterministicPublicKey::new(derivation_path, public_key);
         Self::new(hd_public_key, factor_source_id)
     }
@@ -636,8 +646,9 @@ impl EntitySecurityState {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, std::hash::Hash, derive_more::Display)]
+#[derive(Clone, PartialEq, Eq, std::hash::Hash, derive_more::Display, derive_more::Debug)]
 #[display("{name}")]
+#[debug("{name}")]
 pub struct AbstractAddress<T: EntityKindSpecifier> {
     phantom: PhantomData<T>,
     pub name: String,
@@ -1393,7 +1404,8 @@ impl AccessControllerAddress {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, PartialEq, Eq, Hash, derive_more::Debug)]
+#[debug("{}", hex::encode(&self.0[28..32]))]
 pub struct PublicKeyHash([u8; 32]);
 
 impl PublicKey {
