@@ -1427,12 +1427,30 @@ impl HierarchicalDeterministicFactorInstance {
         self.public_key.hash()
     }
 }
+pub enum ScryptoResourceOrNonFungible {
+    PublicKeyHash(PublicKeyHash),
+}
+pub enum ScryptoAccessRuleNode {
+    CountOf {
+        couunt: usize,
+        values: ScryptoResourceOrNonFungible,
+    },
+}
+pub struct ScryptoAccessRules {
+    pub rule_nodes: Vec<ScryptoAccessRuleNode>,
+}
+
+pub type MatrixOfKeyHashes = MatrixOfFactors<PublicKeyHash>;
+impl ScryptoAccessRules {
+    pub fn matrix_of_key_hashes(&self) -> Result<MatrixOfKeyHashes> {
+        todo!()
+    }
+}
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct ComponentMetadata {
-    /// Empty if not securified
-    pub public_key_hashes: Vec<PublicKeyHash>,
-    /// None if not securified
+    pub public_key_hashes: ScryptoAccessRules,
+
     pub derivation_index: HDPathComponent,
 }
 

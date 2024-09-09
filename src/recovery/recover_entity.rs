@@ -44,7 +44,7 @@ impl OnChainAccountSecurified {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash, EnumAsInner)]
 pub enum OnChainAccountState {
     Unsecurified(OnChainAccountUnsecurified),
     Securified(OnChainAccountSecurified),
@@ -92,10 +92,6 @@ impl OnChainAccountState {
             OnChainAccountState::Unsecurified(account) => account.owner_keys(),
             OnChainAccountState::Securified(account) => account.owner_keys(),
         }
-    }
-
-    fn is_securified(&self) -> bool {
-        matches!(self, OnChainAccountState::Securified(_))
     }
 }
 
@@ -273,14 +269,20 @@ pub async fn recover_accounts(
         })
         .collect::<HashSet<_>>();
 
-    let securified_accounts = securified_accounts_addresses
-        .into_iter()
-        .map(|a| {
-            let _factor_instances = account_address_to_factor_instances_map.get(&a).unwrap();
+    let mut securified_accounts = HashSet::new();
+    for a in securified_accounts_addresses {
+        let _factor_instances = account_address_to_factor_instances_map.get(&a).unwrap();
+        let on_chain_account = gateway
+            .get_on_chain_account(&a)
+            .await
+            .unwrap()
+            .unwrap()
+            .as_securified()
+            .unwrap()
+            .clone();
 
-            todo!("Figure out how to read Threshold / Override factor structure from GW.")
-        })
-        .collect::<HashSet<_>>();
+        on
+    }
 
     Ok(AccountRecoveryOutcome::new(
         unsecurified_accounts,
