@@ -616,7 +616,7 @@ impl SecurifiedEntityControl {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, std::hash::Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, std::hash::Hash, EnumAsInner)]
 pub enum EntitySecurityState {
     Unsecured(HierarchicalDeterministicFactorInstance),
     Securified(SecurifiedEntityControl),

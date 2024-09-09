@@ -30,6 +30,7 @@ pub mod prelude {
     pub(crate) use crate::testing::*;
 
     pub(crate) use derive_getters::Getters;
+    pub(crate) use enum_as_inner::EnumAsInner;
     pub(crate) use indexmap::{IndexMap, IndexSet};
     pub(crate) use itertools::Itertools;
     pub(crate) use std::cell::RefCell;

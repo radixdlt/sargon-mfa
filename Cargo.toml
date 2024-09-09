@@ -35,3 +35,4 @@ sensible-env-logger = "0.3.2"
 
 pretty_env_logger = { git = "https://github.com/seanmonstar/pretty-env-logger/", rev = "0e238400e18649415dc710c025e99c009a1bb744" }
 hex = "0.4.3"
+enum-as-inner = "0.6.0"

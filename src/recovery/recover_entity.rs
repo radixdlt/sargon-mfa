@@ -264,9 +264,21 @@ impl Gateway for TestGateway {
 mod tests {
     use super::*;
 
-    #[test]
-    fn recovery_of_securified_accounts() {
+    #[ignore = "stub"]
+    #[actix_rt::test]
+    async fn recovery_of_securified_accounts() {
+        let all_factors = HDFactorSource::all();
+        let gateway = Arc::new(TestGateway::default());
 
-        // let recovered = recover_accounts(factors_sources)
+        let securified = Account::a7();
+        gateway
+            .set_securified_account(
+                securified.security_state.as_securified().unwrap().clone(),
+                &securified.entity_address(),
+            )
+            .await
+            .unwrap();
+        let recovered = recover_accounts(all_factors, gateway).await.unwrap();
+        assert_eq!(recovered, IndexSet::just(securified))
     }
 }
