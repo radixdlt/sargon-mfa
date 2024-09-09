@@ -704,6 +704,14 @@ pub enum AddressOfAccountOrPersona {
     #[display("ident_{_0}")]
     Identity(IdentityAddress),
 }
+impl AddressOfAccountOrPersona {
+    pub fn name(&self) -> String {
+        match self {
+            Self::Account(a) => a.name.clone(),
+            Self::Identity(i) => i.name.clone(),
+        }
+    }
+}
 impl std::fmt::Debug for AddressOfAccountOrPersona {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(&self.to_string())
@@ -756,6 +764,11 @@ pub trait IsEntity: Into<AccountOrPersona> + Clone {
         }
     }
     fn entity_address(&self) -> Self::Address;
+
+    fn name(&self) -> String {
+        self.address().name()
+    }
+
     fn kind() -> CAP26EntityKind {
         Self::Address::entity_kind()
     }
@@ -1274,6 +1287,12 @@ impl Profile {
             .get(&address)
             .ok_or(CommonError::UnknownAccount)
             .cloned()
+    }
+    pub fn update_account(&mut self, account: Account) {
+        assert!(self
+            .accounts
+            .insert(account.entity_address(), account)
+            .is_some());
     }
 }
 

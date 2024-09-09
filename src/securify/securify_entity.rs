@@ -28,7 +28,7 @@ impl KeysCollector {
 async fn securify_using(
     address: AccountAddress,
     matrix: MatrixOfFactorSources,
-    profile: &Profile,
+    profile: &mut Profile,
     derivation_index_assigner: impl DerivationIndexWhenSecurifiedAssigner,
     derivation_interactors: Arc<dyn KeysDerivationInteractors>,
     gateway: Arc<dyn Gateway>,
@@ -63,6 +63,12 @@ async fn securify_using(
         },
     );
 
+    // uh update profile... since we dont have proper Profile impl in this repo.
+    profile.update_account(Account::new(
+        account.name(),
+        EntitySecurityState::Securified(securified_entity_control.clone()),
+    ));
+
     gateway
         .set_securified_account(securified_entity_control.clone(), &address)
         .await?;
@@ -72,7 +78,7 @@ async fn securify_using(
 pub async fn securify(
     address: AccountAddress,
     matrix: MatrixOfFactorSources,
-    profile: &Profile,
+    profile: &mut Profile,
     derivation_interactors: Arc<dyn KeysDerivationInteractors>,
     gateway: Arc<dyn Gateway>,
 ) -> Result<SecurifiedEntityControl> {
@@ -98,7 +104,7 @@ mod securify_tests {
         let a = &Account::unsecurified_mainnet(0, "A", FactorSourceIDFromHash::fs0());
         let b = &Account::unsecurified_mainnet(1, "B", FactorSourceIDFromHash::fs0());
 
-        let profile = Profile::new(all_factors.clone(), [a, b], []);
+        let mut profile = Profile::new(all_factors.clone(), [a, b], []);
         let matrix = MatrixOfFactorSources::new([fs_at(0)], 1, []);
 
         let interactors = Arc::new(TestDerivationInteractors::default());
@@ -107,7 +113,7 @@ mod securify_tests {
         let b_sec = securify(
             b.entity_address(),
             matrix.clone(),
-            &profile,
+            &mut profile,
             interactors.clone(),
             gateway.clone(),
         )
@@ -119,19 +125,10 @@ mod securify_tests {
             HDPathComponent::securified(0)
         );
 
-        // uh update profile... since we dont have proper Profile impl in this repo.
-        let profile = Profile::new(
-            all_factors,
-            [
-                a,
-                &Account::new("B", EntitySecurityState::Securified(b_sec)),
-            ],
-            [],
-        );
         let a_sec = securify(
             a.entity_address(),
             matrix.clone(),
-            &profile,
+            &mut profile,
             interactors.clone(),
             gateway.clone(),
         )
