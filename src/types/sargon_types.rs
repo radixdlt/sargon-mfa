@@ -1443,12 +1443,12 @@ impl From<HierarchicalDeterministicFactorInstance> for PublicKeyHash {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash, EnumAsInner)]
 pub enum ScryptoResourceOrNonFungible {
     PublicKeyHash(PublicKeyHash),
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash, EnumAsInner)]
 pub enum ScryptoProofRule {
     AnyOf(Vec<ScryptoResourceOrNonFungible>),
     CountOf(usize, Vec<ScryptoResourceOrNonFungible>),
@@ -1465,14 +1465,14 @@ impl ScryptoProofRule {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash, EnumAsInner)]
 pub enum ScryptoAccessRuleNode {
     ProofRule(ScryptoProofRule),
     AnyOf(Vec<ScryptoAccessRuleNode>),
     AllOf(Vec<ScryptoAccessRuleNode>),
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash, EnumAsInner)]
 pub enum ScryptoAccessRule {
     Protected(ScryptoAccessRuleNode),
     // AllowAll
@@ -1530,7 +1530,41 @@ impl TryFrom<ScryptoAccessRule> for MatrixOfKeyHashes {
     type Error = CommonError;
 
     fn try_from(value: ScryptoAccessRule) -> Result<Self> {
-        todo!()
+        let protected = value.into_protected().map_err(|_| CommonError::Failure)?;
+        let root_any_of = protected.into_any_of().map_err(|_| CommonError::Failure)?;
+        if root_any_of.len() != 2 {
+            return Err(CommonError::Failure);
+        }
+        let rule_0 = root_any_of[0]
+            .clone()
+            .into_proof_rule()
+            .map_err(|_| CommonError::Failure)?;
+
+        let rule_1 = root_any_of[1]
+            .clone()
+            .into_proof_rule()
+            .map_err(|_| CommonError::Failure)?;
+
+        let threshold_rule = rule_0.into_count_of().map_err(|_| CommonError::Failure)?;
+        let override_rule = rule_1.into_any_of().map_err(|_| CommonError::Failure)?;
+
+        let threshold = threshold_rule.0;
+        let threshold_hashes = threshold_rule
+            .1
+            .into_iter()
+            .map(|r| r.into_public_key_hash().map_err(|_| CommonError::Failure))
+            .collect::<Result<Vec<PublicKeyHash>>>()?;
+
+        let override_hashes = override_rule
+            .into_iter()
+            .map(|r| r.into_public_key_hash().map_err(|_| CommonError::Failure))
+            .collect::<Result<Vec<PublicKeyHash>>>()?;
+
+        Ok(Self::new(
+            threshold_hashes,
+            threshold as u8,
+            override_hashes,
+        ))
     }
 }
 

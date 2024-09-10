@@ -138,12 +138,12 @@ pub trait Gateway: GatewayReadonly {
 const RECOVERY_BATCH_SIZE_DERIVATION_ENTITY_INDEX: HDPathValue = 50;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct UncoveredAccounts {
+pub struct UncoveredAccount {
     pub on_chain: OnChainAccountState,
     pub key_hash_to_factor_instances:
         HashMap<PublicKeyHash, HierarchicalDeterministicFactorInstance>,
 }
-impl UncoveredAccounts {
+impl UncoveredAccount {
     pub fn new(
         on_chain: OnChainAccountState,
         key_hash_to_factor_instances: HashMap<
@@ -162,13 +162,13 @@ impl UncoveredAccounts {
 pub struct AccountRecoveryOutcome {
     pub recovered_unsecurified: IndexSet<Account>,
     pub recovered_securified: IndexSet<Account>,
-    pub unrecovered: Vec<UncoveredAccounts>, // want set
+    pub unrecovered: Vec<UncoveredAccount>, // want set
 }
 impl AccountRecoveryOutcome {
     pub fn new(
         recovered_unsecurified: impl IntoIterator<Item = Account>,
         recovered_securified: impl IntoIterator<Item = Account>,
-        unrecovered: impl IntoIterator<Item = UncoveredAccounts>,
+        unrecovered: impl IntoIterator<Item = UncoveredAccount>,
     ) -> Self {
         Self {
             recovered_unsecurified: recovered_unsecurified.into_iter().collect(),
@@ -270,6 +270,7 @@ pub async fn recover_accounts(
         .collect::<HashSet<_>>();
 
     let mut securified_accounts = HashSet::new();
+    let mut unrecovered_accounts = Vec::new();
     for a in securified_accounts_addresses {
         let _factor_instances = account_address_to_factor_instances_map.get(&a).unwrap();
         let on_chain_account = gateway
@@ -281,8 +282,69 @@ pub async fn recover_accounts(
             .unwrap()
             .clone();
 
-        // on_chain_account.access_controller.
-        todo!()
+        let mut fail = || {
+            let unrecovered_account = UncoveredAccount::new(
+                OnChainAccountState::Securified(on_chain_account.clone()),
+                HashMap::new(), // TODO: fill this
+            );
+            warn!("Could not recover account: {:?}", unrecovered_account);
+            unrecovered_accounts.push(unrecovered_account);
+        };
+
+        let Ok(matrix_of_hashes) = MatrixOfKeyHashes::try_from(
+            on_chain_account
+                .clone()
+                .access_controller
+                .metadata
+                .scrypto_access_rules,
+        ) else {
+            fail();
+            continue;
+        };
+
+        let mut threshold_factor_instances = IndexSet::new();
+        let mut override_factor_instances = IndexSet::new();
+
+        for threshold_factor_hash in matrix_of_hashes.threshold_factors.iter() {
+            let Some(factor_instance) = map_hash_to_factor.get(threshold_factor_hash) else {
+                warn!(
+                    "Missing THRESHOLD factor instance for hash: {:?}",
+                    threshold_factor_hash
+                );
+                continue;
+            };
+            threshold_factor_instances.insert(factor_instance.clone());
+        }
+
+        for override_factor_hash in matrix_of_hashes.override_factors.iter() {
+            let Some(factor_instance) = map_hash_to_factor.get(override_factor_hash) else {
+                warn!(
+                    "Missing OVERRIDE factor instance for hash: {:?}",
+                    override_factor_hash
+                );
+                continue;
+            };
+            override_factor_instances.insert(factor_instance.clone());
+        }
+
+        if threshold_factor_instances.len() < matrix_of_hashes.threshold as usize {
+            warn!("Not enough threshold factors");
+            fail();
+            continue;
+        }
+
+        let sec = SecurifiedEntityControl::new(
+            MatrixOfFactorInstances::new(
+                threshold_factor_instances,
+                matrix_of_hashes.threshold,
+                override_factor_instances,
+            ),
+            on_chain_account.access_controller,
+        );
+        let security_state = EntitySecurityState::Securified(sec);
+        let recoverd_securified_account =
+            Account::new(format!("Recovered Unsecurified: {}", a), security_state);
+        assert!(securified_accounts.insert(recoverd_securified_account));
     }
 
     Ok(AccountRecoveryOutcome::new(
@@ -464,7 +526,6 @@ mod tests {
     }
 
     #[actix_rt::test]
-    #[should_panic]
     async fn recovery_of_securified_accounts() {
         let all_factors = HDFactorSource::all();
         let gateway = Arc::new(TestGateway::default());
@@ -482,6 +543,14 @@ mod tests {
         let recovered = recover_accounts(NetworkID::Mainnet, all_factors, interactors, gateway)
             .await
             .unwrap();
-        assert_eq!(recovered.recovered_securified, IndexSet::just(securified))
+
+        let recovered_unsecurified_accounts = recovered.recovered_unsecurified;
+        assert_eq!(recovered_unsecurified_accounts.len(), 0);
+
+        let recovered_securified_accounts = recovered.recovered_securified;
+        assert_eq!(recovered_securified_accounts.len(), 1);
+
+        let recoverd = recovered_securified_accounts.first().unwrap();
+        assert_eq!(recoverd.security_state(), securified.security_state())
     }
 }
