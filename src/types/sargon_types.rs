@@ -723,6 +723,26 @@ impl AddressOfAccountOrPersona {
         }
     }
 }
+impl TryFrom<AddressOfAccountOrPersona> for AccountAddress {
+    type Error = CommonError;
+
+    fn try_from(value: AddressOfAccountOrPersona) -> Result<Self> {
+        match value {
+            AddressOfAccountOrPersona::Account(a) => Ok(a),
+            AddressOfAccountOrPersona::Identity(_) => Err(CommonError::Failure),
+        }
+    }
+}
+impl TryFrom<AddressOfAccountOrPersona> for IdentityAddress {
+    type Error = CommonError;
+
+    fn try_from(value: AddressOfAccountOrPersona) -> Result<Self> {
+        match value {
+            AddressOfAccountOrPersona::Identity(a) => Ok(a),
+            AddressOfAccountOrPersona::Account(_) => Err(CommonError::Failure),
+        }
+    }
+}
 impl std::fmt::Debug for AddressOfAccountOrPersona {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(&self.to_string())
@@ -744,7 +764,13 @@ pub enum AccountOrPersona {
 }
 
 pub trait IsEntity: Into<AccountOrPersona> + Clone {
-    type Address: Clone + Into<AddressOfAccountOrPersona> + EntityKindSpecifier;
+    type Address: Clone
+        + Into<AddressOfAccountOrPersona>
+        + TryFrom<AddressOfAccountOrPersona>
+        + EntityKindSpecifier
+        + std::hash::Hash
+        + Eq
+        + std::fmt::Debug;
 
     fn new(name: impl AsRef<str>, security_state: impl Into<EntitySecurityState>) -> Self;
     fn network_id(&self) -> NetworkID {

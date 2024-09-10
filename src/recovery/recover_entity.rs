@@ -1,16 +1,19 @@
-use std::{hash::Hash, sync::RwLock};
+use std::{hash::Hash, ops::Add, sync::RwLock};
 
 use crate::prelude::*;
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct OnChainAccountUnsecurified {
-    account_address: AccountAddress,
+pub struct OnChainEntityUnsecurified {
+    address: AddressOfAccountOrPersona,
     owner_keys: Vec<PublicKeyHash>,
 }
-impl OnChainAccountUnsecurified {
-    pub fn new(account_address: AccountAddress, owner_keys: Vec<PublicKeyHash>) -> Self {
+impl OnChainEntityUnsecurified {
+    pub fn new(
+        address: impl Into<AddressOfAccountOrPersona>,
+        owner_keys: Vec<PublicKeyHash>,
+    ) -> Self {
         Self {
-            account_address,
+            address: address.into(),
             owner_keys,
         }
     }
@@ -21,20 +24,20 @@ impl OnChainAccountUnsecurified {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct OnChainAccountSecurified {
-    account_address: AccountAddress,
+pub struct OnChainEntitySecurified {
+    address: AddressOfAccountOrPersona,
     access_controller: AccessController,
     owner_keys: Vec<PublicKeyHash>,
 }
 
-impl OnChainAccountSecurified {
+impl OnChainEntitySecurified {
     pub fn new(
-        account_address: AccountAddress,
+        address: impl Into<AddressOfAccountOrPersona>,
         access_controller: AccessController,
         owner_keys: Vec<PublicKeyHash>,
     ) -> Self {
         Self {
-            account_address,
+            address: address.into(),
             access_controller,
             owner_keys,
         }
@@ -45,107 +48,142 @@ impl OnChainAccountSecurified {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash, EnumAsInner)]
-pub enum OnChainAccountState {
-    Unsecurified(OnChainAccountUnsecurified),
-    Securified(OnChainAccountSecurified),
+pub enum OnChainEntityState {
+    Unsecurified(OnChainEntityUnsecurified),
+    Securified(OnChainEntitySecurified),
 }
-impl OnChainAccountState {
-    fn unsecurified(unsecurified: OnChainAccountUnsecurified) -> Self {
+impl OnChainEntityState {
+    fn unsecurified(unsecurified: OnChainEntityUnsecurified) -> Self {
         Self::Unsecurified(unsecurified)
     }
 
-    pub fn unsecurified_with(account_address: &AccountAddress, owner_key: PublicKeyHash) -> Self {
-        Self::unsecurified(OnChainAccountUnsecurified::new(
-            account_address.clone(),
-            vec![owner_key],
-        ))
+    pub fn unsecurified_with(
+        address: impl Into<AddressOfAccountOrPersona>,
+        owner_key: PublicKeyHash,
+    ) -> Self {
+        Self::unsecurified(OnChainEntityUnsecurified::new(address, vec![owner_key]))
     }
 
-    fn securified(securified: OnChainAccountSecurified) -> Self {
+    fn securified(securified: OnChainEntitySecurified) -> Self {
         Self::Securified(securified)
     }
 
     pub fn securified_with(
-        account_address: &AccountAddress,
+        address: impl Into<AddressOfAccountOrPersona>,
         access_controller: AccessController,
         owner_keys: Vec<PublicKeyHash>,
     ) -> Self {
-        Self::securified(OnChainAccountSecurified::new(
-            account_address.clone(),
+        Self::securified(OnChainEntitySecurified::new(
+            address,
             access_controller.clone(),
             owner_keys,
         ))
     }
 }
 
-impl OnChainAccountState {
-    #[allow(dead_code)]
-    fn account_address(&self) -> AccountAddress {
+impl OnChainEntityState {
+    #[allow(unused)]
+    fn address(&self) -> AddressOfAccountOrPersona {
         match self {
-            OnChainAccountState::Unsecurified(account) => account.account_address.clone(),
-            OnChainAccountState::Securified(account) => account.account_address.clone(),
+            OnChainEntityState::Unsecurified(account) => account.address.clone(),
+            OnChainEntityState::Securified(account) => account.address.clone(),
         }
     }
 
     fn owner_keys(&self) -> HashSet<PublicKeyHash> {
         match self {
-            OnChainAccountState::Unsecurified(account) => account.owner_keys(),
-            OnChainAccountState::Securified(account) => account.owner_keys(),
+            OnChainEntityState::Unsecurified(account) => account.owner_keys(),
+            OnChainEntityState::Securified(account) => account.owner_keys(),
         }
     }
 }
 
 #[async_trait::async_trait]
 pub trait GatewayReadonly: Sync {
-    async fn get_account_addresses_of_by_public_key_hashes(
+    async fn get_entity_addresses_of_by_public_key_hashes(
         &self,
         hashes: HashSet<PublicKeyHash>,
-    ) -> Result<HashMap<PublicKeyHash, HashSet<AccountAddress>>>;
+    ) -> Result<HashMap<PublicKeyHash, HashSet<AddressOfAccountOrPersona>>>;
+
+    async fn get_on_chain_entity(
+        &self,
+        address: AddressOfAccountOrPersona,
+    ) -> Result<Option<OnChainEntityState>>;
 
     async fn get_on_chain_account(
         &self,
         account_address: &AccountAddress,
-    ) -> Result<Option<OnChainAccountState>>;
+    ) -> Result<Option<OnChainEntityState>> {
+        self.get_on_chain_entity(account_address.clone().into())
+            .await
+    }
 
     async fn get_owner_key_hashes(
         &self,
-        account_address: &AccountAddress,
+        address: AddressOfAccountOrPersona,
     ) -> Result<Option<HashSet<PublicKeyHash>>> {
-        let on_chain_account = self.get_on_chain_account(account_address).await?;
+        let on_chain_account = self.get_on_chain_entity(address).await?;
         return Ok(on_chain_account.map(|account| account.owner_keys().clone()));
     }
 
-    async fn is_securified(&self, account_address: &AccountAddress) -> Result<bool> {
-        let account = self.get_on_chain_account(account_address).await?;
-        Ok(account.map(|x| x.is_securified()).unwrap_or(false))
+    async fn is_securified(&self, address: AddressOfAccountOrPersona) -> Result<bool> {
+        let entity = self.get_on_chain_entity(address).await?;
+        Ok(entity.map(|x| x.is_securified()).unwrap_or(false))
     }
 }
 
 #[async_trait::async_trait]
 pub trait Gateway: GatewayReadonly {
+    async fn set_unsecurified_entity(
+        &self,
+        unsecurified: HierarchicalDeterministicFactorInstance,
+        owner: AddressOfAccountOrPersona,
+    ) -> Result<()>;
+
+    async fn set_securified_entity(
+        &self,
+        securified: SecurifiedEntityControl,
+        owner: AddressOfAccountOrPersona,
+    ) -> Result<()>;
+
     async fn set_unsecurified_account(
         &self,
         unsecurified: HierarchicalDeterministicFactorInstance,
         owner: &AccountAddress,
-    ) -> Result<()>;
+    ) -> Result<()> {
+        self.set_unsecurified_entity(unsecurified, owner.clone().into())
+            .await
+    }
     async fn set_securified_account(
         &self,
         securified: SecurifiedEntityControl,
         owner: &AccountAddress,
-    ) -> Result<()>;
+    ) -> Result<()> {
+        self.set_securified_entity(securified, owner.clone().into())
+            .await
+    }
+
+    async fn set_securified_persona(
+        &self,
+        securified: SecurifiedEntityControl,
+        owner: &IdentityAddress,
+    ) -> Result<()> {
+        self.set_securified_entity(securified, owner.clone().into())
+            .await
+    }
 }
 
 const RECOVERY_BATCH_SIZE_DERIVATION_ENTITY_INDEX: HDPathValue = 50;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct UncoveredAccount {
-    pub on_chain: OnChainAccountState,
+pub struct UncoveredEntity {
+    pub on_chain: OnChainEntityState,
     pub key_hash_to_factor_instances:
         HashMap<PublicKeyHash, HierarchicalDeterministicFactorInstance>,
 }
-impl UncoveredAccount {
+impl UncoveredEntity {
     pub fn new(
-        on_chain: OnChainAccountState,
+        on_chain: OnChainEntityState,
         key_hash_to_factor_instances: HashMap<
             PublicKeyHash,
             HierarchicalDeterministicFactorInstance,
@@ -159,16 +197,19 @@ impl UncoveredAccount {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct AccountRecoveryOutcome {
-    pub recovered_unsecurified: IndexSet<Account>,
-    pub recovered_securified: IndexSet<Account>,
-    pub unrecovered: Vec<UncoveredAccount>, // want set
+pub struct EntityRecoveryOutcome<E>
+where
+    E: IsEntity + Hash + Eq,
+{
+    pub recovered_unsecurified: IndexSet<E>,
+    pub recovered_securified: IndexSet<E>,
+    pub unrecovered: Vec<UncoveredEntity>, // want set
 }
-impl AccountRecoveryOutcome {
+impl<E: IsEntity + Hash + Eq> EntityRecoveryOutcome<E> {
     pub fn new(
-        recovered_unsecurified: impl IntoIterator<Item = Account>,
-        recovered_securified: impl IntoIterator<Item = Account>,
-        unrecovered: impl IntoIterator<Item = UncoveredAccount>,
+        recovered_unsecurified: impl IntoIterator<Item = E>,
+        recovered_securified: impl IntoIterator<Item = E>,
+        unrecovered: impl IntoIterator<Item = UncoveredEntity>,
     ) -> Self {
         Self {
             recovered_unsecurified: recovered_unsecurified.into_iter().collect(),
@@ -178,15 +219,13 @@ impl AccountRecoveryOutcome {
     }
 }
 
-/// A first implementation of Recovery of Securified accounts, working POC using
+/// A first implementation of Recovery of Securified entities, working POC using
 /// Entity Indexing heuristics - `CEI - strategy 1` - Canonical Entity Indexing,
 /// as described in [doc].
 ///
 /// N.B. This is a simplified version of the algorithm, which does not allow
 /// users to trigger "Scan More" action - for which we will continue to derive
 /// more PublicKeys for each factor source at "next batch" of derivation indices.
-/// Also note that this implementation is for Account, which can and SHOULD be
-/// generalized to support Personas - which is easily done (adding EntityKind as input).
 ///
 /// Here follows an executive summary of the algorithm:
 /// A. User inputs a list of FactorSources
@@ -194,24 +233,25 @@ impl AccountRecoveryOutcome {
 /// C. For each factor source we derive PublicKey's at **all paths**
 /// D. Create PublicKeyHash'es for each PublicKey
 /// E. Ensure to retain which (FactorSource, DerivationPath) tuple was for each PublicKeyHash
-/// F. Query gateway for AccountAddress referencing each PublicKeyHash
-/// G. Query gateway with each AccountAddress to get: AccessController's ScryptoAccessRule or single `owner_key hash
+/// F. Query gateway for EntityAddress referencing each PublicKeyHash
+/// G. Query gateway with each EntityAddress to get: AccessController's ScryptoAccessRule or single `owner_key hash
 /// H. "Play a match making game" between locally calculated PublicKeyHash'es and the ones downloaded from Gateway
-/// I. For each AccountAddress with single `owner_key` create an Unsecurified Account
+/// I. For each EntityAddress with single `owner_key` create an Unsecurified Entity
 /// J. for each with ScryptoAccessRule try to map the `ScryptoAccessRule` into a `MatrixOfPublicKeyHashes`, then try to map that
 /// into a `MatrixOfFactorInstances` by looking up the locally derived factor instances (PublicKeys).
-/// K. For each AccountAddress which we failed to match all PublicKeyHashes, ask user if should would like to
+/// K. For each EntityAddress which we failed to match all PublicKeyHashes, ask user if should would like to
 /// continue the search, by deriving keys using another batch of derivation paths.
 /// L. Return the results, which is three sets: recovered_unsecurified, recovered_securified, unrecovered
 ///
 /// [doc]: https://radixdlt.atlassian.net/wiki/spaces/AT/pages/3640655873/Yet+Another+Page+about+Derivation+Indices
-pub async fn recover_accounts(
+pub async fn recover_entity<E: IsEntity + Sync + Hash + Eq>(
     network_id: NetworkID,
     factor_sources: impl IntoIterator<Item = HDFactorSource>,
     key_derivation_interactors: Arc<dyn KeysDerivationInteractors>,
     gateway: Arc<dyn GatewayReadonly>,
-) -> Result<AccountRecoveryOutcome> {
+) -> Result<EntityRecoveryOutcome<E>> {
     // A. User inputs a list of FactorSources
+    let entity_kind = E::kind();
     let factor_sources = factor_sources.into_iter().collect::<IndexSet<_>>();
 
     // B. Create a set of derivation paths, both for securified and unsecurified entities
@@ -222,15 +262,15 @@ pub async fn recover_accounts(
                 index_range
                     .clone()
                     .map(make_entity_index)
-                    .map(|i| DerivationPath::account_tx(network_id, i))
+                    .map(|i| DerivationPath::new(network_id, entity_kind, CAP26KeyKind::T9n, i))
                     .collect::<IndexSet<_>>()
             };
 
-        let paths_unsecurified_accounts = make_paths(HDPathComponent::unsecurified);
-        let paths_securified_accounts = make_paths(HDPathComponent::securified);
+        let paths_unsecurified = make_paths(HDPathComponent::unsecurified);
+        let paths_securified = make_paths(HDPathComponent::securified);
         let mut all_paths = IndexSet::<DerivationPath>::new();
-        all_paths.extend(paths_securified_accounts);
-        all_paths.extend(paths_unsecurified_accounts);
+        all_paths.extend(paths_unsecurified);
+        all_paths.extend(paths_securified);
 
         let mut map_paths = IndexMap::<FactorSourceIDFromHash, IndexSet<DerivationPath>>::new();
         for factor_source in factor_sources.iter() {
@@ -239,7 +279,7 @@ pub async fn recover_accounts(
         map_paths
     };
 
-    let (account_addresses_per_hash, map_hash_to_factor) = {
+    let (addresses_per_hash, map_hash_to_factor) = {
         // C. For each factor source we derive PublicKey's at **all paths**
         let keys_collector =
             KeysCollector::new(factor_sources, map_paths, key_derivation_interactors).unwrap();
@@ -253,70 +293,76 @@ pub async fn recover_accounts(
             .collect::<HashMap<PublicKeyHash, HierarchicalDeterministicFactorInstance>>();
 
         // E. Ensure to retain which (FactorSource, DerivationPath) tuple was for each PublicKeyHash
-        // F. Query gateway for AccountAddress referencing each PublicKeyHash
-        let account_addresses_per_hash = gateway
-            .get_account_addresses_of_by_public_key_hashes(
+        // F. Query gateway for EntityAddress referencing each PublicKeyHash
+        let untyped_addresses_per_hash = gateway
+            .get_entity_addresses_of_by_public_key_hashes(
                 map_hash_to_factor.keys().cloned().collect::<HashSet<_>>(),
             )
             .await?;
-        (account_addresses_per_hash, map_hash_to_factor)
+
+        let addresses_per_hash = untyped_addresses_per_hash
+            .into_iter()
+            .map(|(k, v)| {
+                let typed_address = v
+                    .into_iter()
+                    .map(|a| E::Address::try_from(a).map_err(|_| CommonError::Failure))
+                    .collect::<Result<HashSet<E::Address>>>()?;
+
+                Ok((k, typed_address))
+            })
+            .collect::<Result<HashMap<PublicKeyHash, HashSet<E::Address>>>>()?;
+
+        (addresses_per_hash, map_hash_to_factor)
     };
 
-    // G. Query gateway with each AccountAddress to get: AccessController's ScryptoAccessRule or single `owner_key hash
-    let (
-        account_address_to_factor_instances_map,
-        unsecurified_accounts_addresses,
-        securified_accounts_addresses,
-    ) = {
-        let mut unsecurified_accounts_addresses = HashSet::<AccountAddress>::new();
-        let mut securified_accounts_addresses = HashSet::<AccountAddress>::new();
+    // G. Query gateway with each EntityAddress to get: AccessController's ScryptoAccessRule or single `owner_key hash
+    let (address_to_factor_instances_map, unsecurified_addresses, securified_addresses) = {
+        let mut unsecurified_addresses = HashSet::<E::Address>::new();
+        let mut securified_addresses = HashSet::<E::Address>::new();
 
-        let mut account_address_to_factor_instances_map =
-            HashMap::<AccountAddress, HashSet<HierarchicalDeterministicFactorInstance>>::new();
+        let mut address_to_factor_instances_map =
+            HashMap::<E::Address, HashSet<HierarchicalDeterministicFactorInstance>>::new();
 
-        for (hash, account_addresses) in account_addresses_per_hash.iter() {
-            if account_addresses.is_empty() {
+        for (hash, addresses) in addresses_per_hash.iter() {
+            if addresses.is_empty() {
                 unreachable!("We should never create empty sets");
             }
-            if account_addresses.len() > 1 {
-                panic!("Violation of Axiom 1: same key is used in many accounts")
+            if addresses.len() > 1 {
+                panic!("Violation of Axiom 1: same key is used in many entities")
             }
-            let account_address = account_addresses.iter().last().unwrap();
+            let address = addresses.iter().last().unwrap();
 
             let factor_instance = map_hash_to_factor.get(hash).unwrap();
-            if let Some(existing) = account_address_to_factor_instances_map.get_mut(account_address)
-            {
+            if let Some(existing) = address_to_factor_instances_map.get_mut(address) {
                 existing.insert(factor_instance.clone());
             } else {
-                account_address_to_factor_instances_map.insert(
-                    account_address.clone(),
-                    HashSet::just(factor_instance.clone()),
-                );
+                address_to_factor_instances_map
+                    .insert(address.clone(), HashSet::just(factor_instance.clone()));
             }
 
-            let is_securified = gateway.is_securified(account_address).await?;
+            let is_securified = gateway.is_securified(address.clone().into()).await?;
 
             if is_securified {
-                securified_accounts_addresses.insert(account_address.clone());
+                securified_addresses.insert(address.clone());
             } else {
-                unsecurified_accounts_addresses.insert(account_address.clone());
+                unsecurified_addresses.insert(address.clone());
             }
         }
 
         (
-            account_address_to_factor_instances_map,
-            unsecurified_accounts_addresses,
-            securified_accounts_addresses,
+            address_to_factor_instances_map,
+            unsecurified_addresses,
+            securified_addresses,
         )
     };
 
     // H. "Play a match making game" between locally calculated PublicKeyHash'es and the ones downloaded from Gateway
 
-    // I. For each AccountAddress with single `owner_key` create an Unsecurified Account
-    let unsecurified_accounts = unsecurified_accounts_addresses
+    // I. For each EntityAddress with single `owner_key` create an Unsecurified Entity
+    let unsecurified_entities = unsecurified_addresses
         .into_iter()
         .map(|a| {
-            let factor_instances = account_address_to_factor_instances_map.get(&a).unwrap();
+            let factor_instances = address_to_factor_instances_map.get(&a).unwrap();
             assert_eq!(
                 factor_instances.len(),
                 1,
@@ -324,18 +370,18 @@ pub async fn recover_accounts(
             );
             let factor_instance = factor_instances.iter().last().unwrap();
             let security_state = EntitySecurityState::Unsecured(factor_instance.clone());
-            Account::new(format!("Recovered Unsecurified: {}", a), security_state)
+            E::new(format!("Recovered Unsecurified: {:?}", a), security_state)
         })
         .collect::<HashSet<_>>();
 
-    let mut securified_accounts = HashSet::new();
-    let mut unrecovered_accounts = Vec::new();
+    let mut securified_entities = HashSet::<E>::new();
+    let mut unrecovered_entities = Vec::<UncoveredEntity>::new();
 
     // J. for each with ScryptoAccessRule try to map the `ScryptoAccessRule` into a `MatrixOfPublicKeyHashes`, then try to map that
     // into a `MatrixOfFactorInstances` by looking up the locally derived factor instances (PublicKeys).
-    for a in securified_accounts_addresses {
-        let on_chain_account = gateway
-            .get_on_chain_account(&a)
+    for a in securified_addresses {
+        let on_chain_entity = gateway
+            .get_on_chain_entity(a.clone().into())
             .await
             .unwrap()
             .unwrap()
@@ -343,20 +389,20 @@ pub async fn recover_accounts(
             .unwrap()
             .clone();
 
-        // K. [NOT IMPLEMENTED YET] For each AccountAddress which we failed to match all PublicKeyHashes, ask user if should would like to
+        // K. [NOT IMPLEMENTED YET] For each EntityAddress which we failed to match all PublicKeyHashes, ask user if should would like to
         // continue the search, by deriving keys using another batch of derivation paths.
 
         let mut fail = || {
-            let unrecovered_account = UncoveredAccount::new(
-                OnChainAccountState::Securified(on_chain_account.clone()),
+            let unrecovered_entity = UncoveredEntity::new(
+                OnChainEntityState::Securified(on_chain_entity.clone()),
                 HashMap::new(), // TODO: fill this
             );
-            warn!("Could not recover account: {:?}", unrecovered_account);
-            unrecovered_accounts.push(unrecovered_account);
+            warn!("Could not recover entity: {:?}", unrecovered_entity);
+            unrecovered_entities.push(unrecovered_entity);
         };
 
         let Ok(matrix_of_hashes) = MatrixOfKeyHashes::try_from(
-            on_chain_account
+            on_chain_entity
                 .clone()
                 .access_controller
                 .metadata
@@ -403,31 +449,61 @@ pub async fn recover_accounts(
                 matrix_of_hashes.threshold,
                 override_factor_instances,
             ),
-            on_chain_account.access_controller,
+            on_chain_entity.access_controller,
         );
         let security_state = EntitySecurityState::Securified(sec);
-        let recoverd_securified_account =
-            Account::new(format!("Recovered Unsecurified: {}", a), security_state);
-        assert!(securified_accounts.insert(recoverd_securified_account));
+        let recoverd_securified_entity =
+            E::new(format!("Recovered Unsecurified: {:?}", a), security_state);
+        assert!(securified_entities.insert(recoverd_securified_entity));
     }
 
     // L. Return the results, which is three sets: recovered_unsecurified, recovered_securified, unrecovered
-    Ok(AccountRecoveryOutcome::new(
-        unsecurified_accounts,
-        securified_accounts,
+    Ok(EntityRecoveryOutcome::<E>::new(
+        unsecurified_entities,
+        securified_entities,
         Vec::new(),
     ))
 }
 
+pub async fn recover_accounts(
+    network_id: NetworkID,
+    factor_sources: impl IntoIterator<Item = HDFactorSource>,
+    key_derivation_interactors: Arc<dyn KeysDerivationInteractors>,
+    gateway: Arc<dyn GatewayReadonly>,
+) -> Result<EntityRecoveryOutcome<Account>> {
+    recover_entity(
+        network_id,
+        factor_sources,
+        key_derivation_interactors,
+        gateway,
+    )
+    .await
+}
+
+pub async fn recover_personas(
+    network_id: NetworkID,
+    factor_sources: impl IntoIterator<Item = HDFactorSource>,
+    key_derivation_interactors: Arc<dyn KeysDerivationInteractors>,
+    gateway: Arc<dyn GatewayReadonly>,
+) -> Result<EntityRecoveryOutcome<Persona>> {
+    recover_entity(
+        network_id,
+        factor_sources,
+        key_derivation_interactors,
+        gateway,
+    )
+    .await
+}
+
 #[cfg(test)]
 pub struct TestGateway {
-    accounts: RwLock<HashMap<AccountAddress, OnChainAccountState>>,
+    entities: RwLock<HashMap<AddressOfAccountOrPersona, OnChainEntityState>>,
 }
 #[cfg(test)]
 impl Default for TestGateway {
     fn default() -> Self {
         Self {
-            accounts: RwLock::new(HashMap::new()),
+            entities: RwLock::new(HashMap::new()),
         }
     }
 }
@@ -435,90 +511,82 @@ impl Default for TestGateway {
 #[cfg(test)]
 #[async_trait::async_trait]
 impl GatewayReadonly for TestGateway {
-    async fn get_account_addresses_of_by_public_key_hashes(
+    async fn get_entity_addresses_of_by_public_key_hashes(
         &self,
         hashes: HashSet<PublicKeyHash>,
-    ) -> Result<HashMap<PublicKeyHash, HashSet<AccountAddress>>> {
-        let accounts = self.accounts.try_read().unwrap();
-        let states = accounts.values();
+    ) -> Result<HashMap<PublicKeyHash, HashSet<AddressOfAccountOrPersona>>> {
+        let entities = self.entities.try_read().unwrap();
+        let states = entities.values();
 
         Ok(hashes
             .iter()
             .filter_map(|k| {
                 // N.B. we want this to always be single element (Axiom 1).
-                let mut accounts_references_hash = HashSet::<AccountAddress>::new();
+                let mut entities_references_hash = HashSet::<AddressOfAccountOrPersona>::new();
                 for state in states.clone().filter(|x| x.owner_keys().contains(k)) {
-                    accounts_references_hash.insert(state.account_address());
+                    entities_references_hash.insert(state.address());
                 }
-                if accounts_references_hash.is_empty() {
+                if entities_references_hash.is_empty() {
                     None
                 } else {
-                    Some((k.clone(), accounts_references_hash))
+                    Some((k.clone(), entities_references_hash))
                 }
             })
-            .collect::<HashMap<PublicKeyHash, HashSet<AccountAddress>>>())
+            .collect::<HashMap<PublicKeyHash, HashSet<AddressOfAccountOrPersona>>>())
     }
 
-    async fn get_on_chain_account(
+    async fn get_on_chain_entity(
         &self,
-        account_address: &AccountAddress,
-    ) -> Result<Option<OnChainAccountState>> {
-        Ok(self
-            .accounts
-            .try_read()
-            .unwrap()
-            .get(account_address)
-            .cloned())
+        address: AddressOfAccountOrPersona,
+    ) -> Result<Option<OnChainEntityState>> {
+        Ok(self.entities.try_read().unwrap().get(&address).cloned())
     }
 }
 #[cfg(test)]
 impl TestGateway {
-    async fn assert_not_securified(&self, account_address: &AccountAddress) -> Result<()> {
-        let is_already_securified = self.is_securified(account_address).await?;
+    async fn assert_not_securified(&self, address: &AddressOfAccountOrPersona) -> Result<()> {
+        let is_already_securified = self.is_securified(address.clone()).await?;
         assert!(
             !is_already_securified,
-            "Cannot unsecurify an already securified account"
+            "Cannot unsecurify an already securified entity"
         );
         Ok(())
     }
 
-    fn contains(&self, account_address: &AccountAddress) -> bool {
-        self.accounts
-            .try_read()
-            .unwrap()
-            .contains_key(account_address)
+    fn contains(&self, address: &AddressOfAccountOrPersona) -> bool {
+        self.entities.try_read().unwrap().contains_key(address)
     }
 }
 
 #[cfg(test)]
 #[async_trait::async_trait]
 impl Gateway for TestGateway {
-    async fn set_unsecurified_account(
+    async fn set_unsecurified_entity(
         &self,
         unsecurified: HierarchicalDeterministicFactorInstance,
-        owner: &AccountAddress,
+        owner: AddressOfAccountOrPersona,
     ) -> Result<()> {
-        self.assert_not_securified(owner).await?;
+        self.assert_not_securified(&owner).await?;
 
         let owner_key = unsecurified.public_key_hash();
 
-        if self.contains(owner) {
+        if self.contains(&owner) {
             panic!("update not supported")
         } else {
-            self.accounts.try_write().unwrap().insert(
+            self.entities.try_write().unwrap().insert(
                 owner.clone(),
-                OnChainAccountState::unsecurified_with(owner, owner_key),
+                OnChainEntityState::unsecurified_with(owner, owner_key),
             );
         }
         Ok(())
     }
 
-    async fn set_securified_account(
+    async fn set_securified_entity(
         &self,
         securified: SecurifiedEntityControl,
-        owner: &AccountAddress,
+        owner: AddressOfAccountOrPersona,
     ) -> Result<()> {
-        self.assert_not_securified(owner).await?;
+        self.assert_not_securified(&owner).await?;
 
         let owner_keys = securified
             .matrix
@@ -527,13 +595,13 @@ impl Gateway for TestGateway {
             .map(|f| f.public_key_hash())
             .collect_vec();
 
-        if self.contains(owner) {
-            self.accounts.try_write().unwrap().remove(owner);
+        if self.contains(&owner) {
+            self.entities.try_write().unwrap().remove(&owner);
         }
 
-        self.accounts.try_write().unwrap().insert(
+        self.entities.try_write().unwrap().insert(
             owner.clone(),
-            OnChainAccountState::securified_with(
+            OnChainEntityState::securified_with(
                 owner,
                 securified.access_controller.clone(),
                 owner_keys,
@@ -664,6 +732,56 @@ mod tests {
                 .map(|a| a.security_state())
                 .collect::<IndexSet<_>>(),
             securified_accounts
+                .iter()
+                .map(|a| a.security_state())
+                .collect::<IndexSet<_>>(),
+        );
+    }
+
+    #[actix_rt::test]
+    async fn recovery_of_single_many_securified_personas() {
+        let all_factors = HDFactorSource::all();
+        let gateway = Arc::new(TestGateway::default());
+
+        let interactors = Arc::new(TestDerivationInteractors::default());
+
+        let securified_personas = IndexSet::<Persona>::from_iter([
+            Persona::p2(),
+            Persona::p3(),
+            Persona::p4(),
+            Persona::p5(),
+            Persona::p6(),
+            Persona::p7(),
+        ]);
+
+        for persona in securified_personas.iter() {
+            gateway
+                .set_securified_persona(
+                    persona.security_state.as_securified().unwrap().clone(),
+                    &persona.entity_address(),
+                )
+                .await
+                .unwrap();
+        }
+
+        let recovered = recover_personas(NetworkID::Mainnet, all_factors, interactors, gateway)
+            .await
+            .unwrap();
+
+        assert_eq!(recovered.recovered_unsecurified.len(), 0);
+
+        let recovered_securified_personas = recovered.recovered_securified;
+        assert_eq!(
+            recovered_securified_personas.len(),
+            securified_personas.len()
+        );
+
+        assert_eq!(
+            recovered_securified_personas
+                .iter()
+                .map(|a| a.security_state())
+                .collect::<IndexSet<_>>(),
+            securified_personas
                 .iter()
                 .map(|a| a.security_state())
                 .collect::<IndexSet<_>>(),
