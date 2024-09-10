@@ -178,6 +178,29 @@ impl AccountRecoveryOutcome {
     }
 }
 
+/// A first implementation of Recovery of Securified accounts, working POC using
+/// Entity Indexing heuristics - `CEI - strategy 1` - Canonical Entity Indexing,
+/// as described in [doc].
+///
+/// N.B. This is a simplified version of the algorithm, which does not allow
+/// users to trigger "Scan More" action - for which we will continue to derive
+/// more PublicKeys for each factor source at "next batch" of derivation indices.
+/// Also note that this implementation is for Account, which can and SHOULD be
+/// generalized to support Personas - which is easily done (adding EntityKind as input).
+///
+/// Here follows an executive summary of the algorithm:
+/// 0a. Define `const RECOVERY_BATCH_SIZE_DERIVATION_ENTITY_INDEX = 0`
+/// 0b. Define `const BIP32_SECURIFIED_HALF = 2^30`
+/// 1. Input is (Vec<FactorSource>, NetorkID>), used to accounts - either securified or unsecurified.
+/// 2. Create `index_range = (0, RECOVERY_BATCH_SIZE_DERIVATION_ENTITY_INDEX)`
+/// 3. Create **two** HDPathComponent sets, one which maps the index to the unsecurified half of
+/// the Derivation Entity Index space and the other to the securified half (adding `BIP32_SECURIFIED_HALF` to
+/// each item in the set).
+/// 4. Merge the two sets into a single set `all_indices`.
+/// 5. Create set `all_paths` which is a set of DerivationPaths by mapping each index ind `all_indices` to
+/// a DerivationPath created with said index, NetworkID, `CAP26KeyKind::Transaction` & CAP26EntityKind::Account.
+///
+/// [doc]: https://radixdlt.atlassian.net/wiki/spaces/AT/pages/3640655873/Yet+Another+Page+about+Derivation+Indices
 pub async fn recover_accounts(
     network_id: NetworkID,
     factor_sources: impl IntoIterator<Item = HDFactorSource>,
@@ -185,9 +208,11 @@ pub async fn recover_accounts(
     gateway: Arc<dyn GatewayReadonly>,
 ) -> Result<AccountRecoveryOutcome> {
     let factor_sources = factor_sources.into_iter().collect::<IndexSet<_>>();
+    let index_range = 0..RECOVERY_BATCH_SIZE_DERIVATION_ENTITY_INDEX;
     let make_paths =
         |make_entity_index: fn(HDPathValue) -> HDPathComponent| -> IndexSet<DerivationPath> {
-            (0..RECOVERY_BATCH_SIZE_DERIVATION_ENTITY_INDEX)
+            index_range
+                .clone()
                 .map(make_entity_index)
                 .map(|i| DerivationPath::account_tx(network_id, i))
                 .collect::<IndexSet<_>>()
