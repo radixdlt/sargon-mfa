@@ -281,7 +281,8 @@ pub async fn recover_accounts(
             .unwrap()
             .clone();
 
-        on_chain_account.access_controller.
+        // on_chain_account.access_controller.
+        todo!()
     }
 
     Ok(AccountRecoveryOutcome::new(

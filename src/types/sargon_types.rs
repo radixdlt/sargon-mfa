@@ -808,7 +808,7 @@ pub trait IsEntity: Into<AccountOrPersona> + Clone {
                 matrix.clone(),
                 AccessController::new(
                     AccessControllerAddress::new(name.as_ref()),
-                    ComponentMetadata::new(matrix.all_factors(), index),
+                    ComponentMetadata::new(matrix, index),
                 ),
             )),
         )
@@ -1013,7 +1013,7 @@ impl<T: Clone + Into<AddressOfAccountOrPersona> + EntityKindSpecifier + From<Str
                 matrix.clone(),
                 AccessController::new(
                     AccessControllerAddress::new(name.as_ref()),
-                    ComponentMetadata::new(matrix.all_factors(), index),
+                    ComponentMetadata::new(matrix, index),
                 ),
             )),
         )
@@ -1427,43 +1427,126 @@ impl HierarchicalDeterministicFactorInstance {
         self.public_key.hash()
     }
 }
+impl From<PublicKey> for PublicKeyHash {
+    fn from(value: PublicKey) -> Self {
+        value.hash()
+    }
+}
+impl From<HierarchicalDeterministicPublicKey> for PublicKeyHash {
+    fn from(value: HierarchicalDeterministicPublicKey) -> Self {
+        value.hash()
+    }
+}
+impl From<HierarchicalDeterministicFactorInstance> for PublicKeyHash {
+    fn from(value: HierarchicalDeterministicFactorInstance) -> Self {
+        value.public_key_hash()
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum ScryptoResourceOrNonFungible {
     PublicKeyHash(PublicKeyHash),
 }
-pub enum ScryptoAccessRuleNode {
-    CountOf {
-        couunt: usize,
-        values: ScryptoResourceOrNonFungible,
-    },
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub enum ScryptoProofRule {
+    AnyOf(Vec<ScryptoResourceOrNonFungible>),
+    CountOf(usize, Vec<ScryptoResourceOrNonFungible>),
+    // AllOf
+    // Require
+    // AmountOf
 }
-pub struct ScryptoAccessRules {
-    pub rule_nodes: Vec<ScryptoAccessRuleNode>,
+impl ScryptoProofRule {
+    pub fn any_of(values: Vec<ScryptoResourceOrNonFungible>) -> Self {
+        Self::AnyOf(values)
+    }
+    pub fn count_of(count: usize, values: Vec<ScryptoResourceOrNonFungible>) -> Self {
+        Self::CountOf(count, values)
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub enum ScryptoAccessRuleNode {
+    ProofRule(ScryptoProofRule),
+    AnyOf(Vec<ScryptoAccessRuleNode>),
+    AllOf(Vec<ScryptoAccessRuleNode>),
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub enum ScryptoAccessRule {
+    Protected(ScryptoAccessRuleNode),
+    // AllowAll
+    // DenyAll
+}
+impl ScryptoAccessRule {
+    pub fn protected(rule: ScryptoAccessRuleNode) -> Self {
+        Self::Protected(rule)
+    }
+    pub fn with_threshold(
+        count: usize,
+        threshold_factors: impl IntoIterator<Item = impl Into<PublicKeyHash>>,
+        override_factors: impl IntoIterator<Item = impl Into<PublicKeyHash>>,
+    ) -> Self {
+        Self::protected(ScryptoAccessRuleNode::AnyOf(vec![
+            ScryptoAccessRuleNode::ProofRule(ScryptoProofRule::CountOf(
+                count,
+                threshold_factors
+                    .into_iter()
+                    .map(Into::into)
+                    .map(ScryptoResourceOrNonFungible::PublicKeyHash)
+                    .collect_vec(),
+            )),
+            ScryptoAccessRuleNode::ProofRule(ScryptoProofRule::AnyOf(
+                override_factors
+                    .into_iter()
+                    .map(Into::into)
+                    .map(ScryptoResourceOrNonFungible::PublicKeyHash)
+                    .collect_vec(),
+            )),
+        ]))
+    }
 }
 
 pub type MatrixOfKeyHashes = MatrixOfFactors<PublicKeyHash>;
-impl ScryptoAccessRules {
-    pub fn matrix_of_key_hashes(&self) -> Result<MatrixOfKeyHashes> {
+impl From<MatrixOfFactorInstances> for ScryptoAccessRule {
+    fn from(value: MatrixOfFactorInstances) -> Self {
+        Self::with_threshold(
+            value.threshold as usize,
+            value.threshold_factors,
+            value.override_factors,
+        )
+    }
+}
+impl From<MatrixOfKeyHashes> for ScryptoAccessRule {
+    fn from(value: MatrixOfKeyHashes) -> Self {
+        Self::with_threshold(
+            value.threshold as usize,
+            value.threshold_factors,
+            value.override_factors,
+        )
+    }
+}
+impl TryFrom<ScryptoAccessRule> for MatrixOfKeyHashes {
+    type Error = CommonError;
+
+    fn try_from(value: ScryptoAccessRule) -> Result<Self> {
         todo!()
     }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct ComponentMetadata {
-    pub public_key_hashes: ScryptoAccessRules,
-
+    pub scrypto_access_rules: ScryptoAccessRule,
     pub derivation_index: HDPathComponent,
 }
 
 impl ComponentMetadata {
     pub fn new(
-        factor_instances: impl IntoIterator<Item = HierarchicalDeterministicFactorInstance>,
+        scrypto_access_rules: impl Into<ScryptoAccessRule>,
         derivation_index: impl Into<HDPathComponent>,
     ) -> Self {
         Self {
-            public_key_hashes: factor_instances
-                .into_iter()
-                .map(|pk| pk.public_key_hash())
-                .collect(),
+            scrypto_access_rules: scrypto_access_rules.into(),
             derivation_index: derivation_index.into(),
         }
     }

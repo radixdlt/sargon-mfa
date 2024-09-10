@@ -53,7 +53,7 @@ async fn securify_using(
         matrix,
     )?;
 
-    let component_metadata = ComponentMetadata::new(matrix.all_factors(), derivation_index);
+    let component_metadata = ComponentMetadata::new(matrix.clone(), derivation_index);
 
     let securified_entity_control = SecurifiedEntityControl::new(
         matrix,
