@@ -591,7 +591,7 @@ mod tests {
     }
 
     #[actix_rt::test]
-    async fn recovery_of_securified_accounts() {
+    async fn recovery_of_single_securified_account() {
         let all_factors = HDFactorSource::all();
         let gateway = Arc::new(TestGateway::default());
 
@@ -617,5 +617,56 @@ mod tests {
 
         let recoverd = recovered_securified_accounts.first().unwrap();
         assert_eq!(recoverd.security_state(), securified.security_state())
+    }
+
+    #[actix_rt::test]
+    async fn recovery_of_single_many_securified_accounts() {
+        let all_factors = HDFactorSource::all();
+        let gateway = Arc::new(TestGateway::default());
+
+        let interactors = Arc::new(TestDerivationInteractors::default());
+
+        let securified_accounts = IndexSet::<Account>::from_iter([
+            Account::a2(),
+            Account::a3(),
+            Account::a4(),
+            Account::a5(),
+            Account::a6(),
+            Account::a7(),
+        ]);
+
+        for account in securified_accounts.iter() {
+            gateway
+                .set_securified_account(
+                    account.security_state.as_securified().unwrap().clone(),
+                    &account.entity_address(),
+                )
+                .await
+                .unwrap();
+        }
+
+        let recovered = recover_accounts(NetworkID::Mainnet, all_factors, interactors, gateway)
+            .await
+            .unwrap();
+
+        let recovered_unsecurified_accounts = recovered.recovered_unsecurified;
+        assert_eq!(recovered_unsecurified_accounts.len(), 0);
+
+        let recovered_securified_accounts = recovered.recovered_securified;
+        assert_eq!(
+            recovered_securified_accounts.len(),
+            securified_accounts.len()
+        );
+
+        assert_eq!(
+            recovered_securified_accounts
+                .iter()
+                .map(|a| a.security_state())
+                .collect::<IndexSet<_>>(),
+            securified_accounts
+                .iter()
+                .map(|a| a.security_state())
+                .collect::<IndexSet<_>>(),
+        );
     }
 }
