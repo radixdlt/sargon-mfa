@@ -197,11 +197,12 @@ impl AccountRecoveryOutcome {
 /// F. Query gateway for AccountAddress referencing each PublicKeyHash
 /// G. Query gateway with each AccountAddress to get: AccessController's ScryptoAccessRule or single `owner_key hash
 /// H. "Play a match making game" between locally calculated PublicKeyHash'es and the ones downloaded from Gateway
-/// I. For each AccountAddress with single `owner_key` create an Unsecurified Account, for each with ScryptoAccessRule try to map the `ScryptoAccessRule` into a `MatrixOfPublicKeyHashes`, then try to map that
+/// I. For each AccountAddress with single `owner_key` create an Unsecurified Account
+/// J. for each with ScryptoAccessRule try to map the `ScryptoAccessRule` into a `MatrixOfPublicKeyHashes`, then try to map that
 /// into a `MatrixOfFactorInstances` by looking up the locally derived factor instances (PublicKeys).
-/// J. For each AccountAddress which we failed to match all PublicKeyHashes, ask user if should would like to
+/// K. For each AccountAddress which we failed to match all PublicKeyHashes, ask user if should would like to
 /// continue the search, by deriving keys using another batch of derivation paths.
-/// K. Return the results, which is three sets: recovered_unsecurified, recovered_securified, unrecovered
+/// L. Return the results, which is three sets: recovered_unsecurified, recovered_securified, unrecovered
 ///
 /// [doc]: https://radixdlt.atlassian.net/wiki/spaces/AT/pages/3640655873/Yet+Another+Page+about+Derivation+Indices
 pub async fn recover_accounts(
@@ -210,78 +211,108 @@ pub async fn recover_accounts(
     key_derivation_interactors: Arc<dyn KeysDerivationInteractors>,
     gateway: Arc<dyn GatewayReadonly>,
 ) -> Result<AccountRecoveryOutcome> {
+    // A. User inputs a list of FactorSources
     let factor_sources = factor_sources.into_iter().collect::<IndexSet<_>>();
-    let index_range = 0..RECOVERY_BATCH_SIZE_DERIVATION_ENTITY_INDEX;
-    let make_paths =
-        |make_entity_index: fn(HDPathValue) -> HDPathComponent| -> IndexSet<DerivationPath> {
-            index_range
-                .clone()
-                .map(make_entity_index)
-                .map(|i| DerivationPath::account_tx(network_id, i))
-                .collect::<IndexSet<_>>()
-        };
 
-    let paths_unsecurified_accounts = make_paths(HDPathComponent::unsecurified);
-    let paths_securified_accounts = make_paths(HDPathComponent::securified);
-    let mut all_paths = IndexSet::<DerivationPath>::new();
-    all_paths.extend(paths_securified_accounts);
-    all_paths.extend(paths_unsecurified_accounts);
+    // B. Create a set of derivation paths, both for securified and unsecurified entities
+    let map_paths = {
+        let index_range = 0..RECOVERY_BATCH_SIZE_DERIVATION_ENTITY_INDEX;
+        let make_paths =
+            |make_entity_index: fn(HDPathValue) -> HDPathComponent| -> IndexSet<DerivationPath> {
+                index_range
+                    .clone()
+                    .map(make_entity_index)
+                    .map(|i| DerivationPath::account_tx(network_id, i))
+                    .collect::<IndexSet<_>>()
+            };
 
-    let mut map_paths = IndexMap::<FactorSourceIDFromHash, IndexSet<DerivationPath>>::new();
-    for factor_source in factor_sources.iter() {
-        map_paths.insert(factor_source.factor_source_id(), all_paths.clone());
-    }
+        let paths_unsecurified_accounts = make_paths(HDPathComponent::unsecurified);
+        let paths_securified_accounts = make_paths(HDPathComponent::securified);
+        let mut all_paths = IndexSet::<DerivationPath>::new();
+        all_paths.extend(paths_securified_accounts);
+        all_paths.extend(paths_unsecurified_accounts);
 
-    let keys_collector =
-        KeysCollector::new(factor_sources, map_paths, key_derivation_interactors).unwrap();
+        let mut map_paths = IndexMap::<FactorSourceIDFromHash, IndexSet<DerivationPath>>::new();
+        for factor_source in factor_sources.iter() {
+            map_paths.insert(factor_source.factor_source_id(), all_paths.clone());
+        }
+        map_paths
+    };
 
-    let factor_instances = keys_collector.collect_keys().await.all_factors();
+    let (account_addresses_per_hash, map_hash_to_factor) = {
+        // C. For each factor source we derive PublicKey's at **all paths**
+        let keys_collector =
+            KeysCollector::new(factor_sources, map_paths, key_derivation_interactors).unwrap();
 
-    let map_hash_to_factor = factor_instances
-        .into_iter()
-        .map(|f| (f.public_key_hash(), f.clone()))
-        .collect::<HashMap<PublicKeyHash, HierarchicalDeterministicFactorInstance>>();
+        let factor_instances = keys_collector.collect_keys().await.all_factors();
 
-    let account_addresses_per_hash = gateway
-        .get_account_addresses_of_by_public_key_hashes(
-            map_hash_to_factor.keys().cloned().collect::<HashSet<_>>(),
+        // D. Create PublicKeyHash'es for each PublicKey
+        let map_hash_to_factor = factor_instances
+            .into_iter()
+            .map(|f| (f.public_key_hash(), f.clone()))
+            .collect::<HashMap<PublicKeyHash, HierarchicalDeterministicFactorInstance>>();
+
+        // E. Ensure to retain which (FactorSource, DerivationPath) tuple was for each PublicKeyHash
+        // F. Query gateway for AccountAddress referencing each PublicKeyHash
+        let account_addresses_per_hash = gateway
+            .get_account_addresses_of_by_public_key_hashes(
+                map_hash_to_factor.keys().cloned().collect::<HashSet<_>>(),
+            )
+            .await?;
+        (account_addresses_per_hash, map_hash_to_factor)
+    };
+
+    // G. Query gateway with each AccountAddress to get: AccessController's ScryptoAccessRule or single `owner_key hash
+    let (
+        account_address_to_factor_instances_map,
+        unsecurified_accounts_addresses,
+        securified_accounts_addresses,
+    ) = {
+        let mut unsecurified_accounts_addresses = HashSet::<AccountAddress>::new();
+        let mut securified_accounts_addresses = HashSet::<AccountAddress>::new();
+
+        let mut account_address_to_factor_instances_map =
+            HashMap::<AccountAddress, HashSet<HierarchicalDeterministicFactorInstance>>::new();
+
+        for (hash, account_addresses) in account_addresses_per_hash.iter() {
+            if account_addresses.is_empty() {
+                unreachable!("We should never create empty sets");
+            }
+            if account_addresses.len() > 1 {
+                panic!("Violation of Axiom 1: same key is used in many accounts")
+            }
+            let account_address = account_addresses.iter().last().unwrap();
+
+            let factor_instance = map_hash_to_factor.get(hash).unwrap();
+            if let Some(existing) = account_address_to_factor_instances_map.get_mut(account_address)
+            {
+                existing.insert(factor_instance.clone());
+            } else {
+                account_address_to_factor_instances_map.insert(
+                    account_address.clone(),
+                    HashSet::just(factor_instance.clone()),
+                );
+            }
+
+            let is_securified = gateway.is_securified(account_address).await?;
+
+            if is_securified {
+                securified_accounts_addresses.insert(account_address.clone());
+            } else {
+                unsecurified_accounts_addresses.insert(account_address.clone());
+            }
+        }
+
+        (
+            account_address_to_factor_instances_map,
+            unsecurified_accounts_addresses,
+            securified_accounts_addresses,
         )
-        .await?;
+    };
 
-    let mut unsecurified_accounts_addresses = HashSet::<AccountAddress>::new();
-    let mut securified_accounts_addresses = HashSet::<AccountAddress>::new();
+    // H. "Play a match making game" between locally calculated PublicKeyHash'es and the ones downloaded from Gateway
 
-    let mut account_address_to_factor_instances_map =
-        HashMap::<AccountAddress, HashSet<HierarchicalDeterministicFactorInstance>>::new();
-
-    for (hash, account_addresses) in account_addresses_per_hash.iter() {
-        if account_addresses.is_empty() {
-            unreachable!("We should never create empty sets");
-        }
-        if account_addresses.len() > 1 {
-            panic!("Violation of Axiom 1: same key is used in many accounts")
-        }
-        let account_address = account_addresses.iter().last().unwrap();
-
-        let factor_instance = map_hash_to_factor.get(hash).unwrap();
-        if let Some(existing) = account_address_to_factor_instances_map.get_mut(account_address) {
-            existing.insert(factor_instance.clone());
-        } else {
-            account_address_to_factor_instances_map.insert(
-                account_address.clone(),
-                HashSet::just(factor_instance.clone()),
-            );
-        }
-
-        let is_securified = gateway.is_securified(account_address).await?;
-
-        if is_securified {
-            securified_accounts_addresses.insert(account_address.clone());
-        } else {
-            unsecurified_accounts_addresses.insert(account_address.clone());
-        }
-    }
-
+    // I. For each AccountAddress with single `owner_key` create an Unsecurified Account
     let unsecurified_accounts = unsecurified_accounts_addresses
         .into_iter()
         .map(|a| {
@@ -299,8 +330,10 @@ pub async fn recover_accounts(
 
     let mut securified_accounts = HashSet::new();
     let mut unrecovered_accounts = Vec::new();
+
+    // J. for each with ScryptoAccessRule try to map the `ScryptoAccessRule` into a `MatrixOfPublicKeyHashes`, then try to map that
+    // into a `MatrixOfFactorInstances` by looking up the locally derived factor instances (PublicKeys).
     for a in securified_accounts_addresses {
-        let _factor_instances = account_address_to_factor_instances_map.get(&a).unwrap();
         let on_chain_account = gateway
             .get_on_chain_account(&a)
             .await
@@ -309,6 +342,9 @@ pub async fn recover_accounts(
             .as_securified()
             .unwrap()
             .clone();
+
+        // K. [NOT IMPLEMENTED YET] For each AccountAddress which we failed to match all PublicKeyHashes, ask user if should would like to
+        // continue the search, by deriving keys using another batch of derivation paths.
 
         let mut fail = || {
             let unrecovered_account = UncoveredAccount::new(
@@ -375,6 +411,7 @@ pub async fn recover_accounts(
         assert!(securified_accounts.insert(recoverd_securified_account));
     }
 
+    // L. Return the results, which is three sets: recovered_unsecurified, recovered_securified, unrecovered
     Ok(AccountRecoveryOutcome::new(
         unsecurified_accounts,
         securified_accounts,
