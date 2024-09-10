@@ -189,16 +189,19 @@ impl AccountRecoveryOutcome {
 /// generalized to support Personas - which is easily done (adding EntityKind as input).
 ///
 /// Here follows an executive summary of the algorithm:
-/// 0a. Define `const RECOVERY_BATCH_SIZE_DERIVATION_ENTITY_INDEX = 0`
-/// 0b. Define `const BIP32_SECURIFIED_HALF = 2^30`
-/// 1. Input is (Vec<FactorSource>, NetorkID>), used to accounts - either securified or unsecurified.
-/// 2. Create `index_range = (0, RECOVERY_BATCH_SIZE_DERIVATION_ENTITY_INDEX)`
-/// 3. Create **two** HDPathComponent sets, one which maps the index to the unsecurified half of
-/// the Derivation Entity Index space and the other to the securified half (adding `BIP32_SECURIFIED_HALF` to
-/// each item in the set).
-/// 4. Merge the two sets into a single set `all_indices`.
-/// 5. Create set `all_paths` which is a set of DerivationPaths by mapping each index ind `all_indices` to
-/// a DerivationPath created with said index, NetworkID, `CAP26KeyKind::Transaction` & CAP26EntityKind::Account.
+/// A. User inputs a list of FactorSources
+/// B. Create a set of derivation paths, both for securified and unsecurified entities
+/// C. For each factor source we derive PublicKey's at **all paths**
+/// D. Create PublicKeyHash'es for each PublicKey
+/// E. Ensure to retain which (FactorSource, DerivationPath) tuple was for each PublicKeyHash
+/// F. Query gateway for AccountAddress referencing each PublicKeyHash
+/// G. Query gateway with each AccountAddress to get: AccessController's ScryptoAccessRule or single `owner_key hash
+/// H. "Play a match making game" between locally calculated PublicKeyHash'es and the ones downloaded from Gateway
+/// I. For each AccountAddress with single `owner_key` create an Unsecurified Account, for each with ScryptoAccessRule try to map the `ScryptoAccessRule` into a `MatrixOfPublicKeyHashes`, then try to map that
+/// into a `MatrixOfFactorInstances` by looking up the locally derived factor instances (PublicKeys).
+/// J. For each AccountAddress which we failed to match all PublicKeyHashes, ask user if should would like to
+/// continue the search, by deriving keys using another batch of derivation paths.
+/// K. Return the results, which is three sets: recovered_unsecurified, recovered_securified, unrecovered
 ///
 /// [doc]: https://radixdlt.atlassian.net/wiki/spaces/AT/pages/3640655873/Yet+Another+Page+about+Derivation+Indices
 pub async fn recover_accounts(
