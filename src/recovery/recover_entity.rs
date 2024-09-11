@@ -99,7 +99,7 @@ impl OnChainEntityState {
 }
 
 #[async_trait::async_trait]
-pub trait GatewayReadonly: Sync {
+pub trait GatewayReadonly: Sync + Send {
     async fn get_entity_addresses_of_by_public_key_hashes(
         &self,
         hashes: HashSet<PublicKeyHash>,
@@ -614,6 +614,10 @@ impl Gateway for TestGateway {
 
 #[cfg(test)]
 mod tests {
+    use std::future::{Future, IntoFuture};
+
+    use futures::future::BoxFuture;
+
     use super::*;
 
     #[test]
@@ -634,157 +638,172 @@ mod tests {
         assert_eq!(hashes.len(), n);
     }
 
-    #[actix_rt::test]
-    async fn recovery_of_unsecurified_accounts() {
-        let all_factors = HDFactorSource::all();
+    async fn do_test<E: IsEntity + Hash + Eq + Sync>(
+        network_id: NetworkID,
+        all_factors: IndexSet<HDFactorSource>,
+        setup: impl Fn(Arc<dyn Gateway>) -> BoxFuture<'static, IndexSet<E>>,
+        assert: impl Fn(IndexSet<E>, EntityRecoveryOutcome<E>) + 'static,
+    ) {
         let gateway = Arc::new(TestGateway::default());
 
         let interactors = Arc::new(TestDerivationInteractors::default());
 
-        let unsecurified = Account::a0();
-        gateway
-            .set_unsecurified_account(
-                unsecurified.security_state.as_unsecured().unwrap().clone(),
-                &unsecurified.entity_address(),
-            )
-            .await
-            .unwrap();
-        let recovered = recover_accounts(NetworkID::Mainnet, all_factors, interactors, gateway)
-            .await
-            .unwrap();
-        let recovered_unsecurified_accounts = recovered.recovered_unsecurified;
-        assert_eq!(recovered_unsecurified_accounts.len(), 1);
-        let recoverd = recovered_unsecurified_accounts.first().unwrap();
-        assert_eq!(recoverd.security_state(), unsecurified.security_state())
-    }
+        let entities = setup(gateway.clone()).await;
 
-    #[actix_rt::test]
-    async fn recovery_of_single_securified_account() {
-        let all_factors = HDFactorSource::all();
-        let gateway = Arc::new(TestGateway::default());
-
-        let interactors = Arc::new(TestDerivationInteractors::default());
-
-        let securified = Account::a7();
-        gateway
-            .set_securified_account(
-                securified.security_state.as_securified().unwrap().clone(),
-                &securified.entity_address(),
-            )
-            .await
-            .unwrap();
-        let recovered = recover_accounts(NetworkID::Mainnet, all_factors, interactors, gateway)
+        let recovered = recover_entity::<E>(network_id, all_factors, interactors, gateway)
             .await
             .unwrap();
 
-        let recovered_unsecurified_accounts = recovered.recovered_unsecurified;
-        assert_eq!(recovered_unsecurified_accounts.len(), 0);
-
-        let recovered_securified_accounts = recovered.recovered_securified;
-        assert_eq!(recovered_securified_accounts.len(), 1);
-
-        let recoverd = recovered_securified_accounts.first().unwrap();
-        assert_eq!(recoverd.security_state(), securified.security_state())
+        assert(entities, recovered);
     }
 
     #[actix_rt::test]
     async fn recovery_of_single_many_securified_accounts() {
         let all_factors = HDFactorSource::all();
-        let gateway = Arc::new(TestGateway::default());
 
-        let interactors = Arc::new(TestDerivationInteractors::default());
+        do_test(
+            NetworkID::Mainnet,
+            all_factors,
+            |gateway| {
+                Box::pin(async move {
+                    let securified_accounts = IndexSet::<Account>::from_iter([
+                        Account::a2(),
+                        Account::a3(),
+                        Account::a4(),
+                        Account::a5(),
+                        Account::a6(),
+                        Account::a7(),
+                    ]);
 
-        let securified_accounts = IndexSet::<Account>::from_iter([
-            Account::a2(),
-            Account::a3(),
-            Account::a4(),
-            Account::a5(),
-            Account::a6(),
-            Account::a7(),
-        ]);
+                    for account in securified_accounts.iter() {
+                        gateway
+                            .set_securified_account(
+                                account.security_state.as_securified().unwrap().clone(),
+                                &account.entity_address(),
+                            )
+                            .await
+                            .unwrap();
+                    }
 
-        for account in securified_accounts.iter() {
-            gateway
-                .set_securified_account(
-                    account.security_state.as_securified().unwrap().clone(),
-                    &account.entity_address(),
-                )
-                .await
-                .unwrap();
-        }
+                    securified_accounts
+                })
+            },
+            |known, recovered| {
+                let recovered_unsecurified_accounts = recovered.recovered_unsecurified;
+                assert_eq!(recovered_unsecurified_accounts.len(), 0);
 
-        let recovered = recover_accounts(NetworkID::Mainnet, all_factors, interactors, gateway)
-            .await
-            .unwrap();
+                let recovered_securified_accounts = recovered.recovered_securified;
+                assert_eq!(recovered_securified_accounts.len(), known.len());
 
-        let recovered_unsecurified_accounts = recovered.recovered_unsecurified;
-        assert_eq!(recovered_unsecurified_accounts.len(), 0);
+                assert_eq!(
+                    recovered_securified_accounts
+                        .iter()
+                        .map(|a| a.security_state())
+                        .collect::<IndexSet<_>>(),
+                    known
+                        .iter()
+                        .map(|a| a.security_state())
+                        .collect::<IndexSet<_>>(),
+                );
+            },
+        )
+        .await;
+    }
 
-        let recovered_securified_accounts = recovered.recovered_securified;
-        assert_eq!(
-            recovered_securified_accounts.len(),
-            securified_accounts.len()
-        );
+    #[actix_rt::test]
+    async fn recovery_of_unsecurified_accounts_only() {
+        let all_factors = HDFactorSource::all();
 
-        assert_eq!(
-            recovered_securified_accounts
-                .iter()
-                .map(|a| a.security_state())
-                .collect::<IndexSet<_>>(),
-            securified_accounts
-                .iter()
-                .map(|a| a.security_state())
-                .collect::<IndexSet<_>>(),
-        );
+        do_test(
+            NetworkID::Mainnet,
+            all_factors,
+            |gateway| {
+                Box::pin(async move {
+                    let securified_accounts =
+                        IndexSet::<Account>::from_iter([Account::a0(), Account::a1()]);
+
+                    for account in securified_accounts.iter() {
+                        gateway
+                            .set_unsecurified_account(
+                                account.security_state.as_unsecured().unwrap().clone(),
+                                &account.entity_address(),
+                            )
+                            .await
+                            .unwrap();
+                    }
+
+                    securified_accounts
+                })
+            },
+            |known, recovered| {
+                assert_eq!(recovered.recovered_securified.len(), 0);
+
+                let recovered_unsecurified_accounts = recovered.recovered_unsecurified;
+                assert_eq!(recovered_unsecurified_accounts.len(), known.len());
+
+                assert_eq!(
+                    recovered_unsecurified_accounts
+                        .iter()
+                        .map(|a| a.security_state())
+                        .collect::<IndexSet<_>>(),
+                    known
+                        .iter()
+                        .map(|a| a.security_state())
+                        .collect::<IndexSet<_>>(),
+                );
+            },
+        )
+        .await;
     }
 
     #[actix_rt::test]
     async fn recovery_of_single_many_securified_personas() {
         let all_factors = HDFactorSource::all();
-        let gateway = Arc::new(TestGateway::default());
 
-        let interactors = Arc::new(TestDerivationInteractors::default());
+        do_test(
+            NetworkID::Mainnet,
+            all_factors.clone(),
+            |gateway| {
+                Box::pin(async move {
+                    let securified_personas = IndexSet::<Persona>::from_iter([
+                        Persona::p2(),
+                        Persona::p3(),
+                        Persona::p4(),
+                        Persona::p5(),
+                        Persona::p6(),
+                        Persona::p7(),
+                    ]);
 
-        let securified_personas = IndexSet::<Persona>::from_iter([
-            Persona::p2(),
-            Persona::p3(),
-            Persona::p4(),
-            Persona::p5(),
-            Persona::p6(),
-            Persona::p7(),
-        ]);
+                    for persona in securified_personas.iter() {
+                        gateway
+                            .set_securified_persona(
+                                persona.security_state.as_securified().unwrap().clone(),
+                                &persona.entity_address(),
+                            )
+                            .await
+                            .unwrap();
+                    }
+                    securified_personas
+                })
+            },
+            |known: IndexSet<Persona>, recovered| {
+                assert_eq!(recovered.recovered_unsecurified.len(), 0);
 
-        for persona in securified_personas.iter() {
-            gateway
-                .set_securified_persona(
-                    persona.security_state.as_securified().unwrap().clone(),
-                    &persona.entity_address(),
-                )
-                .await
-                .unwrap();
-        }
+                let recovered_securified_personas = recovered.recovered_securified;
+                assert_eq!(recovered_securified_personas.len(), known.len());
 
-        let recovered = recover_personas(NetworkID::Mainnet, all_factors, interactors, gateway)
-            .await
-            .unwrap();
-
-        assert_eq!(recovered.recovered_unsecurified.len(), 0);
-
-        let recovered_securified_personas = recovered.recovered_securified;
-        assert_eq!(
-            recovered_securified_personas.len(),
-            securified_personas.len()
-        );
-
-        assert_eq!(
-            recovered_securified_personas
-                .iter()
-                .map(|a| a.security_state())
-                .collect::<IndexSet<_>>(),
-            securified_personas
-                .iter()
-                .map(|a| a.security_state())
-                .collect::<IndexSet<_>>(),
-        );
+                assert_eq!(
+                    recovered_securified_personas
+                        .iter()
+                        .map(|a| a.security_state())
+                        .collect::<IndexSet<_>>(),
+                    known
+                        .iter()
+                        .map(|a| a.security_state())
+                        .collect::<IndexSet<_>>(),
+                );
+            },
+        )
+        .await;
     }
 }
