@@ -3,11 +3,12 @@ use std::{hash::Hash, ops::Add, sync::RwLock};
 use crate::prelude::*;
 
 impl Profile {
-    fn new_entity<E: IsEntity>(
+    async fn new_entity<E: IsEntity>(
         &mut self,
         network_id: NetworkID,
         name: impl AsRef<str>,
         factor_source_id: FactorSourceIDFromHash,
+        gateway: Arc<dyn Gateway>,
     ) -> E {
         assert!(self
             .factor_sources
@@ -19,8 +20,9 @@ impl Profile {
         let key_kind = CAP26KeyKind::T9n;
         let key_space = KeySpace::Unsecurified;
 
-        let index_assigner = NextFreeIndexAssigner::default();
-        let index =
+        let index_assigner = NextFreeIndexAssigner::live();
+
+        let base =
             index_assigner.derivation_index_for_factor_source(NextFreeIndexAssignerRequest {
                 network_id,
                 factor_source_id,
@@ -29,13 +31,30 @@ impl Profile {
                 profile: self,
             });
 
-        let derivation_path = DerivationPath::new(network_id, entity_kind, key_kind, index);
-        let fi = HierarchicalDeterministicFactorInstance::new(
-            HierarchicalDeterministicPublicKey::mocked_with(derivation_path, &factor_source_id),
-            factor_source_id,
-        );
+        let mut genesis_factor: Option<HierarchicalDeterministicFactorInstance> = None;
+        for index in base..(base.add_n(50)) {
+            let derivation_path = DerivationPath::new(network_id, entity_kind, key_kind, index);
+            let factor = HierarchicalDeterministicFactorInstance::new(
+                HierarchicalDeterministicPublicKey::mocked_with(derivation_path, &factor_source_id),
+                factor_source_id,
+            );
 
-        let entity = E::new(name, EntitySecurityState::Unsecured(fi));
+            let public_key_hash = factor.public_key_hash();
+
+            let is_index_taken = gateway.is_key_hash_known(public_key_hash).await.unwrap();
+
+            if is_index_taken {
+                continue;
+            } else {
+                genesis_factor = Some(factor);
+                break;
+            }
+        }
+
+        let entity = E::new(
+            name,
+            EntitySecurityState::Unsecured(genesis_factor.unwrap()),
+        );
 
         let erased = Into::<AccountOrPersona>::into(entity.clone());
 
@@ -51,13 +70,15 @@ impl Profile {
         entity
     }
 
-    pub fn new_account(
+    pub async fn new_account(
         &mut self,
         network_id: NetworkID,
         name: impl AsRef<str>,
         factor_source_id: FactorSourceIDFromHash,
+        gateway: Arc<dyn Gateway>,
     ) -> Account {
-        self.new_entity(network_id, name, factor_source_id)
+        self.new_entity(network_id, name, factor_source_id, gateway)
+            .await
     }
 }
 
@@ -159,6 +180,8 @@ impl OnChainEntityState {
 
 #[async_trait::async_trait]
 pub trait GatewayReadonly: Sync + Send {
+    async fn is_key_hash_known(&self, hash: PublicKeyHash) -> Result<bool>;
+
     async fn get_entity_addresses_of_by_public_key_hashes(
         &self,
         hashes: HashSet<PublicKeyHash>,
@@ -570,6 +593,14 @@ impl Default for TestGateway {
 #[cfg(test)]
 #[async_trait::async_trait]
 impl GatewayReadonly for TestGateway {
+    async fn is_key_hash_known(&self, hash: PublicKeyHash) -> Result<bool> {
+        Ok(self
+            .entities
+            .try_read()
+            .unwrap()
+            .values()
+            .any(|x| x.owner_keys().contains(&hash)))
+    }
     async fn get_entity_addresses_of_by_public_key_hashes(
         &self,
         hashes: HashSet<PublicKeyHash>,
@@ -881,17 +912,18 @@ mod tests {
             NetworkID::Mainnet,
             all_factors.clone(),
             |gateway| {
-                Box::pin(async {
+                Box::pin(async move {
                     let mut profile = Profile::new(all_factors.clone(), [], []);
 
-                    let alice = profile
-                        .new_account(NetworkID::Mainnet, "alice", fs_id_at(0))
+                    let alice_address = profile
+                        .new_account(NetworkID::Mainnet, "alice", fs_id_at(0), gateway.clone())
+                        .await
                         .entity_address();
 
                     let interactors = Arc::new(TestDerivationInteractors::default());
 
                     securify(
-                        alice,
+                        alice_address.clone(),
                         MatrixOfFactorSources::override_only([fs_at(1)]),
                         &mut profile,
                         interactors.clone(),
@@ -900,32 +932,48 @@ mod tests {
                     .await
                     .unwrap();
 
-                    let bob = profile
-                        .new_account(NetworkID::Mainnet, "alice", fs_id_at(1))
+                    let bob_address = profile
+                        .new_account(NetworkID::Mainnet, "bob", fs_id_at(1), gateway.clone())
+                        .await
                         .entity_address();
 
                     securify(
-                        bob,
+                        bob_address.clone(),
                         MatrixOfFactorSources::override_only([fs_at(0)]),
                         &mut profile,
                         interactors,
-                        gateway,
+                        gateway.clone(),
                     )
                     .await
                     .unwrap();
 
-                    let charlie = profile
-                        .new_account(NetworkID::Mainnet, "charlie", fs_id_at(1))
+                    let charlie_address = profile
+                        .new_account(NetworkID::Mainnet, "charlie", fs_id_at(1), gateway.clone())
+                        .await
                         .entity_address();
 
-                    let accounts: IndexSet<Account> = profile
-                        .accounts
-                        .values()
-                        .cloned()
-                        .into_iter()
-                        .collect::<IndexSet<_>>();
+                    let accounts: IndexSet<Account> = profile.get_accounts();
 
                     assert_eq!(accounts.len(), 3);
+
+                    let alice = profile.account_by_address(alice_address).unwrap();
+                    let bob = profile.account_by_address(bob_address).unwrap();
+                    let charlie = profile.account_by_address(charlie_address).unwrap();
+
+                    assert!(alice.is_securified());
+                    assert!(bob.is_securified());
+                    assert!(!charlie.is_securified());
+
+                    assert_eq!(
+                        charlie
+                            .security_state
+                            .into_unsecured()
+                            .unwrap()
+                            .derivation_path()
+                            .index
+                            .index(),
+                        1 // second time that factor source was used.
+                    );
 
                     accounts
                 })

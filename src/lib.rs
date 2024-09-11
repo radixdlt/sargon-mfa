@@ -3,6 +3,7 @@
 #![feature(iter_repeat_n)]
 #![feature(async_closure)]
 #![allow(unused_imports)]
+#![feature(step_trait)]
 
 mod derivation;
 mod recovery;

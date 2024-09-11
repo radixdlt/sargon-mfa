@@ -31,7 +31,7 @@ mod key_derivation_tests {
         let factor_source = fs_at(0);
         let paths = [0, 1, 2]
             .into_iter()
-            .map(|i| DerivationPath::at(Mainnet, Account, T9n, i))
+            .map(|i| DerivationPath::unsecurified(Mainnet, Account, T9n, i))
             .collect::<IndexSet<_>>();
         let collector = KeysCollector::new(
             HDFactorSource::all(),
@@ -53,7 +53,7 @@ mod key_derivation_tests {
             let factor_source = fs_at(0);
             let paths = [0, 1, 2]
                 .into_iter()
-                .map(|i| DerivationPath::at(Mainnet, Account, T9n, i))
+                .map(|i| DerivationPath::unsecurified(Mainnet, Account, T9n, i))
                 .collect::<IndexSet<_>>();
             let collector =
                 KeysCollector::new_test([(factor_source.factor_source_id(), paths.clone())]);
@@ -112,7 +112,7 @@ mod key_derivation_tests {
         async fn multi_keys_multi_factor_sources_multi_paths() {
             let paths = [0, 1, 2]
                 .into_iter()
-                .map(|i| DerivationPath::at(Mainnet, Account, T9n, i))
+                .map(|i| DerivationPath::unsecurified(Mainnet, Account, T9n, i))
                 .collect::<IndexSet<_>>();
 
             let factor_sources = HDFactorSource::all();
@@ -154,49 +154,49 @@ mod key_derivation_tests {
             paths.extend(
                 [0, 1, 2]
                     .into_iter()
-                    .map(|i| DerivationPath::at(Mainnet, Account, T9n, i)),
+                    .map(|i| DerivationPath::unsecurified(Mainnet, Account, T9n, i)),
             );
 
             paths.extend(
                 [0, 1, 2]
                     .into_iter()
-                    .map(|i| DerivationPath::at(Stokenet, Account, T9n, i)),
+                    .map(|i| DerivationPath::unsecurified(Stokenet, Account, T9n, i)),
             );
 
             paths.extend(
                 [0, 1, 2]
                     .into_iter()
-                    .map(|i| DerivationPath::at(Mainnet, Identity, T9n, i)),
+                    .map(|i| DerivationPath::unsecurified(Mainnet, Identity, T9n, i)),
             );
 
             paths.extend(
                 [0, 1, 2]
                     .into_iter()
-                    .map(|i| DerivationPath::at(Stokenet, Identity, T9n, i)),
+                    .map(|i| DerivationPath::unsecurified(Stokenet, Identity, T9n, i)),
             );
 
             paths.extend(
                 [0, 1, 2]
                     .into_iter()
-                    .map(|i| DerivationPath::at(Mainnet, Account, Rola, i)),
+                    .map(|i| DerivationPath::unsecurified(Mainnet, Account, Rola, i)),
             );
 
             paths.extend(
                 [0, 1, 2]
                     .into_iter()
-                    .map(|i| DerivationPath::at(Stokenet, Account, Rola, i)),
+                    .map(|i| DerivationPath::unsecurified(Stokenet, Account, Rola, i)),
             );
 
             paths.extend(
                 [0, 1, 2]
                     .into_iter()
-                    .map(|i| DerivationPath::at(Mainnet, Identity, Rola, i)),
+                    .map(|i| DerivationPath::unsecurified(Mainnet, Identity, Rola, i)),
             );
 
             paths.extend(
                 [0, 1, 2]
                     .into_iter()
-                    .map(|i| DerivationPath::at(Stokenet, Identity, Rola, i)),
+                    .map(|i| DerivationPath::unsecurified(Stokenet, Identity, Rola, i)),
             );
 
             paths.extend(
@@ -209,7 +209,7 @@ mod key_derivation_tests {
                     BIP32_SECURIFIED_HALF + 2,
                 ]
                 .into_iter()
-                .map(|i| DerivationPath::at(Mainnet, Account, T9n, i)),
+                .map(|i| DerivationPath::unsecurified(Mainnet, Account, T9n, i)),
             );
 
             paths.extend(
@@ -222,7 +222,7 @@ mod key_derivation_tests {
                     BIP32_SECURIFIED_HALF + 2,
                 ]
                 .into_iter()
-                .map(|i| DerivationPath::at(Stokenet, Account, T9n, i)),
+                .map(|i| DerivationPath::unsecurified(Stokenet, Account, T9n, i)),
             );
 
             paths.extend(
@@ -235,7 +235,7 @@ mod key_derivation_tests {
                     BIP32_SECURIFIED_HALF + 2,
                 ]
                 .into_iter()
-                .map(|i| DerivationPath::at(Mainnet, Identity, T9n, i)),
+                .map(|i| DerivationPath::unsecurified(Mainnet, Identity, T9n, i)),
             );
 
             paths.extend(
@@ -248,7 +248,7 @@ mod key_derivation_tests {
                     BIP32_SECURIFIED_HALF + 2,
                 ]
                 .into_iter()
-                .map(|i| DerivationPath::at(Stokenet, Identity, T9n, i)),
+                .map(|i| DerivationPath::unsecurified(Stokenet, Identity, T9n, i)),
             );
 
             paths.extend(
@@ -261,7 +261,7 @@ mod key_derivation_tests {
                     BIP32_SECURIFIED_HALF + 2,
                 ]
                 .into_iter()
-                .map(|i| DerivationPath::at(Mainnet, Account, Rola, i)),
+                .map(|i| DerivationPath::unsecurified(Mainnet, Account, Rola, i)),
             );
 
             paths.extend(
@@ -274,7 +274,7 @@ mod key_derivation_tests {
                     BIP32_SECURIFIED_HALF + 2,
                 ]
                 .into_iter()
-                .map(|i| DerivationPath::at(Stokenet, Account, Rola, i)),
+                .map(|i| DerivationPath::unsecurified(Stokenet, Account, Rola, i)),
             );
 
             paths.extend(
@@ -287,7 +287,7 @@ mod key_derivation_tests {
                     BIP32_SECURIFIED_HALF + 2,
                 ]
                 .into_iter()
-                .map(|i| DerivationPath::at(Mainnet, Identity, Rola, i)),
+                .map(|i| DerivationPath::unsecurified(Mainnet, Identity, Rola, i)),
             );
 
             paths.extend(
@@ -300,7 +300,7 @@ mod key_derivation_tests {
                     BIP32_SECURIFIED_HALF + 2,
                 ]
                 .into_iter()
-                .map(|i| DerivationPath::at(Stokenet, Identity, Rola, i)),
+                .map(|i| DerivationPath::unsecurified(Stokenet, Identity, Rola, i)),
             );
 
             let factor_sources = HDFactorSource::all();

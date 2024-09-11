@@ -1,3 +1,4 @@
+use std::iter::Step;
 use std::marker::PhantomData;
 
 use crate::prelude::*;
@@ -205,19 +206,35 @@ pub struct HDPathComponent {
 pub const BIP32_SECURIFIED_HALF: u32 = 0x4000_0000;
 pub(crate) const BIP32_HARDENED: u32 = 0x8000_0000;
 
+impl Step for HDPathComponent {
+    fn steps_between(start: &Self, end: &Self) -> Option<usize> {
+        Some((end.index() - start.index()) as usize)
+    }
+
+    fn forward_checked(start: Self, count: usize) -> Option<Self> {
+        start.add_n_checked(count as u32)
+    }
+
+    fn backward_checked(start: Self, count: usize) -> Option<Self> {
+        unreachable!("not needed, use (N..M) instead of (M..N) when M > N.")
+    }
+}
+
 impl HDPathComponent {
-    fn non_hardened(value: HDPathValue) -> Self {
+    fn hardening(value: HDPathValue) -> Self {
         assert!(
             value < BIP32_HARDENED,
             "Passed value was hardened, expected it to not be."
         );
-        Self { value }
+        Self {
+            value: value + BIP32_HARDENED,
+        }
     }
     pub fn unsecurified(value: HDPathValue) -> Self {
-        Self::non_hardened(value)
+        Self::hardening(value)
     }
     pub fn securified(value: HDPathValue) -> Self {
-        Self::non_hardened(value + BIP32_SECURIFIED_HALF)
+        Self::hardening(value + BIP32_SECURIFIED_HALF)
     }
     pub fn to_bytes(&self) -> Vec<u8> {
         self.value.to_be_bytes().to_vec()
@@ -229,19 +246,33 @@ impl HDPathComponent {
 
     /// # Panics
     /// Panics if self would overflow within its keyspace.
-    pub fn add_one(&self) -> Self {
+    pub fn add_n_checked(&self, n: HDPathValue) -> Option<Self> {
+        use std::panic;
+        panic::catch_unwind(|| self.add_n(n)).ok()
+    }
+
+    /// # Panics
+    /// Panics if self would overflow within its keyspace.
+    pub fn add_n(&self, n: HDPathValue) -> Self {
         let index = self.index();
         if self.is_securified() {
             assert!(
-                index < BIP32_HARDENED - 1,
-                "Index would overflow beyond BIP32_HARDENED if incremented.",
+                index < BIP32_HARDENED - n,
+                "Index would overflow beyond BIP32_HARDENED if incremented with {:?}.",
+                n,
             )
         } else {
-            assert!(index < BIP32_SECURIFIED_HALF - 1, "Index would overflow beyond BIP32_SECURIFIED_HALF if incremented, which is not allowed for unsecurified indexes.")
+            assert!(index < BIP32_SECURIFIED_HALF - n, "Index would overflow beyond BIP32_SECURIFIED_HALF if incremented with {:?}, which is not allowed for unsecurified indexes.", n)
         }
         Self {
-            value: self.value + 1,
+            value: self.value + n,
         }
+    }
+
+    /// # Panics
+    /// Panics if self would overflow within its keyspace.
+    pub fn add_one(&self) -> Self {
+        self.add_n(1)
     }
 
     #[allow(unused)]
@@ -270,10 +301,10 @@ impl HDPathComponent {
 }
 impl HasSampleValues for HDPathComponent {
     fn sample() -> Self {
-        Self::non_hardened(0)
+        Self::unsecurified(0)
     }
     fn sample_other() -> Self {
-        Self::non_hardened(1)
+        Self::securified(1)
     }
 }
 
@@ -412,7 +443,7 @@ impl DerivationPath {
             index,
         }
     }
-    pub fn at(
+    pub fn unsecurified(
         network_id: NetworkID,
         entity_kind: CAP26EntityKind,
         key_kind: CAP26KeyKind,
@@ -422,7 +453,7 @@ impl DerivationPath {
             network_id,
             entity_kind,
             key_kind,
-            HDPathComponent::non_hardened(index),
+            HDPathComponent::unsecurified(index),
         )
     }
     pub fn account_tx(network_id: NetworkID, index: HDPathComponent) -> Self {
@@ -857,7 +888,7 @@ pub trait IsEntity: Into<AccountOrPersona> + Clone {
             name,
             EntitySecurityState::Unsecured(HierarchicalDeterministicFactorInstance::mainnet_tx(
                 Self::kind(),
-                HDPathComponent::non_hardened(index),
+                HDPathComponent::unsecurified(index),
                 factor_source_id,
             )),
         )
@@ -1063,7 +1094,7 @@ impl<T: Clone + Into<AddressOfAccountOrPersona> + EntityKindSpecifier + From<Str
             name,
             EntitySecurityState::Unsecured(HierarchicalDeterministicFactorInstance::mainnet_tx(
                 Self::entity_kind(),
-                HDPathComponent::non_hardened(index),
+                HDPathComponent::unsecurified(index),
                 factor_source_id,
             )),
         )
@@ -1311,6 +1342,9 @@ pub struct Profile {
 }
 
 impl Profile {
+    pub fn get_accounts(&self) -> IndexSet<Account> {
+        self.accounts.values().cloned().collect()
+    }
     pub fn new<'a, 'p>(
         factor_sources: impl IntoIterator<Item = HDFactorSource>,
         accounts: impl IntoIterator<Item = &'a Account>,
