@@ -5,54 +5,105 @@ use crate::prelude::*;
 use rand::Rng;
 use sha2::{Digest, Sha256, Sha512};
 
-/// This index assigner ASSUMES CEI strategy 1 of
-/// https://radixdlt.atlassian.net/wiki/spaces/AT/pages/3640655873/Yet+Another+Page+about+Derivation+Indices
-///
-/// Meaning Canonical Entity Indexing - CEI, using "next" index for accounts, using counters per network.
-///
-/// CEI means the SAME derivation path is used for ALL FactorInstances of a security entity.
-pub struct CanonicalEntityIndexingNextFreeIndexAssigner {
-    next: Box<dyn Fn(&Profile, NetworkID) -> HDPathComponent>,
+#[derive(Clone, Copy, PartialEq)]
+pub struct NextFreeIndexAssignerRequest<'p> {
+    pub key_space: KeySpace,
+    pub entity_kind: CAP26EntityKind,
+    pub factor_source_id: FactorSourceIDFromHash,
+    pub profile: &'p Profile,
+    pub network_id: NetworkID,
+}
+
+pub struct NextFreeIndexAssigner {
+    next: Box<dyn Fn(NextFreeIndexAssignerRequest) -> HDPathComponent>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum KeySpace {
+    Unsecurified,
+    Securified,
 }
 
 impl HierarchicalDeterministicFactorInstance {
     fn entity_index(&self) -> HDPathComponent {
         self.derivation_path().index
     }
-    fn network_id(&self) -> NetworkID {
-        self.derivation_path().network_id
+}
+
+impl Profile {
+    fn security_states_for_entities_of_kind(
+        &self,
+        key_space: KeySpace,
+        kind: CAP26EntityKind,
+        network_id: NetworkID,
+    ) -> IndexSet<EntitySecurityState> {
+        let entities: Vec<AccountOrPersona> = match kind {
+            CAP26EntityKind::Account => self
+                .accounts
+                .values()
+                .cloned()
+                .map(AccountOrPersona::from)
+                .collect(),
+            CAP26EntityKind::Identity => self
+                .personas
+                .values()
+                .cloned()
+                .map(AccountOrPersona::from)
+                .collect(),
+        };
+        entities
+            .into_iter()
+            .filter(|e| e.network_id() == network_id)
+            .map(|e| e.security_state())
+            .filter_map(|s| match (&s, key_space) {
+                (EntitySecurityState::Unsecured(_), KeySpace::Unsecurified) => Some(s),
+                (EntitySecurityState::Securified(_), KeySpace::Securified) => Some(s),
+                _ => None,
+            })
+            .collect::<IndexSet<_>>()
     }
 }
 
-fn canonical_entity_index_if_securified<E: IsEntity>(
-    entity: &E,
-    asserting_network: NetworkID,
-) -> Option<HDPathComponent> {
-    if !entity.is_securified() {
-        return None;
+impl EntitySecurityState {
+    fn factors_from_source(
+        &self,
+        id: FactorSourceIDFromHash,
+    ) -> IndexSet<HierarchicalDeterministicFactorInstance> {
+        self.all_factor_instances()
+            .into_iter()
+            .filter(|f| f.factor_source_id() == id)
+            .collect()
     }
-    let factors = entity.all_factor_instances();
-    assert!(!factors.is_empty());
-    assert!(factors.iter().all(|f| f.network_id() == asserting_network));
-    let canonical = factors.iter().last().unwrap().entity_index();
-    assert!(factors.iter().all(|f| f.entity_index() == canonical));
-    Some(canonical)
 }
 
-impl CanonicalEntityIndexingNextFreeIndexAssigner {
-    fn new(next: impl Fn(&Profile, NetworkID) -> HDPathComponent + 'static) -> Self {
+impl NextFreeIndexAssigner {
+    fn new(next: impl Fn(NextFreeIndexAssignerRequest) -> HDPathComponent + 'static) -> Self {
         Self {
             next: Box::new(next),
         }
     }
     pub fn live() -> Self {
-        Self::new(|profile, network| {
+        Self::new(|request| {
+            let NextFreeIndexAssignerRequest {
+                key_space,
+                entity_kind,
+                factor_source_id,
+                profile,
+                network_id,
+                ..
+            } = request;
+
             profile
-                .accounts
-                .values()
-                .filter(|a| a.network_id() == network)
-                .filter(|a| a.is_securified())
-                .map(|a| canonical_entity_index_if_securified(a, network).unwrap())
+                .security_states_for_entities_of_kind(key_space, entity_kind, network_id)
+                .into_iter()
+                .filter_map(|s| {
+                    let instances = s.factors_from_source(factor_source_id);
+                    if instances.is_empty() {
+                        None
+                    } else {
+                        instances.into_iter().map(|x| x.entity_index()).max()
+                    }
+                })
                 .max()
                 .map(|max| max.add_one())
                 .unwrap_or(HDPathComponent::securified(0))
@@ -61,24 +112,27 @@ impl CanonicalEntityIndexingNextFreeIndexAssigner {
 
     #[cfg(test)]
     pub fn test(hardcoded: HDPathValue) -> Self {
-        Self::new(move |_, _| HDPathComponent::securified(hardcoded))
+        Self::new(move |_| HDPathComponent::securified(hardcoded))
     }
 
-    fn next_path_component(&self, profile: &Profile, network_id: NetworkID) -> HDPathComponent {
-        let component = (self.next)(profile, network_id);
+    fn next_path_component(&self, request: NextFreeIndexAssignerRequest<'_>) -> HDPathComponent {
+        let component = (self.next)(request);
         assert!(component.is_securified());
         component
     }
 }
-impl Default for CanonicalEntityIndexingNextFreeIndexAssigner {
+impl Default for NextFreeIndexAssigner {
     fn default() -> Self {
         Self::live()
     }
 }
 
-impl DerivationIndexWhenSecurifiedAssigner for CanonicalEntityIndexingNextFreeIndexAssigner {
-    fn assign_derivation_index(&self, profile: &Profile, network_id: NetworkID) -> HDPathComponent {
-        self.next_path_component(profile, network_id)
+impl DerivationIndexWhenSecurifiedAssigner for NextFreeIndexAssigner {
+    fn derivation_index_for_factor_source(
+        &self,
+        request: NextFreeIndexAssignerRequest,
+    ) -> HDPathComponent {
+        self.next_path_component(request)
     }
 }
 
@@ -94,7 +148,7 @@ mod test_next_free_index_assigner {
 
     use super::*;
 
-    type Sut = CanonicalEntityIndexingNextFreeIndexAssigner;
+    type Sut = NextFreeIndexAssigner;
 
     #[test]
     fn live_first() {
@@ -102,7 +156,14 @@ mod test_next_free_index_assigner {
         let a = &Account::sample_unsecurified();
 
         let profile = &Profile::accounts([a]);
-        let index = sut.assign_derivation_index(profile, NetworkID::Mainnet);
+
+        let index = sut.derivation_index_for_factor_source(NextFreeIndexAssignerRequest {
+            key_space: KeySpace::Securified,
+            entity_kind: CAP26EntityKind::Account,
+            factor_source_id: FactorSourceIDFromHash::fs0(),
+            profile,
+            network_id: NetworkID::Mainnet,
+        });
         assert_eq!(index.securified_index(), Some(0));
     }
 
@@ -118,7 +179,13 @@ mod test_next_free_index_assigner {
         });
 
         let profile = &Profile::accounts([a, b]);
-        let index = sut.assign_derivation_index(profile, NetworkID::Mainnet);
+        let index = sut.derivation_index_for_factor_source(NextFreeIndexAssignerRequest {
+            key_space: KeySpace::Securified,
+            entity_kind: CAP26EntityKind::Account,
+            factor_source_id: FactorSourceIDFromHash::fs0(),
+            profile,
+            network_id: NetworkID::Mainnet,
+        });
         assert_eq!(index.securified_index(), Some(1));
     }
 }

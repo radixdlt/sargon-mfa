@@ -1,12 +1,15 @@
 use crate::prelude::*;
 
 impl KeysCollector {
-    pub fn securifying(
-        matrix: MatrixOfFactorSources,
-        derivation_path: DerivationPath,
+    pub fn securifying<E: IsEntity>(
+        entity: &E,
         profile: &Profile,
+        matrix: MatrixOfFactorSources,
+        index_assigner: impl DerivationIndexWhenSecurifiedAssigner,
         interactors: Arc<dyn KeysDerivationInteractors>,
     ) -> Result<Self> {
+        let network_id = entity.network_id();
+        let entity_kind = E::kind();
         KeysCollector::new(
             profile.factor_sources.clone(),
             matrix
@@ -16,7 +19,20 @@ impl KeysCollector {
                 .map(|f| {
                     (
                         f.factor_source_id(),
-                        IndexSet::just(derivation_path.clone()),
+                        IndexSet::just(DerivationPath::new(
+                            network_id,
+                            entity_kind,
+                            CAP26KeyKind::T9n,
+                            index_assigner.derivation_index_for_factor_source(
+                                NextFreeIndexAssignerRequest {
+                                    key_space: KeySpace::Securified,
+                                    entity_kind: CAP26EntityKind::Account,
+                                    factor_source_id: FactorSourceIDFromHash::fs0(),
+                                    profile,
+                                    network_id: NetworkID::Mainnet,
+                                },
+                            ),
+                        )),
                     )
                 })
                 .collect::<IndexMap<FactorSourceIDFromHash, IndexSet<DerivationPath>>>(),
@@ -34,15 +50,12 @@ async fn securify_using(
     gateway: Arc<dyn Gateway>,
 ) -> Result<SecurifiedEntityControl> {
     let account = profile.account_by_address(address.clone())?;
-    let network_id = account.network_id();
-
-    let derivation_index = derivation_index_assigner.assign_derivation_index(profile, network_id);
-    let derivation_path = DerivationPath::account_tx(NetworkID::Mainnet, derivation_index);
 
     let keys_collector = KeysCollector::securifying(
-        matrix.clone(),
-        derivation_path,
+        &account,
         profile,
+        matrix.clone(),
+        derivation_index_assigner,
         derivation_interactors,
     )?;
 
@@ -53,7 +66,7 @@ async fn securify_using(
         matrix,
     )?;
 
-    let component_metadata = ComponentMetadata::new(matrix.clone(), derivation_index);
+    let component_metadata = ComponentMetadata::new(matrix.clone());
 
     let securified_entity_control = SecurifiedEntityControl::new(
         matrix,
@@ -86,7 +99,7 @@ pub async fn securify(
         address,
         matrix,
         profile,
-        CanonicalEntityIndexingNextFreeIndexAssigner::live(),
+        NextFreeIndexAssigner::live(),
         derivation_interactors,
         gateway,
     )
@@ -121,8 +134,14 @@ mod securify_tests {
         .unwrap();
 
         assert_eq!(
-            b_sec.access_controller.metadata.derivation_index,
-            HDPathComponent::securified(0)
+            b_sec
+                .matrix
+                .all_factors()
+                .clone()
+                .into_iter()
+                .map(|f| f.derivation_path().index)
+                .collect::<HashSet<_>>(),
+            HashSet::just(HDPathComponent::securified(0))
         );
 
         let a_sec = securify(
@@ -136,8 +155,14 @@ mod securify_tests {
         .unwrap();
 
         assert_eq!(
-            a_sec.access_controller.metadata.derivation_index,
-            HDPathComponent::securified(1)
+            a_sec
+                .matrix
+                .all_factors()
+                .clone()
+                .into_iter()
+                .map(|f| f.derivation_path().index)
+                .collect::<HashSet<_>>(),
+            HashSet::just(HDPathComponent::securified(1))
         );
     }
 }

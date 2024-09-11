@@ -762,6 +762,14 @@ pub enum AccountOrPersona {
     AccountEntity(Account),
     PersonaEntity(Persona),
 }
+impl AccountOrPersona {
+    pub fn network_id(&self) -> NetworkID {
+        match self {
+            AccountOrPersona::AccountEntity(a) => a.network_id(),
+            AccountOrPersona::PersonaEntity(p) => p.network_id(),
+        }
+    }
+}
 
 pub trait IsEntity: Into<AccountOrPersona> + Clone {
     type Address: Clone
@@ -834,7 +842,7 @@ pub trait IsEntity: Into<AccountOrPersona> + Clone {
                 matrix.clone(),
                 AccessController::new(
                     AccessControllerAddress::new(name.as_ref()),
-                    ComponentMetadata::new(matrix, index),
+                    ComponentMetadata::new(matrix),
                 ),
             )),
         )
@@ -863,6 +871,7 @@ pub struct AbstractEntity<A: Clone + Into<AddressOfAccountOrPersona> + EntityKin
     pub security_state: EntitySecurityState,
 }
 pub type Account = AbstractEntity<AccountAddress>;
+
 impl IsEntity for Account {
     fn new(name: impl AsRef<str>, security_state: impl Into<EntitySecurityState>) -> Self {
         Self {
@@ -1039,7 +1048,7 @@ impl<T: Clone + Into<AddressOfAccountOrPersona> + EntityKindSpecifier + From<Str
                 matrix.clone(),
                 AccessController::new(
                     AccessControllerAddress::new(name.as_ref()),
-                    ComponentMetadata::new(matrix, index),
+                    ComponentMetadata::new(matrix),
                 ),
             )),
         )
@@ -1294,6 +1303,7 @@ impl ManifestSummary {
     }
 }
 
+#[derive(Clone, PartialEq, Eq, Debug)]
 pub struct Profile {
     pub factor_sources: IndexSet<HDFactorSource>,
     pub accounts: HashMap<AccountAddress, Account>,
@@ -1597,17 +1607,12 @@ impl TryFrom<ScryptoAccessRule> for MatrixOfKeyHashes {
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct ComponentMetadata {
     pub scrypto_access_rules: ScryptoAccessRule,
-    pub derivation_index: HDPathComponent,
 }
 
 impl ComponentMetadata {
-    pub fn new(
-        scrypto_access_rules: impl Into<ScryptoAccessRule>,
-        derivation_index: impl Into<HDPathComponent>,
-    ) -> Self {
+    pub fn new(scrypto_access_rules: impl Into<ScryptoAccessRule>) -> Self {
         Self {
             scrypto_access_rules: scrypto_access_rules.into(),
-            derivation_index: derivation_index.into(),
         }
     }
 }

@@ -25,9 +25,3 @@ impl StatelessDummyIndices {
         DerivationPath::new(network_id, entity_kind, key_kind, index)
     }
 }
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub(crate) enum KeySpace {
-    Unsecurified,
-    Securified,
-}
