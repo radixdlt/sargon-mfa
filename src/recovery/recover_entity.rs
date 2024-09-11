@@ -673,7 +673,10 @@ impl Gateway for TestGateway {
 
 #[cfg(test)]
 mod tests {
-    use std::future::{Future, IntoFuture};
+    use std::{
+        borrow::BorrowMut,
+        future::{Future, IntoFuture},
+    };
 
     use futures::future::BoxFuture;
 
@@ -697,10 +700,14 @@ mod tests {
         assert_eq!(hashes.len(), n);
     }
 
-    async fn do_test<E: IsEntity + Hash + Eq + Sync>(
+    async fn do_test<
+        E: IsEntity + Hash + Eq + Sync,
+        Fut: Future<Output = IndexSet<E>>,
+        F: FnOnce(Arc<dyn Gateway>) -> Fut,
+    >(
         network_id: NetworkID,
         all_factors: IndexSet<HDFactorSource>,
-        setup: impl FnOnce(Arc<dyn Gateway>) -> BoxFuture<'static, IndexSet<E>>,
+        setup: F,
         assert: impl FnOnce(IndexSet<E>, EntityRecoveryOutcome<E>) + 'static,
     ) {
         let gateway = Arc::new(TestGateway::default());
@@ -870,53 +877,61 @@ mod tests {
     async fn recovery_of_accounts_mixed_securified_and_non() {
         let all_factors = HDFactorSource::all();
 
-        let profile: Arc<RwLock<Profile>> =
-            Arc::new(RwLock::new(Profile::new(all_factors.clone(), [], [])));
-        let profile_clone = profile.clone();
         do_test(
             NetworkID::Mainnet,
             all_factors.clone(),
             |gateway| {
-                Box::pin(async move {
-                    profile_clone.try_write().unwrap().new_account(
-                        NetworkID::Mainnet,
-                        "alice",
-                        FactorSourceIDFromHash::fs0(),
-                    );
+                Box::pin(async {
+                    let mut profile = Profile::new(all_factors.clone(), [], []);
 
-                    //                     pub async fn securify(
-                    //     address: AccountAddress,
-                    //     matrix: MatrixOfFactorSources,
-                    //     profile: &mut Profile,
-                    //     derivation_interactors: Arc<dyn KeysDerivationInteractors>,
-                    //     gateway: Arc<dyn Gateway>,
-                    // ) -> Result<SecurifiedEntityControl> {
+                    let alice = profile
+                        .new_account(NetworkID::Mainnet, "alice", fs_id_at(0))
+                        .entity_address();
 
-                    let accounts: IndexSet<Account> = profile_clone
-                        .try_read()
-                        .unwrap()
+                    let interactors = Arc::new(TestDerivationInteractors::default());
+
+                    securify(
+                        alice,
+                        MatrixOfFactorSources::override_only([fs_at(1)]),
+                        &mut profile,
+                        interactors.clone(),
+                        gateway.clone(),
+                    )
+                    .await
+                    .unwrap();
+
+                    let bob = profile
+                        .new_account(NetworkID::Mainnet, "alice", fs_id_at(1))
+                        .entity_address();
+
+                    securify(
+                        bob,
+                        MatrixOfFactorSources::override_only([fs_at(0)]),
+                        &mut profile,
+                        interactors,
+                        gateway,
+                    )
+                    .await
+                    .unwrap();
+
+                    let charlie = profile
+                        .new_account(NetworkID::Mainnet, "charlie", fs_id_at(1))
+                        .entity_address();
+
+                    let accounts: IndexSet<Account> = profile
                         .accounts
                         .values()
                         .cloned()
                         .into_iter()
                         .collect::<IndexSet<_>>();
 
-                    assert_eq!(accounts.len(), 1);
+                    assert_eq!(accounts.len(), 3);
 
                     accounts
                 })
             },
             move |known: IndexSet<Account>, recovered| {
-                let accounts: IndexSet<Account> = profile
-                    .try_read()
-                    .unwrap()
-                    .accounts
-                    .values()
-                    .cloned()
-                    .into_iter()
-                    .collect::<IndexSet<_>>();
-
-                assert_eq!(accounts.len(), 1);
+                assert_eq!(known.len(), 3);
             },
         )
         .await;
