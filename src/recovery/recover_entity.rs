@@ -2,6 +2,65 @@ use std::{hash::Hash, ops::Add, sync::RwLock};
 
 use crate::prelude::*;
 
+impl Profile {
+    fn new_entity<E: IsEntity>(
+        &mut self,
+        network_id: NetworkID,
+        name: impl AsRef<str>,
+        factor_source_id: FactorSourceIDFromHash,
+    ) -> E {
+        assert!(self
+            .factor_sources
+            .iter()
+            .map(|f| f.factor_source_id())
+            .contains(&factor_source_id));
+
+        let entity_kind = E::kind();
+        let key_kind = CAP26KeyKind::T9n;
+        let key_space = KeySpace::Unsecurified;
+
+        let index_assigner = NextFreeIndexAssigner::default();
+        let index =
+            index_assigner.derivation_index_for_factor_source(NextFreeIndexAssignerRequest {
+                network_id,
+                factor_source_id,
+                key_space,
+                entity_kind,
+                profile: self,
+            });
+
+        let derivation_path = DerivationPath::new(network_id, entity_kind, key_kind, index);
+        let fi = HierarchicalDeterministicFactorInstance::new(
+            HierarchicalDeterministicPublicKey::mocked_with(derivation_path, &factor_source_id),
+            factor_source_id,
+        );
+
+        let entity = E::new(name, EntitySecurityState::Unsecured(fi));
+
+        let erased = Into::<AccountOrPersona>::into(entity.clone());
+
+        match erased {
+            AccountOrPersona::AccountEntity(account) => {
+                self.accounts.insert(account.entity_address(), account);
+            }
+            AccountOrPersona::PersonaEntity(persona) => {
+                self.personas.insert(persona.entity_address(), persona);
+            }
+        };
+
+        entity
+    }
+
+    pub fn new_account(
+        &mut self,
+        network_id: NetworkID,
+        name: impl AsRef<str>,
+        factor_source_id: FactorSourceIDFromHash,
+    ) -> Account {
+        self.new_entity(network_id, name, factor_source_id)
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct OnChainEntityUnsecurified {
     address: AddressOfAccountOrPersona,
@@ -641,8 +700,8 @@ mod tests {
     async fn do_test<E: IsEntity + Hash + Eq + Sync>(
         network_id: NetworkID,
         all_factors: IndexSet<HDFactorSource>,
-        setup: impl Fn(Arc<dyn Gateway>) -> BoxFuture<'static, IndexSet<E>>,
-        assert: impl Fn(IndexSet<E>, EntityRecoveryOutcome<E>) + 'static,
+        setup: impl FnOnce(Arc<dyn Gateway>) -> BoxFuture<'static, IndexSet<E>>,
+        assert: impl FnOnce(IndexSet<E>, EntityRecoveryOutcome<E>) + 'static,
     ) {
         let gateway = Arc::new(TestGateway::default());
 
@@ -802,6 +861,62 @@ mod tests {
                         .map(|a| a.security_state())
                         .collect::<IndexSet<_>>(),
                 );
+            },
+        )
+        .await;
+    }
+
+    #[actix_rt::test]
+    async fn recovery_of_accounts_mixed_securified_and_non() {
+        let all_factors = HDFactorSource::all();
+
+        let profile: Arc<RwLock<Profile>> =
+            Arc::new(RwLock::new(Profile::new(all_factors.clone(), [], [])));
+        let profile_clone = profile.clone();
+        do_test(
+            NetworkID::Mainnet,
+            all_factors.clone(),
+            |gateway| {
+                Box::pin(async move {
+                    profile_clone.try_write().unwrap().new_account(
+                        NetworkID::Mainnet,
+                        "alice",
+                        FactorSourceIDFromHash::fs0(),
+                    );
+
+                    //                     pub async fn securify(
+                    //     address: AccountAddress,
+                    //     matrix: MatrixOfFactorSources,
+                    //     profile: &mut Profile,
+                    //     derivation_interactors: Arc<dyn KeysDerivationInteractors>,
+                    //     gateway: Arc<dyn Gateway>,
+                    // ) -> Result<SecurifiedEntityControl> {
+
+                    let accounts: IndexSet<Account> = profile_clone
+                        .try_read()
+                        .unwrap()
+                        .accounts
+                        .values()
+                        .cloned()
+                        .into_iter()
+                        .collect::<IndexSet<_>>();
+
+                    assert_eq!(accounts.len(), 1);
+
+                    accounts
+                })
+            },
+            move |known: IndexSet<Account>, recovered| {
+                let accounts: IndexSet<Account> = profile
+                    .try_read()
+                    .unwrap()
+                    .accounts
+                    .values()
+                    .cloned()
+                    .into_iter()
+                    .collect::<IndexSet<_>>();
+
+                assert_eq!(accounts.len(), 1);
             },
         )
         .await;
