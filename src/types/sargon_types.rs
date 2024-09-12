@@ -427,12 +427,6 @@ impl CAP26EntityKind {
     fn discriminant(&self) -> u8 {
         core::intrinsics::discriminant_value(self)
     }
-    fn cap_26_discriminant(&self) -> HDPathValue {
-        match self {
-            Self::Account => 525,
-            Self::Identity => 618,
-        }
-    }
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, derive_more::Display, derive_more::Debug)]
@@ -701,8 +695,8 @@ impl EntitySecurityState {
 }
 
 #[derive(Clone, PartialEq, Eq, std::hash::Hash, derive_more::Display, derive_more::Debug)]
-#[display("{:?}{network_id}{:?}", self.kind(), public_key_hash)]
-#[debug("{:?}{network_id}{:?}", self.kind(), public_key_hash)]
+#[display("{}_{:?}_{:?}", self.kind(), network_id, public_key_hash)]
+#[debug("{}_{:?}_{:?}", self.kind(), network_id, public_key_hash)]
 pub struct AbstractAddress<T: EntityKindSpecifier> {
     phantom: PhantomData<T>,
     pub network_id: NetworkID,
@@ -710,10 +704,7 @@ pub struct AbstractAddress<T: EntityKindSpecifier> {
 }
 impl<T: EntityKindSpecifier> AbstractAddress<T> {
     fn kind(&self) -> String {
-        T::entity_kind()
-            .cap_26_discriminant()
-            .to_string()
-            .to_lowercase()
+        T::entity_kind().to_string().to_lowercase()[0..4].to_owned()
     }
 }
 impl<T: EntityKindSpecifier> IsEntityAddress for AbstractAddress<T> {
@@ -808,9 +799,7 @@ pub type IdentityAddress = AbstractAddress<IdentityAddressTag>;
 
 #[derive(Clone, PartialEq, Eq, std::hash::Hash, derive_more::Display)]
 pub enum AddressOfAccountOrPersona {
-    #[display("acco_{_0}")]
     Account(AccountAddress),
-    #[display("ident_{_0}")]
     Identity(IdentityAddress),
 }
 impl AddressOfAccountOrPersona {

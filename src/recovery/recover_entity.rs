@@ -607,6 +607,7 @@ impl Default for TestGateway {
 
 #[cfg(test)]
 impl TestGateway {
+    #[allow(unused)]
     pub fn debug_print(&self) {
         println!(
             "⛩️ known_hashes: {:?}",
@@ -687,7 +688,6 @@ impl Gateway for TestGateway {
             );
             self.known_hashes.try_write().unwrap().insert(owner_key);
         }
-        self.debug_print();
         Ok(())
     }
 
@@ -722,8 +722,6 @@ impl Gateway for TestGateway {
                 owner_keys,
             ),
         );
-
-        self.debug_print();
 
         Ok(())
     }
@@ -948,7 +946,11 @@ mod tests {
 
                     securify(
                         alice_address.clone(),
-                        MatrixOfFactorSources::override_only([fs_at(1)]),
+                        MatrixOfFactorSources::new(
+                            [fs_at(0), fs_at(1), fs_at(2), fs_at(3)],
+                            3,
+                            [fs_at(6)],
+                        ),
                         &mut profile,
                         interactors.clone(),
                         gateway.clone(),
@@ -963,7 +965,7 @@ mod tests {
 
                     securify(
                         bob_address.clone(),
-                        MatrixOfFactorSources::override_only([fs_at(0)]),
+                        MatrixOfFactorSources::new([fs_at(1), fs_at(3)], 2, [fs_at(7)]),
                         &mut profile,
                         interactors,
                         gateway.clone(),
