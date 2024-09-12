@@ -10,10 +10,6 @@ impl Profile {
         factor_source_id: FactorSourceIDFromHash,
         gateway: Arc<dyn Gateway>,
     ) -> E {
-        println!(
-            "🎭 profile entities BEFORE new: '{:?}'",
-            self.get_entities::<E>()
-        );
         assert!(self
             .factor_sources
             .iter()
@@ -65,10 +61,6 @@ impl Profile {
                 continue;
             } else {
                 let address = E::Address::new(network_id, public_key_hash);
-                println!(
-                    "🌈 Creating entity with address: '{:?}' with factor {:?},",
-                    address, factor
-                );
                 genesis_factor_and_address = Some((factor, address));
                 break;
             }
@@ -92,11 +84,6 @@ impl Profile {
                 self.personas.insert(persona.entity_address(), persona);
             }
         };
-
-        println!(
-            "🎭 profile entities AFTER new: '{:?}'",
-            self.get_entities::<E>()
-        );
 
         entity
     }
@@ -247,11 +234,7 @@ pub trait GatewayReadonly: Sync + Send {
 
 #[async_trait::async_trait]
 pub trait Gateway: GatewayReadonly {
-    async fn set_unsecurified_entity(
-        &self,
-        unsecurified: HierarchicalDeterministicFactorInstance,
-        owner: AddressOfAccountOrPersona,
-    ) -> Result<()>;
+    async fn simulate_network_activity_for(&self, owner: AddressOfAccountOrPersona) -> Result<()>;
 
     async fn set_securified_entity(
         &self,
@@ -259,14 +242,6 @@ pub trait Gateway: GatewayReadonly {
         owner: AddressOfAccountOrPersona,
     ) -> Result<()>;
 
-    async fn set_unsecurified_account(
-        &self,
-        unsecurified: HierarchicalDeterministicFactorInstance,
-        owner: &AccountAddress,
-    ) -> Result<()> {
-        self.set_unsecurified_entity(unsecurified, owner.clone().into())
-            .await
-    }
     async fn set_securified_account(
         &self,
         securified: SecurifiedEntityControl,
@@ -316,7 +291,7 @@ where
 {
     pub recovered_unsecurified: IndexSet<E>,
     pub recovered_securified: IndexSet<E>,
-    pub unrecovered: Vec<UncoveredEntity>, // want set
+    pub unrecovered: Vec<UncoveredEntity>, // want `IndexSet` but is not `Hash`
 }
 impl<E: IsEntity + Hash + Eq> EntityRecoveryOutcome<E> {
     pub fn new(
@@ -646,7 +621,6 @@ impl TestGateway {
 impl GatewayReadonly for TestGateway {
     async fn is_key_hash_known(&self, hash: PublicKeyHash) -> Result<bool> {
         let is_known = self.known_hashes.try_read().unwrap().contains(&hash);
-        println!("🌈 Is hash: '{:?}' known? '{:?}'", hash, is_known);
         Ok(is_known)
     }
     async fn get_entity_addresses_of_by_public_key_hashes(
@@ -699,14 +673,10 @@ impl TestGateway {
 #[cfg(test)]
 #[async_trait::async_trait]
 impl Gateway for TestGateway {
-    async fn set_unsecurified_entity(
-        &self,
-        unsecurified: HierarchicalDeterministicFactorInstance,
-        owner: AddressOfAccountOrPersona,
-    ) -> Result<()> {
+    async fn simulate_network_activity_for(&self, owner: AddressOfAccountOrPersona) -> Result<()> {
         self.assert_not_securified(&owner).await?;
 
-        let owner_key = unsecurified.public_key_hash();
+        let owner_key = owner.public_key_hash();
 
         if self.contains(&owner) || self.known_hashes.try_read().unwrap().contains(&owner_key) {
             panic!("update not supported")
@@ -878,10 +848,7 @@ mod tests {
 
                     for account in securified_accounts.iter() {
                         gateway
-                            .set_unsecurified_account(
-                                account.security_state.as_unsecured().unwrap().clone(),
-                                &account.entity_address(),
-                            )
+                            .simulate_network_activity_for(account.address())
                             .await
                             .unwrap();
                     }
@@ -1017,6 +984,11 @@ mod tests {
                     let bob = profile.account_by_address(bob_address).unwrap();
                     let charlie = profile.account_by_address(charlie_address).unwrap();
 
+                    gateway
+                        .simulate_network_activity_for(charlie.address())
+                        .await
+                        .unwrap();
+
                     assert!(alice.is_securified());
                     assert!(bob.is_securified());
                     assert!(!charlie.is_securified());
@@ -1031,12 +1003,15 @@ mod tests {
                             .index(),
                         1 // second time that factor source was used.
                     );
-
                     accounts
                 })
             },
-            move |known: IndexSet<Account>, _recovered| {
-                assert_eq!(known.len(), 3);
+            move |known: IndexSet<Account>, recovered| {
+                assert!(recovered.unrecovered.is_empty());
+                assert_eq!(
+                    known.len(),
+                    recovered.recovered_securified.len() + recovered.recovered_unsecurified.len()
+                );
             },
         )
         .await;

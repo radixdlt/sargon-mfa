@@ -16,6 +16,7 @@
 		"substate",
 		"txid",
 		"txids",
+		"unrecovered",
 		"unsecurified",
 		"Yubikey"
 	]
