@@ -38,12 +38,15 @@ mod tests {
     #[test]
     fn account_address() {
         let account = AccountOrPersona::from(Account::sample());
-        assert_eq!(account.address().to_string(), "acco_Alice")
+        assert_eq!(account.address().to_string(), "acco_\"525\"Mainnetf5e3ce9d")
     }
 
     #[test]
     fn persona_address() {
         let persona = AccountOrPersona::from(Persona::sample());
-        assert_eq!(persona.address().to_string(), "ident_Alice")
+        assert_eq!(
+            persona.address().to_string(),
+            "ident_\"618\"Mainnetccf6b6cf"
+        )
     }
 }

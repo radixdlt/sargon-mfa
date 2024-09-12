@@ -223,7 +223,8 @@ mod integration_test_signing {
         let f3 = HDFactorSource::arculus();
         let f4 = HDFactorSource::off_device();
 
-        let alice = Account::securified_mainnet(0, "Alice", |i| {
+        let alice = Account::securified_mainnet("Alice", AccountAddress::sample(), || {
+            let i = HDPathComponent::securified(0);
             MatrixOfFactorInstances::threshold_only(
                 [
                     FI::mainnet_tx_account(i, f0.factor_source_id()), // SKIPPED
@@ -234,14 +235,16 @@ mod integration_test_signing {
             )
         });
 
-        let bob = Account::securified_mainnet(1, "Bob", |i| {
+        let bob = Account::securified_mainnet("Bob", AccountAddress::sample_2(), || {
+            let i = HDPathComponent::securified(1);
             MatrixOfFactorInstances::override_only([FI::mainnet_tx_account(
                 i,
                 f3.factor_source_id(),
             )])
         });
 
-        let carol = Account::securified_mainnet(2, "Carol", |i| {
+        let carol = Account::securified_mainnet("Carol", AccountAddress::sample_3(), || {
+            let i = HDPathComponent::securified(2);
             MatrixOfFactorInstances::new(
                 [FI::mainnet_tx_account(i, f2.factor_source_id())],
                 1,
@@ -249,7 +252,13 @@ mod integration_test_signing {
             )
         });
 
-        let satoshi = Persona::unsecurified_mainnet(1337, "Satoshi", f4.factor_source_id());
+        let satoshi = Persona::unsecurified_mainnet(
+            "Satoshi",
+            HierarchicalDeterministicFactorInstance::mainnet_tx_identity(
+                HDPathComponent::unsecurified(0),
+                f4.factor_source_id(),
+            ),
+        );
 
         let tx0 = TransactionIntent::new([alice.entity_address()], []);
         let tx1 = TransactionIntent::new(

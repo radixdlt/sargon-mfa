@@ -215,7 +215,7 @@ impl Step for HDPathComponent {
         start.add_n_checked(count as u32)
     }
 
-    fn backward_checked(start: Self, count: usize) -> Option<Self> {
+    fn backward_checked(_start: Self, _count: usize) -> Option<Self> {
         unreachable!("not needed, use (N..M) instead of (M..N) when M > N.")
     }
 }
@@ -232,6 +232,18 @@ impl HDPathComponent {
     }
     pub fn unsecurified(value: HDPathValue) -> Self {
         Self::hardening(value)
+    }
+    pub fn is_in_key_space(&self, key_space: KeySpace) -> bool {
+        match key_space {
+            KeySpace::Unsecurified => !self.is_securified(),
+            KeySpace::Securified => self.is_securified(),
+        }
+    }
+    pub fn new_in_key_space(value: HDPathValue, key_space: KeySpace) -> Self {
+        match key_space {
+            KeySpace::Unsecurified => Self::unsecurified(value),
+            KeySpace::Securified => Self::securified(value),
+        }
     }
     pub fn securified(value: HDPathValue) -> Self {
         Self::hardening(value + BIP32_SECURIFIED_HALF)
@@ -342,16 +354,14 @@ mod tests_hdpathcomp {
     }
 
     #[test]
-    #[should_panic(
-        expected = "Index would overflow beyond BIP32_SECURIFIED_HALF if incremented, which is not allowed for unsecurified indexes."
-    )]
+    #[should_panic]
     fn add_one_unsecurified_max_panics() {
         let sut = Sut::unsecurified(BIP32_SECURIFIED_HALF - 1);
         _ = sut.add_one()
     }
 
     #[test]
-    #[should_panic(expected = "Index would overflow beyond BIP32_HARDENED if incremented.")]
+    #[should_panic]
     fn add_one_securified_max_panics() {
         let sut = Sut::securified(BIP32_SECURIFIED_HALF - 1);
         _ = sut.add_one()
@@ -416,6 +426,12 @@ pub enum CAP26EntityKind {
 impl CAP26EntityKind {
     fn discriminant(&self) -> u8 {
         core::intrinsics::discriminant_value(self)
+    }
+    fn cap_26_discriminant(&self) -> HDPathValue {
+        match self {
+            Self::Account => 525,
+            Self::Identity => 618,
+        }
     }
 }
 
@@ -595,6 +611,13 @@ impl HierarchicalDeterministicFactorInstance {
         Self::mainnet_tx(CAP26EntityKind::Account, index, factor_source_id)
     }
 
+    pub fn mainnet_tx_identity(
+        index: HDPathComponent,
+        factor_source_id: FactorSourceIDFromHash,
+    ) -> Self {
+        Self::mainnet_tx(CAP26EntityKind::Identity, index, factor_source_id)
+    }
+
     pub fn to_bytes(&self) -> Vec<u8> {
         [self.public_key.to_bytes(), self.factor_source_id.to_bytes()].concat()
     }
@@ -678,35 +701,79 @@ impl EntitySecurityState {
 }
 
 #[derive(Clone, PartialEq, Eq, std::hash::Hash, derive_more::Display, derive_more::Debug)]
-#[display("{name}")]
-#[debug("{name}")]
+#[display("{:?}{network_id}{:?}", self.kind(), public_key_hash)]
+#[debug("{:?}{network_id}{:?}", self.kind(), public_key_hash)]
 pub struct AbstractAddress<T: EntityKindSpecifier> {
     phantom: PhantomData<T>,
-    pub name: String,
+    pub network_id: NetworkID,
+    pub public_key_hash: PublicKeyHash,
 }
-impl<T: EntityKindSpecifier> From<String> for AbstractAddress<T> {
-    fn from(value: String) -> Self {
-        Self::new(value)
+impl<T: EntityKindSpecifier> AbstractAddress<T> {
+    fn kind(&self) -> String {
+        T::entity_kind()
+            .cap_26_discriminant()
+            .to_string()
+            .to_lowercase()
+    }
+}
+impl<T: EntityKindSpecifier> IsEntityAddress for AbstractAddress<T> {
+    fn new(network_id: NetworkID, public_key_hash: PublicKeyHash) -> Self {
+        Self {
+            phantom: PhantomData,
+            network_id,
+            public_key_hash,
+        }
+    }
+    fn network_id(&self) -> NetworkID {
+        self.network_id
+    }
+    fn public_key_hash(&self) -> PublicKeyHash {
+        self.public_key_hash.clone()
     }
 }
 impl<T: EntityKindSpecifier> AbstractAddress<T> {
     pub fn entity_kind() -> CAP26EntityKind {
         T::entity_kind()
     }
-
-    pub fn new(name: impl AsRef<str>) -> Self {
-        Self {
-            phantom: PhantomData,
-            name: name.as_ref().to_owned(),
-        }
+}
+impl<T: EntityKindSpecifier> AbstractAddress<T> {
+    pub fn sample_0() -> Self {
+        Self::new(NetworkID::Mainnet, PublicKeyHash::sample_1())
+    }
+    pub fn sample_1() -> Self {
+        Self::new(NetworkID::Mainnet, PublicKeyHash::sample_1())
+    }
+    pub fn sample_2() -> Self {
+        Self::new(NetworkID::Mainnet, PublicKeyHash::sample_2())
+    }
+    pub fn sample_3() -> Self {
+        Self::new(NetworkID::Mainnet, PublicKeyHash::sample_3())
+    }
+    pub fn sample_4() -> Self {
+        Self::new(NetworkID::Mainnet, PublicKeyHash::sample_4())
+    }
+    pub fn sample_5() -> Self {
+        Self::new(NetworkID::Mainnet, PublicKeyHash::sample_5())
+    }
+    pub fn sample_6() -> Self {
+        Self::new(NetworkID::Mainnet, PublicKeyHash::sample_6())
+    }
+    pub fn sample_7() -> Self {
+        Self::new(NetworkID::Mainnet, PublicKeyHash::sample_7())
+    }
+    pub fn sample_8() -> Self {
+        Self::new(NetworkID::Mainnet, PublicKeyHash::sample_8())
+    }
+    pub fn sample_9() -> Self {
+        Self::new(NetworkID::Mainnet, PublicKeyHash::sample_9())
     }
 }
 impl<T: EntityKindSpecifier> HasSampleValues for AbstractAddress<T> {
     fn sample() -> Self {
-        Self::new("Alice")
+        Self::sample_0()
     }
     fn sample_other() -> Self {
-        Self::new("Bob")
+        Self::sample_1()
     }
 }
 
@@ -747,10 +814,16 @@ pub enum AddressOfAccountOrPersona {
     Identity(IdentityAddress),
 }
 impl AddressOfAccountOrPersona {
-    pub fn name(&self) -> String {
+    pub fn network_id(&self) -> NetworkID {
         match self {
-            Self::Account(a) => a.name.clone(),
-            Self::Identity(i) => i.name.clone(),
+            Self::Account(a) => a.network_id(),
+            Self::Identity(i) => i.network_id(),
+        }
+    }
+    pub fn public_key_hash(&self) -> PublicKeyHash {
+        match self {
+            Self::Account(a) => a.public_key_hash(),
+            Self::Identity(i) => i.public_key_hash(),
         }
     }
 }
@@ -802,8 +875,16 @@ impl AccountOrPersona {
     }
 }
 
-pub trait IsEntity: Into<AccountOrPersona> + Clone {
-    type Address: Clone
+pub trait IsEntityAddress {
+    fn new(network_id: NetworkID, public_key_hash: PublicKeyHash) -> Self;
+    fn network_id(&self) -> NetworkID;
+    fn public_key_hash(&self) -> PublicKeyHash;
+}
+
+pub trait IsEntity: Into<AccountOrPersona> + TryFrom<AccountOrPersona> + Clone {
+    type Address: IsEntityAddress
+        + HasSampleValues
+        + Clone
         + Into<AddressOfAccountOrPersona>
         + TryFrom<AddressOfAccountOrPersona>
         + EntityKindSpecifier
@@ -811,7 +892,48 @@ pub trait IsEntity: Into<AccountOrPersona> + Clone {
         + Eq
         + std::fmt::Debug;
 
-    fn new(name: impl AsRef<str>, security_state: impl Into<EntitySecurityState>) -> Self;
+    fn new(
+        name: impl AsRef<str>,
+        address: Self::Address,
+        security_state: impl Into<EntitySecurityState>,
+    ) -> Self;
+
+    fn unsecurified_mainnet(
+        name: impl AsRef<str>,
+        genesis_factor_instance: HierarchicalDeterministicFactorInstance,
+    ) -> Self {
+        let address = Self::Address::new(
+            NetworkID::Mainnet,
+            genesis_factor_instance.public_key_hash(),
+        );
+        Self::new(
+            name,
+            address,
+            EntitySecurityState::Unsecured(genesis_factor_instance),
+        )
+    }
+
+    fn securified_mainnet(
+        name: impl AsRef<str>,
+        address: Self::Address,
+        make_matrix: impl Fn() -> MatrixOfFactorInstances,
+    ) -> Self {
+        let matrix = make_matrix();
+        let access_controller = AccessController::new(
+            AccessControllerAddress::new(address.clone()),
+            ComponentMetadata::new(matrix.clone()),
+        );
+
+        Self::new(
+            name,
+            address,
+            EntitySecurityState::Securified(SecurifiedEntityControl::new(
+                matrix,
+                access_controller,
+            )),
+        )
+    }
+
     fn network_id(&self) -> NetworkID {
         match self.security_state() {
             EntitySecurityState::Securified(sec) => {
@@ -841,10 +963,7 @@ pub trait IsEntity: Into<AccountOrPersona> + Clone {
     }
     fn entity_address(&self) -> Self::Address;
 
-    fn name(&self) -> String {
-        self.address().name()
-    }
-
+    fn name(&self) -> String;
     fn kind() -> CAP26EntityKind {
         Self::Address::entity_kind()
     }
@@ -860,55 +979,31 @@ pub trait IsEntity: Into<AccountOrPersona> + Clone {
     fn e5() -> Self;
     fn e6() -> Self;
     fn e7() -> Self;
-
-    fn securified_mainnet(
-        index: HDPathComponent,
-        name: impl AsRef<str>,
-        make_matrix: fn(HDPathComponent) -> MatrixOfFactorInstances,
-    ) -> Self {
-        let matrix = make_matrix(index);
-        Self::new(
-            name.as_ref(),
-            EntitySecurityState::Securified(SecurifiedEntityControl::new(
-                matrix.clone(),
-                AccessController::new(
-                    AccessControllerAddress::new(name.as_ref()),
-                    ComponentMetadata::new(matrix),
-                ),
-            )),
-        )
-    }
-
-    fn unsecurified_mainnet(
-        index: u32,
-        name: impl AsRef<str>,
-        factor_source_id: FactorSourceIDFromHash,
-    ) -> Self {
-        Self::new(
-            name,
-            EntitySecurityState::Unsecured(HierarchicalDeterministicFactorInstance::mainnet_tx(
-                Self::kind(),
-                HDPathComponent::unsecurified(index),
-                factor_source_id,
-            )),
-        )
-    }
 }
 
 #[derive(Clone, PartialEq, Eq, std::hash::Hash, derive_more::Debug)]
 #[debug("{}", self.address())]
 pub struct AbstractEntity<A: Clone + Into<AddressOfAccountOrPersona> + EntityKindSpecifier> {
     address: A,
+    pub name: String,
     pub security_state: EntitySecurityState,
 }
 pub type Account = AbstractEntity<AccountAddress>;
 
 impl IsEntity for Account {
-    fn new(name: impl AsRef<str>, security_state: impl Into<EntitySecurityState>) -> Self {
+    fn new(
+        name: impl AsRef<str>,
+        address: Self::Address,
+        security_state: impl Into<EntitySecurityState>,
+    ) -> Self {
         Self {
-            address: AccountAddress::from(name.as_ref().to_owned()),
+            name: name.as_ref().to_owned(),
+            address,
             security_state: security_state.into(),
         }
+    }
+    fn name(&self) -> String {
+        self.name.clone()
     }
     type Address = AccountAddress;
     fn security_state(&self) -> EntitySecurityState {
@@ -945,15 +1040,23 @@ impl IsEntity for Account {
 
 pub type Persona = AbstractEntity<IdentityAddress>;
 impl IsEntity for Persona {
-    fn new(name: impl AsRef<str>, security_state: impl Into<EntitySecurityState>) -> Self {
+    fn new(
+        name: impl AsRef<str>,
+        address: IdentityAddress,
+        security_state: impl Into<EntitySecurityState>,
+    ) -> Self {
         Self {
-            address: IdentityAddress::from(name.as_ref().to_owned()),
+            name: name.as_ref().to_owned(),
+            address,
             security_state: security_state.into(),
         }
     }
     type Address = IdentityAddress;
     fn security_state(&self) -> EntitySecurityState {
         self.security_state.clone()
+    }
+    fn name(&self) -> String {
+        self.name.clone()
     }
     fn entity_address(&self) -> Self::Address {
         self.address.clone()
@@ -1004,6 +1107,28 @@ impl From<Account> for AccountOrPersona {
     }
 }
 
+impl TryFrom<AccountOrPersona> for Account {
+    type Error = CommonError;
+
+    fn try_from(value: AccountOrPersona) -> Result<Self> {
+        match value {
+            AccountOrPersona::AccountEntity(a) => Ok(a),
+            AccountOrPersona::PersonaEntity(_) => Err(CommonError::Failure),
+        }
+    }
+}
+
+impl TryFrom<AccountOrPersona> for Persona {
+    type Error = CommonError;
+
+    fn try_from(value: AccountOrPersona) -> Result<Self> {
+        match value {
+            AccountOrPersona::PersonaEntity(p) => Ok(p),
+            AccountOrPersona::AccountEntity(_) => Err(CommonError::Failure),
+        }
+    }
+}
+
 impl From<Persona> for AccountOrPersona {
     fn from(value: Persona) -> Self {
         Self::PersonaEntity(value)
@@ -1040,63 +1165,36 @@ impl HasSampleValues for Persona {
     }
 }
 
-impl<T: Clone + Into<AddressOfAccountOrPersona> + EntityKindSpecifier + From<String>>
-    AbstractEntity<T>
+impl<
+        T: IsEntityAddress
+            + Clone
+            + Into<AddressOfAccountOrPersona>
+            + HasSampleValues
+            + EntityKindSpecifier,
+    > AbstractEntity<T>
+where
+    Self: IsEntity,
 {
     /// mainnet
     pub(crate) fn sample_unsecurified() -> Self {
-        Self::unsecurified_mainnet(0, "Alice", FactorSourceIDFromHash::fs0())
+        <Self as IsEntity>::unsecurified_mainnet(
+            "Sample Unsec",
+            HierarchicalDeterministicFactorInstance::fi0(T::entity_kind()),
+        )
     }
 
     /// mainnet
     pub(crate) fn sample_securified() -> Self {
-        Self::securified_mainnet(6, "Grace", |idx| {
-            MatrixOfFactorInstances::m6(HierarchicalDeterministicFactorInstance::f(
-                Self::entity_kind(),
-                idx,
-            ))
-        })
-    }
-
-    fn new(name: impl AsRef<str>, security_state: impl Into<EntitySecurityState>) -> Self {
-        Self {
-            address: T::from(name.as_ref().to_owned()),
-            security_state: security_state.into(),
-        }
-    }
-
-    pub fn securified_mainnet(
-        index: u32,
-        name: impl AsRef<str>,
-        make_matrix: impl Fn(HDPathComponent) -> MatrixOfFactorInstances,
-    ) -> Self {
-        let index = HDPathComponent::securified(index);
-        assert!(index.is_securified());
-        let matrix = make_matrix(index);
-        Self::new(
-            name.as_ref(),
-            EntitySecurityState::Securified(SecurifiedEntityControl::new(
-                matrix.clone(),
-                AccessController::new(
-                    AccessControllerAddress::new(name.as_ref()),
-                    ComponentMetadata::new(matrix),
-                ),
-            )),
-        )
-    }
-
-    pub fn unsecurified_mainnet(
-        index: u32,
-        name: impl AsRef<str>,
-        factor_source_id: FactorSourceIDFromHash,
-    ) -> Self {
-        Self::new(
-            name,
-            EntitySecurityState::Unsecured(HierarchicalDeterministicFactorInstance::mainnet_tx(
-                Self::entity_kind(),
-                HDPathComponent::unsecurified(index),
-                factor_source_id,
-            )),
+        <Self as IsEntity>::securified_mainnet(
+            "Grace",
+            <AbstractEntity<T> as IsEntity>::Address::sample_other(),
+            || {
+                let idx = HDPathComponent::securified(6);
+                MatrixOfFactorInstances::m6(HierarchicalDeterministicFactorInstance::f(
+                    Self::entity_kind(),
+                    idx,
+                ))
+            },
         )
     }
 }
@@ -1342,8 +1440,26 @@ pub struct Profile {
 }
 
 impl Profile {
+    pub fn get_entities<E: IsEntity + std::hash::Hash + Eq>(&self) -> IndexSet<E> {
+        match E::kind() {
+            CAP26EntityKind::Account => self
+                .accounts
+                .values()
+                .cloned()
+                .map(AccountOrPersona::from)
+                .map(|e| E::try_from(e).ok().unwrap())
+                .collect::<IndexSet<E>>(),
+            CAP26EntityKind::Identity => self
+                .personas
+                .values()
+                .cloned()
+                .map(AccountOrPersona::from)
+                .map(|e| E::try_from(e).ok().unwrap())
+                .collect::<IndexSet<E>>(),
+        }
+    }
     pub fn get_accounts(&self) -> IndexSet<Account> {
-        self.accounts.values().cloned().collect()
+        self.get_entities()
     }
     pub fn new<'a, 'p>(
         factor_sources: impl IntoIterator<Item = HDFactorSource>,
@@ -1462,21 +1578,68 @@ pub enum CommonError {
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct AccessControllerAddress(pub String);
 impl AccessControllerAddress {
-    pub fn new(s: impl AsRef<str>) -> Self {
-        let s = s.as_ref();
-        let s = format!("{}{}", "x".repeat(10), s);
-        let split_pos = s.char_indices().nth_back(5).unwrap().0;
-        let part = &s[split_pos..];
-        Self(format!("access_controller_{}", part))
+    pub fn new<A: IsEntityAddress>(a: A) -> Self {
+        Self(format!(
+            "access_controller_{:?}_{:?}",
+            a.network_id(),
+            a.public_key_hash()
+        ))
     }
-    pub fn generate() -> Self {
-        Self::new(Uuid::new_v4().to_string())
-    }
+    // pub fn generate() -> Self {
+    //     Self::new(Uuid::new_v4().to_string())
+    // }
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, derive_more::Debug)]
 #[debug("{}", hex::encode(&self.0[28..32]))]
 pub struct PublicKeyHash([u8; 32]);
+
+impl PublicKeyHash {
+    pub fn new(bytes: [u8; 32]) -> Self {
+        Self(bytes)
+    }
+    pub fn repeat(byte: u8) -> Self {
+        Self::new([byte; 32])
+    }
+    pub fn sample_0() -> Self {
+        Self::repeat(0x50)
+    }
+    pub fn sample_1() -> Self {
+        Self::repeat(0x51)
+    }
+    pub fn sample_2() -> Self {
+        Self::repeat(0x52)
+    }
+    pub fn sample_3() -> Self {
+        Self::repeat(0x53)
+    }
+    pub fn sample_4() -> Self {
+        Self::repeat(0x54)
+    }
+    pub fn sample_5() -> Self {
+        Self::repeat(0x55)
+    }
+    pub fn sample_6() -> Self {
+        Self::repeat(0x56)
+    }
+    pub fn sample_7() -> Self {
+        Self::repeat(0x57)
+    }
+    pub fn sample_8() -> Self {
+        Self::repeat(0x58)
+    }
+    pub fn sample_9() -> Self {
+        Self::repeat(0x59)
+    }
+}
+impl HasSampleValues for PublicKeyHash {
+    fn sample() -> Self {
+        Self::sample_0()
+    }
+    fn sample_other() -> Self {
+        Self::sample_1()
+    }
+}
 
 impl PublicKey {
     pub fn hash(&self) -> PublicKeyHash {

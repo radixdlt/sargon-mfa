@@ -508,8 +508,22 @@ mod tests {
             #[actix_rt::test]
             async fn prudent_user_single_tx_two_accounts_same_factor_source() {
                 let collector = SignaturesCollector::test_prudent([TXToSign::new([
-                    Account::unsecurified_mainnet(0, "A0", FactorSourceIDFromHash::fs0()),
-                    Account::unsecurified_mainnet(1, "A1", FactorSourceIDFromHash::fs0()),
+                    Account::unsecurified_mainnet(
+                        "A0",
+                        HierarchicalDeterministicFactorInstance::mainnet_tx(
+                            CAP26EntityKind::Account,
+                            HDPathComponent::unsecurified(0),
+                            FactorSourceIDFromHash::fs0(),
+                        ),
+                    ),
+                    Account::unsecurified_mainnet(
+                        "A1",
+                        HierarchicalDeterministicFactorInstance::mainnet_tx(
+                            CAP26EntityKind::Account,
+                            HDPathComponent::unsecurified(1),
+                            FactorSourceIDFromHash::fs0(),
+                        ),
+                    ),
                 ])]);
 
                 let outcome = collector.collect_signatures().await;
@@ -765,20 +779,17 @@ mod tests {
                 E: IsEntity,
             >() {
                 let collector = SignaturesCollector::test_lazy_sign_minimum_no_failures([
-                    TXToSign::new([E::securified_mainnet(
-                        HDPathComponent::securified(0),
-                        "all override",
-                        |idx| {
-                            MatrixOfFactorInstances::override_only(
-                                HDFactorSource::all().into_iter().map(|f| {
-                                    HierarchicalDeterministicFactorInstance::mainnet_tx_account(
-                                        idx,
-                                        f.factor_source_id(),
-                                    )
-                                }),
-                            )
-                        },
-                    )]),
+                    TXToSign::new([E::securified_mainnet("Alice", E::Address::sample(), || {
+                        let idx = HDPathComponent::securified(0);
+                        MatrixOfFactorInstances::override_only(
+                            HDFactorSource::all().into_iter().map(|f| {
+                                HierarchicalDeterministicFactorInstance::mainnet_tx_account(
+                                    idx,
+                                    f.factor_source_id(),
+                                )
+                            }),
+                        )
+                    })]),
                 ]);
                 let outcome = collector.collect_signatures().await;
                 assert!(outcome.successful());

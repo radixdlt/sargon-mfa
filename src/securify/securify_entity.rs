@@ -71,14 +71,14 @@ async fn securify_using(
     let securified_entity_control = SecurifiedEntityControl::new(
         matrix,
         AccessController {
-            address: AccessControllerAddress::generate(),
+            address: AccessControllerAddress::new(account.entity_address()),
             metadata: component_metadata,
         },
     );
 
-    // uh update profile... since we dont have proper Profile impl in this repo.
     profile.update_account(Account::new(
         account.name(),
+        account.entity_address(),
         EntitySecurityState::Securified(securified_entity_control.clone()),
     ));
 
@@ -114,8 +114,22 @@ mod securify_tests {
     #[actix_rt::test]
     async fn derivation_path_is_never_same_after_securified() {
         let all_factors = HDFactorSource::all();
-        let a = &Account::unsecurified_mainnet(0, "A", FactorSourceIDFromHash::fs0());
-        let b = &Account::unsecurified_mainnet(1, "B", FactorSourceIDFromHash::fs0());
+        let a = &Account::unsecurified_mainnet(
+            "A0",
+            HierarchicalDeterministicFactorInstance::mainnet_tx(
+                CAP26EntityKind::Account,
+                HDPathComponent::unsecurified(0),
+                FactorSourceIDFromHash::fs0(),
+            ),
+        );
+        let b = &Account::unsecurified_mainnet(
+            "A1",
+            HierarchicalDeterministicFactorInstance::mainnet_tx(
+                CAP26EntityKind::Account,
+                HDPathComponent::unsecurified(1),
+                FactorSourceIDFromHash::fs0(),
+            ),
+        );
 
         let mut profile = Profile::new(all_factors.clone(), [a, b], []);
         let matrix = MatrixOfFactorSources::new([fs_at(0)], 1, []);

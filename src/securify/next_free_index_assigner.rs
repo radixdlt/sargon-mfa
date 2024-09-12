@@ -101,12 +101,16 @@ impl NextFreeIndexAssigner {
                     if instances.is_empty() {
                         None
                     } else {
-                        instances.into_iter().map(|x| x.entity_index()).max()
+                        instances
+                            .into_iter()
+                            .map(|x| x.entity_index())
+                            .filter(|c| c.is_in_key_space(key_space))
+                            .max()
                     }
                 })
                 .max()
                 .map(|max| max.add_one())
-                .unwrap_or(HDPathComponent::securified(0))
+                .unwrap_or(HDPathComponent::new_in_key_space(0, key_space))
         })
     }
 
@@ -116,9 +120,7 @@ impl NextFreeIndexAssigner {
     }
 
     fn next_path_component(&self, request: NextFreeIndexAssignerRequest<'_>) -> HDPathComponent {
-        let component = (self.next)(request);
-        assert!(component.is_securified());
-        component
+        (self.next)(request)
     }
 }
 impl Default for NextFreeIndexAssigner {
@@ -171,10 +173,11 @@ mod test_next_free_index_assigner {
     fn live_second() {
         let sut = Sut::live();
         let a = &Account::sample_unsecurified();
-        let b = &Account::securified_mainnet(0, "Bob", |idx| {
+        let b = &Account::securified_mainnet("Bob", AccountAddress::sample_1(), || {
+            let i = HDPathComponent::securified(0);
             MatrixOfFactorInstances::m6(HierarchicalDeterministicFactorInstance::f(
                 Account::entity_kind(),
-                idx,
+                i,
             ))
         });
 

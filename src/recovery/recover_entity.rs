@@ -3,13 +3,17 @@ use std::{hash::Hash, ops::Add, sync::RwLock};
 use crate::prelude::*;
 
 impl Profile {
-    async fn new_entity<E: IsEntity>(
+    async fn new_entity<E: IsEntity + std::fmt::Debug + std::hash::Hash + Eq>(
         &mut self,
         network_id: NetworkID,
         name: impl AsRef<str>,
         factor_source_id: FactorSourceIDFromHash,
         gateway: Arc<dyn Gateway>,
     ) -> E {
+        println!(
+            "🎭 profile entities BEFORE new: '{:?}'",
+            self.get_entities::<E>()
+        );
         assert!(self
             .factor_sources
             .iter()
@@ -19,6 +23,7 @@ impl Profile {
         let entity_kind = E::kind();
         let key_kind = CAP26KeyKind::T9n;
         let key_space = KeySpace::Unsecurified;
+        let name = name.as_ref();
 
         let index_assigner = NextFreeIndexAssigner::live();
 
@@ -31,7 +36,10 @@ impl Profile {
                 profile: self,
             });
 
-        let mut genesis_factor: Option<HierarchicalDeterministicFactorInstance> = None;
+        let mut genesis_factor_and_address: Option<(
+            HierarchicalDeterministicFactorInstance,
+            E::Address,
+        )> = None;
         for index in base..(base.add_n(50)) {
             let derivation_path = DerivationPath::new(network_id, entity_kind, key_kind, index);
             let factor = HierarchicalDeterministicFactorInstance::new(
@@ -41,19 +49,37 @@ impl Profile {
 
             let public_key_hash = factor.public_key_hash();
 
-            let is_index_taken = gateway.is_key_hash_known(public_key_hash).await.unwrap();
+            let is_public_key_hash_known_by_gateway = gateway
+                .is_key_hash_known(public_key_hash.clone())
+                .await
+                .unwrap();
+
+            let is_address_formed_by_key_already_in_profile = self
+                .get_entities::<E>()
+                .iter()
+                .any(|e| e.address().public_key_hash() == public_key_hash);
+            let is_index_taken =
+                is_public_key_hash_known_by_gateway || is_address_formed_by_key_already_in_profile;
 
             if is_index_taken {
                 continue;
             } else {
-                genesis_factor = Some(factor);
+                let address = E::Address::new(network_id, public_key_hash);
+                println!(
+                    "🌈 Creating entity with address: '{:?}' with factor {:?},",
+                    address, factor
+                );
+                genesis_factor_and_address = Some((factor, address));
                 break;
             }
         }
 
+        let (genesis_factor, address) = genesis_factor_and_address.unwrap();
+
         let entity = E::new(
             name,
-            EntitySecurityState::Unsecured(genesis_factor.unwrap()),
+            address,
+            EntitySecurityState::Unsecured(genesis_factor),
         );
 
         let erased = Into::<AccountOrPersona>::into(entity.clone());
@@ -66,6 +92,11 @@ impl Profile {
                 self.personas.insert(persona.entity_address(), persona);
             }
         };
+
+        println!(
+            "🎭 profile entities AFTER new: '{:?}'",
+            self.get_entities::<E>()
+        );
 
         entity
     }
@@ -452,7 +483,11 @@ pub async fn recover_entity<E: IsEntity + Sync + Hash + Eq>(
             );
             let factor_instance = factor_instances.iter().last().unwrap();
             let security_state = EntitySecurityState::Unsecured(factor_instance.clone());
-            E::new(format!("Recovered Unsecurified: {:?}", a), security_state)
+            E::new(
+                format!("Recovered Unsecurified: {:?}", a),
+                a,
+                security_state,
+            )
         })
         .collect::<HashSet<_>>();
 
@@ -534,9 +569,9 @@ pub async fn recover_entity<E: IsEntity + Sync + Hash + Eq>(
             on_chain_entity.access_controller,
         );
         let security_state = EntitySecurityState::Securified(sec);
-        let recoverd_securified_entity =
-            E::new(format!("Recovered Unsecurified: {:?}", a), security_state);
-        assert!(securified_entities.insert(recoverd_securified_entity));
+        let recovered_securified_entity =
+            E::new(format!("Recovered Securified: {:?}", a), a, security_state);
+        assert!(securified_entities.insert(recovered_securified_entity));
     }
 
     // L. Return the results, which is three sets: recovered_unsecurified, recovered_securified, unrecovered
@@ -579,14 +614,30 @@ pub async fn recover_personas(
 
 #[cfg(test)]
 pub struct TestGateway {
+    /// contains only current state for each entity
     entities: RwLock<HashMap<AddressOfAccountOrPersona, OnChainEntityState>>,
+
+    /// contains historic state, we only ever add to this set, never remove.
+    known_hashes: RwLock<HashSet<PublicKeyHash>>,
 }
 #[cfg(test)]
 impl Default for TestGateway {
     fn default() -> Self {
         Self {
+            known_hashes: RwLock::new(HashSet::new()),
             entities: RwLock::new(HashMap::new()),
         }
+    }
+}
+
+#[cfg(test)]
+impl TestGateway {
+    pub fn debug_print(&self) {
+        println!(
+            "⛩️ known_hashes: {:?}",
+            self.known_hashes.try_read().unwrap()
+        );
+        println!("⛩️ entities: {:?}", self.entities.try_read().unwrap().keys());
     }
 }
 
@@ -594,12 +645,9 @@ impl Default for TestGateway {
 #[async_trait::async_trait]
 impl GatewayReadonly for TestGateway {
     async fn is_key_hash_known(&self, hash: PublicKeyHash) -> Result<bool> {
-        Ok(self
-            .entities
-            .try_read()
-            .unwrap()
-            .values()
-            .any(|x| x.owner_keys().contains(&hash)))
+        let is_known = self.known_hashes.try_read().unwrap().contains(&hash);
+        println!("🌈 Is hash: '{:?}' known? '{:?}'", hash, is_known);
+        Ok(is_known)
     }
     async fn get_entity_addresses_of_by_public_key_hashes(
         &self,
@@ -660,14 +708,16 @@ impl Gateway for TestGateway {
 
         let owner_key = unsecurified.public_key_hash();
 
-        if self.contains(&owner) {
+        if self.contains(&owner) || self.known_hashes.try_read().unwrap().contains(&owner_key) {
             panic!("update not supported")
         } else {
             self.entities.try_write().unwrap().insert(
                 owner.clone(),
-                OnChainEntityState::unsecurified_with(owner, owner_key),
+                OnChainEntityState::unsecurified_with(owner, owner_key.clone()),
             );
+            self.known_hashes.try_write().unwrap().insert(owner_key);
         }
+        self.debug_print();
         Ok(())
     }
 
@@ -689,6 +739,11 @@ impl Gateway for TestGateway {
             self.entities.try_write().unwrap().remove(&owner);
         }
 
+        self.known_hashes
+            .try_write()
+            .unwrap()
+            .extend(owner_keys.clone());
+
         self.entities.try_write().unwrap().insert(
             owner.clone(),
             OnChainEntityState::securified_with(
@@ -697,6 +752,8 @@ impl Gateway for TestGateway {
                 owner_keys,
             ),
         );
+
+        self.debug_print();
 
         Ok(())
     }
@@ -978,7 +1035,7 @@ mod tests {
                     accounts
                 })
             },
-            move |known: IndexSet<Account>, recovered| {
+            move |known: IndexSet<Account>, _recovered| {
                 assert_eq!(known.len(), 3);
             },
         )
