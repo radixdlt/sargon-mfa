@@ -6,6 +6,7 @@
 #![feature(step_trait)]
 
 mod derivation;
+mod factor_instance_provider;
 mod recovery;
 mod samples;
 mod securify;
@@ -18,6 +19,7 @@ mod testing;
 pub mod prelude {
     pub use crate::derivation::*;
 
+    pub use crate::factor_instance_provider::*;
     pub use crate::recovery::*;
 
     pub(crate) use crate::samples::*;
