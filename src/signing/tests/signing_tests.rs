@@ -437,7 +437,7 @@ mod tests {
                     vec![DerivationPath::new(
                         NetworkID::Mainnet,
                         CAP26EntityKind::Account,
-                        CAP26KeyKind::T9n,
+                        CAP26KeyKind::TransactionSigning,
                         HDPathComponent::unsecurified(0)
                     )]
                 )

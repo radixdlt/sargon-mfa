@@ -1,109 +1,52 @@
-use crate::prelude::*;
-
-impl KeysCollector {
-    pub fn securifying<E: IsEntity>(
-        entity: &E,
-        profile: &Profile,
-        matrix: MatrixOfFactorSources,
-        index_assigner: impl DerivationIndexWhenSecurifiedAssigner,
-        interactors: Arc<dyn KeysDerivationInteractors>,
-    ) -> Result<Self> {
-        let network_id = entity.network_id();
-        let entity_kind = E::kind();
-        KeysCollector::new(
-            profile.factor_sources.clone(),
-            matrix
-                .all_factors()
-                .clone()
-                .into_iter()
-                .map(|f| {
-                    (
-                        f.factor_source_id(),
-                        IndexSet::just(DerivationPath::new(
-                            network_id,
-                            entity_kind,
-                            CAP26KeyKind::T9n,
-                            index_assigner.derivation_index_for_factor_source(
-                                NextFreeIndexAssignerRequest {
-                                    key_space: KeySpace::Securified,
-                                    entity_kind: CAP26EntityKind::Account,
-                                    factor_source_id: FactorSourceIDFromHash::fs0(),
-                                    profile,
-                                    network_id: NetworkID::Mainnet,
-                                },
-                            ),
-                        )),
-                    )
-                })
-                .collect::<IndexMap<FactorSourceIDFromHash, IndexSet<DerivationPath>>>(),
-            interactors,
-        )
-    }
-}
-
-async fn securify_using(
-    address: AccountAddress,
-    matrix: MatrixOfFactorSources,
-    profile: &mut Profile,
-    derivation_index_assigner: impl DerivationIndexWhenSecurifiedAssigner,
-    derivation_interactors: Arc<dyn KeysDerivationInteractors>,
-    gateway: Arc<dyn Gateway>,
-) -> Result<SecurifiedEntityControl> {
-    let account = profile.account_by_address(address.clone())?;
-
-    let keys_collector = KeysCollector::securifying(
-        &account,
-        profile,
-        matrix.clone(),
-        derivation_index_assigner,
-        derivation_interactors,
-    )?;
-
-    let factor_instances = keys_collector.collect_keys().await.all_factors();
-
-    let matrix = MatrixOfFactorInstances::fulfilling_matrix_of_factor_sources_with_instances(
-        factor_instances,
-        matrix,
-    )?;
-
-    let component_metadata = ComponentMetadata::new(matrix.clone());
-
-    let securified_entity_control = SecurifiedEntityControl::new(
-        matrix,
-        AccessController {
-            address: AccessControllerAddress::new(account.entity_address()),
-            metadata: component_metadata,
-        },
-    );
-
-    profile.update_account(Account::new(
-        account.name(),
-        account.entity_address(),
-        EntitySecurityState::Securified(securified_entity_control.clone()),
-    ));
-
-    gateway
-        .set_securified_account(securified_entity_control.clone(), &address)
-        .await?;
-    Ok(securified_entity_control)
-}
+use crate::{factor_instance_provider, prelude::*};
 
 pub async fn securify(
     address: AccountAddress,
     matrix: MatrixOfFactorSources,
     profile: &mut Profile,
+    factor_instance_provider: &FactorInstanceProvider,
     derivation_interactors: Arc<dyn KeysDerivationInteractors>,
     gateway: Arc<dyn Gateway>,
 ) -> Result<SecurifiedEntityControl> {
-    securify_using(
-        address,
-        matrix,
-        profile,
-        NextFreeIndexAssigner::live(),
-        derivation_interactors,
-        gateway,
-    )
-    .await
+    let account = profile.account_by_address(address.clone())?;
+
+    // let keys_collector = KeysCollector::securifying(
+    //     &account,
+    //     profile,
+    //     matrix.clone(),
+    //     derivation_index_assigner,
+    //     derivation_interactors,
+    // )?;
+
+    // let factor_instances = keys_collector.collect_keys().await.all_factors();
+
+    todo!()
+
+    // let matrix = MatrixOfFactorInstances::fulfilling_matrix_of_factor_sources_with_instances(
+    //     factor_instances,
+    //     matrix,
+    // )?;
+
+    // let component_metadata = ComponentMetadata::new(matrix.clone());
+
+    // let securified_entity_control = SecurifiedEntityControl::new(
+    //     matrix,
+    //     AccessController {
+    //         address: AccessControllerAddress::new(account.entity_address()),
+    //         metadata: component_metadata,
+    //     },
+    // );
+
+    // profile.update_account(Account::new(
+    //     account.name(),
+    //     account.entity_address(),
+    //     EntitySecurityState::Securified(securified_entity_control.clone()),
+    // ));
+
+    // gateway
+    //     .set_securified_account(securified_entity_control.clone(), &address)
+    //     .await?;
+    // Ok(securified_entity_control)
 }
 
 #[cfg(test)]
@@ -137,10 +80,16 @@ mod securify_tests {
         let interactors = Arc::new(TestDerivationInteractors::default());
         let gateway = Arc::new(TestGateway::default());
 
+        let factor_instance_provider = FactorInstanceProvider::new(
+            gateway.clone(),
+            Arc::new(InMemoryPreDerivedKeysCache::default()),
+        );
+
         let b_sec = securify(
             b.entity_address(),
             matrix.clone(),
             &mut profile,
+            &factor_instance_provider,
             interactors.clone(),
             gateway.clone(),
         )
@@ -162,6 +111,7 @@ mod securify_tests {
             a.entity_address(),
             matrix.clone(),
             &mut profile,
+            &factor_instance_provider,
             interactors.clone(),
             gateway.clone(),
         )

@@ -549,7 +549,7 @@ mod tests {
                     DerivationPath::new(
                         NetworkID::Mainnet,
                         CAP26EntityKind::Account,
-                        CAP26KeyKind::T9n,
+                        CAP26KeyKind::TransactionSigning,
                         HDPathComponent::securified(6)
                     ),
                     5

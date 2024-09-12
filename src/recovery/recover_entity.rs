@@ -8,65 +8,26 @@ impl Profile {
         network_id: NetworkID,
         name: impl AsRef<str>,
         factor_source_id: FactorSourceIDFromHash,
-        gateway: Arc<dyn Gateway>,
-    ) -> E {
+        factor_instance_provider: &FactorInstanceProvider,
+    ) -> Result<E> {
         assert!(self
             .factor_sources
             .iter()
             .map(|f| f.factor_source_id())
             .contains(&factor_source_id));
 
-        let entity_kind = E::kind();
-        let key_kind = CAP26KeyKind::T9n;
-        let key_space = KeySpace::Unsecurified;
-        let name = name.as_ref();
-
-        let index_assigner = NextFreeIndexAssigner::live();
-
-        let base =
-            index_assigner.derivation_index_for_factor_source(NextFreeIndexAssignerRequest {
+        let genesis_factor = factor_instance_provider
+            .provide_factor_instance(NextFactorInstanceRequest::new(
+                KeySpace::Unsecurified,
+                E::kind(),
+                CAP26KeyKind::TransactionSigning,
+                factor_source_id,
                 network_id,
-                factor_source_id,
-                key_space,
-                entity_kind,
-                profile: self,
-            });
+                self,
+            ))
+            .await?;
 
-        let mut genesis_factor_and_address: Option<(
-            HierarchicalDeterministicFactorInstance,
-            E::Address,
-        )> = None;
-        for index in base..(base.add_n(50)) {
-            let derivation_path = DerivationPath::new(network_id, entity_kind, key_kind, index);
-            let factor = HierarchicalDeterministicFactorInstance::new(
-                HierarchicalDeterministicPublicKey::mocked_with(derivation_path, &factor_source_id),
-                factor_source_id,
-            );
-
-            let public_key_hash = factor.public_key_hash();
-
-            let is_public_key_hash_known_by_gateway = gateway
-                .is_key_hash_known(public_key_hash.clone())
-                .await
-                .unwrap();
-
-            let is_address_formed_by_key_already_in_profile = self
-                .get_entities::<E>()
-                .iter()
-                .any(|e| e.address().public_key_hash() == public_key_hash);
-            let is_index_taken =
-                is_public_key_hash_known_by_gateway || is_address_formed_by_key_already_in_profile;
-
-            if is_index_taken {
-                continue;
-            } else {
-                let address = E::Address::new(network_id, public_key_hash);
-                genesis_factor_and_address = Some((factor, address));
-                break;
-            }
-        }
-
-        let (genesis_factor, address) = genesis_factor_and_address.unwrap();
+        let address = E::Address::by_hashing(network_id, genesis_factor.clone());
 
         let entity = E::new(
             name,
@@ -85,7 +46,7 @@ impl Profile {
             }
         };
 
-        entity
+        Ok(entity)
     }
 
     pub async fn new_account(
@@ -93,9 +54,9 @@ impl Profile {
         network_id: NetworkID,
         name: impl AsRef<str>,
         factor_source_id: FactorSourceIDFromHash,
-        gateway: Arc<dyn Gateway>,
-    ) -> Account {
-        self.new_entity(network_id, name, factor_source_id, gateway)
+        factor_instance_provider: &FactorInstanceProvider,
+    ) -> Result<Account> {
+        self.new_entity(network_id, name, factor_source_id, factor_instance_provider)
             .await
     }
 }
@@ -350,7 +311,14 @@ pub async fn recover_entity<E: IsEntity + Sync + Hash + Eq>(
                 index_range
                     .clone()
                     .map(make_entity_index)
-                    .map(|i| DerivationPath::new(network_id, entity_kind, CAP26KeyKind::T9n, i))
+                    .map(|i| {
+                        DerivationPath::new(
+                            network_id,
+                            entity_kind,
+                            CAP26KeyKind::TransactionSigning,
+                            i,
+                        )
+                    })
                     .collect::<IndexSet<_>>()
             };
 
@@ -937,9 +905,19 @@ mod tests {
                 Box::pin(async move {
                     let mut profile = Profile::new(all_factors.clone(), [], []);
 
+                    let keys_cache = Arc::new(InMemoryPreDerivedKeysCache::default());
+                    let factor_instance_provider =
+                        FactorInstanceProvider::new(gateway.clone(), keys_cache);
+
                     let alice_address = profile
-                        .new_account(NetworkID::Mainnet, "alice", fs_id_at(0), gateway.clone())
+                        .new_account(
+                            NetworkID::Mainnet,
+                            "alice",
+                            fs_id_at(0),
+                            &factor_instance_provider,
+                        )
                         .await
+                        .unwrap()
                         .entity_address();
 
                     let interactors = Arc::new(TestDerivationInteractors::default());
@@ -952,6 +930,7 @@ mod tests {
                             [fs_at(6)],
                         ),
                         &mut profile,
+                        &factor_instance_provider,
                         interactors.clone(),
                         gateway.clone(),
                     )
@@ -959,14 +938,21 @@ mod tests {
                     .unwrap();
 
                     let bob_address = profile
-                        .new_account(NetworkID::Mainnet, "bob", fs_id_at(1), gateway.clone())
+                        .new_account(
+                            NetworkID::Mainnet,
+                            "bob",
+                            fs_id_at(1),
+                            &factor_instance_provider,
+                        )
                         .await
+                        .unwrap()
                         .entity_address();
 
                     securify(
                         bob_address.clone(),
                         MatrixOfFactorSources::new([fs_at(1), fs_at(3)], 2, [fs_at(7)]),
                         &mut profile,
+                        &factor_instance_provider,
                         interactors,
                         gateway.clone(),
                     )
@@ -974,8 +960,14 @@ mod tests {
                     .unwrap();
 
                     let charlie_address = profile
-                        .new_account(NetworkID::Mainnet, "charlie", fs_id_at(1), gateway.clone())
+                        .new_account(
+                            NetworkID::Mainnet,
+                            "charlie",
+                            fs_id_at(1),
+                            &factor_instance_provider,
+                        )
                         .await
+                        .unwrap()
                         .entity_address();
 
                     let accounts: IndexSet<Account> = profile.get_accounts();

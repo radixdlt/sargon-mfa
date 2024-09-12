@@ -376,19 +376,24 @@ mod tests_hdpathcomp {
     }
 }
 
-#[repr(u8)]
+#[repr(u16)]
 #[derive(Clone, Copy, PartialEq, Eq, Hash, derive_more::Display, derive_more::Debug)]
 pub enum CAP26KeyKind {
+    /// For a key to be used for signing transactions.
+    /// The value is the ascii sum of `"TRANSACTION_SIGNING"`
     #[display("tx")]
     #[debug("tx")]
-    T9n,
+    TransactionSigning = 1460,
 
+    /// For a key to be used for signing authentication..
+    /// The value is the ascii sum of `"AUTHENTICATION_SIGNING"`
     #[display("rola")]
     #[debug("rola")]
-    Rola,
+    AuthenticationSigning = 1678,
 }
+
 impl CAP26KeyKind {
-    fn discriminant(&self) -> u8 {
+    fn discriminant(&self) -> u16 {
         core::intrinsics::discriminant_value(self)
     }
 }
@@ -470,7 +475,7 @@ impl DerivationPath {
         Self::new(
             network_id,
             CAP26EntityKind::Account,
-            CAP26KeyKind::T9n,
+            CAP26KeyKind::TransactionSigning,
             index,
         )
     }
@@ -479,7 +484,7 @@ impl DerivationPath {
         let mut vec = Vec::new();
         vec.push(self.network_id.discriminant());
         vec.push(self.entity_kind.discriminant());
-        vec.push(self.key_kind.discriminant());
+        vec.extend(self.key_kind.discriminant().to_be_bytes());
         vec.extend(self.index.to_bytes());
         vec
     }
@@ -583,8 +588,12 @@ impl HierarchicalDeterministicFactorInstance {
         index: HDPathComponent,
         factor_source_id: FactorSourceIDFromHash,
     ) -> Self {
-        let derivation_path =
-            DerivationPath::new(network_id, entity_kind, CAP26KeyKind::T9n, index);
+        let derivation_path = DerivationPath::new(
+            network_id,
+            entity_kind,
+            CAP26KeyKind::TransactionSigning,
+            index,
+        );
         let public_key = PublicKey::new(factor_source_id, derivation_path.clone());
         let hd_public_key = HierarchicalDeterministicPublicKey::new(derivation_path, public_key);
         Self::new(hd_public_key, factor_source_id)
@@ -864,10 +873,14 @@ impl AccountOrPersona {
     }
 }
 
-pub trait IsEntityAddress {
+pub trait IsEntityAddress: Sized {
     fn new(network_id: NetworkID, public_key_hash: PublicKeyHash) -> Self;
     fn network_id(&self) -> NetworkID;
     fn public_key_hash(&self) -> PublicKeyHash;
+
+    fn by_hashing(network_id: NetworkID, key: impl Into<PublicKeyHash>) -> Self {
+        Self::new(network_id, key.into())
+    }
 }
 
 pub trait IsEntity: Into<AccountOrPersona> + TryFrom<AccountOrPersona> + Clone {

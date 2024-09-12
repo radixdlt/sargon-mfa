@@ -1,7 +1,5 @@
-mod derivation_index_when_securified_assigner;
-mod next_free_index_assigner;
+mod next_factor_instance_request;
 mod securify_entity;
 
-pub use derivation_index_when_securified_assigner::*;
-pub use next_free_index_assigner::*;
+pub use next_factor_instance_request::*;
 pub use securify_entity::*;

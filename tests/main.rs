@@ -100,7 +100,7 @@ mod integration_test_derivation {
                 IndexSet::<_>::just(DerivationPath::new(
                     NetworkID::Mainnet,
                     CAP26EntityKind::Identity,
-                    CAP26KeyKind::Rola,
+                    CAP26KeyKind::AuthenticationSigning,
                     HDPathComponent::securified(5),
                 )),
             ),
