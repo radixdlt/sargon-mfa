@@ -1,6 +1,8 @@
 use std::iter::Step;
 use std::marker::PhantomData;
 
+use indexmap::map::Keys;
+
 use crate::prelude::*;
 
 use std::borrow::Borrow;
@@ -233,11 +235,15 @@ impl HDPathComponent {
     pub fn unsecurified(value: HDPathValue) -> Self {
         Self::hardening(value)
     }
-    pub fn is_in_key_space(&self, key_space: KeySpace) -> bool {
-        match key_space {
-            KeySpace::Unsecurified => !self.is_securified(),
-            KeySpace::Securified => self.is_securified(),
+    pub fn key_space(&self) -> KeySpace {
+        if self.is_securified() {
+            KeySpace::Securified
+        } else {
+            KeySpace::Unsecurified
         }
+    }
+    pub fn is_in_key_space(&self, key_space: KeySpace) -> bool {
+        self.key_space() == key_space
     }
     pub fn new_in_key_space(value: HDPathValue, key_space: KeySpace) -> Self {
         match key_space {

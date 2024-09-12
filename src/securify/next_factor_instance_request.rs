@@ -65,58 +65,6 @@ pub enum KeySpace {
     Securified,
 }
 
-impl HierarchicalDeterministicFactorInstance {
-    fn entity_index(&self) -> HDPathComponent {
-        self.derivation_path().index
-    }
-}
-
-impl Profile {
-    fn security_states_for_entities_of_kind(
-        &self,
-        key_space: KeySpace,
-        kind: CAP26EntityKind,
-        network_id: NetworkID,
-    ) -> IndexSet<EntitySecurityState> {
-        let entities: Vec<AccountOrPersona> = match kind {
-            CAP26EntityKind::Account => self
-                .accounts
-                .values()
-                .cloned()
-                .map(AccountOrPersona::from)
-                .collect(),
-            CAP26EntityKind::Identity => self
-                .personas
-                .values()
-                .cloned()
-                .map(AccountOrPersona::from)
-                .collect(),
-        };
-        entities
-            .into_iter()
-            .filter(|e| e.network_id() == network_id)
-            .map(|e| e.security_state())
-            .filter_map(|s| match (&s, key_space) {
-                (EntitySecurityState::Unsecured(_), KeySpace::Unsecurified) => Some(s),
-                (EntitySecurityState::Securified(_), KeySpace::Securified) => Some(s),
-                _ => None,
-            })
-            .collect::<IndexSet<_>>()
-    }
-}
-
-impl EntitySecurityState {
-    fn factors_from_source(
-        &self,
-        id: FactorSourceIDFromHash,
-    ) -> IndexSet<HierarchicalDeterministicFactorInstance> {
-        self.all_factor_instances()
-            .into_iter()
-            .filter(|f| f.factor_source_id() == id)
-            .collect()
-    }
-}
-
 #[cfg(test)]
 impl Profile {
     pub fn accounts<'a>(accounts: impl IntoIterator<Item = &'a Account>) -> Self {

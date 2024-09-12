@@ -17,11 +17,59 @@ pub trait IsPreDerivedKeysCache {
     async fn would_consume_last_factor(&self, request: DerivationRequest) -> bool;
 }
 
+/// Like a `DerivationPath` but without the last path component. Used as a
+/// HashMap key in `InMemoryPreDerivedKeysCache`.
+#[derive(Clone, PartialEq, Eq, Hash)]
+struct DerivationPathWithoutIndex {
+    network_id: NetworkID,
+    entity_kind: CAP26EntityKind,
+    key_kind: CAP26KeyKind,
+    key_space: KeySpace,
+}
+impl DerivationPathWithoutIndex {
+    fn new(
+        network_id: NetworkID,
+        entity_kind: CAP26EntityKind,
+        key_kind: CAP26KeyKind,
+        key_space: KeySpace,
+    ) -> Self {
+        Self {
+            network_id,
+            entity_kind,
+            key_kind,
+            key_space,
+        }
+    }
+}
+impl From<DerivationPath> for DerivationPathWithoutIndex {
+    fn from(value: DerivationPath) -> Self {
+        Self::new(
+            value.network_id,
+            value.entity_kind,
+            value.key_kind,
+            value.index.key_space(),
+        )
+    }
+}
+
+impl From<(DerivationPathWithoutIndex, HDPathComponent)> for DerivationPath {
+    fn from(value: (DerivationPathWithoutIndex, HDPathComponent)) -> Self {
+        let (without_index, index) = value;
+        assert!(index.is_in_key_space(without_index.key_space));
+        Self::new(
+            without_index.network_id,
+            without_index.entity_kind,
+            without_index.key_kind,
+            index,
+        )
+    }
+}
+
 /// A simple `IsPreDerivedKeysCache` which uses in-memory cache instead of on
 /// file which the live implementation will use.
 #[derive(Default)]
 pub struct InMemoryPreDerivedKeysCache {
-    cache: HashMap<DerivationPath, HierarchicalDeterministicFactorInstance>,
+    cache: HashMap<DerivationPathWithoutIndex, IndexSet<HierarchicalDeterministicFactorInstance>>,
 }
 
 #[async_trait::async_trait]
