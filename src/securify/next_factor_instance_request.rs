@@ -57,6 +57,22 @@ impl<'p> NextFactorInstanceRequest<'p> {
             profile,
         }
     }
+    pub fn securify(
+        entity_kind: CAP26EntityKind,
+        key_kind: CAP26KeyKind,
+        factor_source_id: FactorSourceIDFromHash,
+        network_id: NetworkID,
+        profile: &'p Profile,
+    ) -> Self {
+        Self::new(
+            KeySpace::Securified,
+            entity_kind,
+            key_kind,
+            factor_source_id,
+            network_id,
+            profile,
+        )
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

@@ -105,19 +105,35 @@ impl FactorInstanceProvider {
 }
 
 impl FactorInstanceProvider {
-    pub async fn securify(
+    pub async fn securify<E: IsEntity>(
         &self,
-        account: &Account,
+        entity: &E,
         matrix: &MatrixOfFactorSources,
         profile: &Profile,
     ) -> Result<MatrixOfFactorInstances> {
-        // let factor_instances = factor_instance_provider.securifying(address, profile, matrix).await?;
-        // let matrix = MatrixOfFactorInstances::fulfilling_matrix_of_factor_sources_with_instances(
-        //     factor_instances,
-        //     matrix,
-        // )?;
+        let entity_kind = E::kind();
+        let network_id = entity.address().network_id();
+        let key_kind = CAP26KeyKind::TransactionSigning;
 
-        todo!()
+        let mut derived_factors = IndexSet::new();
+        for factor_source in matrix.clone().all_factors() {
+            let derived_factor = self
+                .provide_factor_instance(NextFactorInstanceRequest::securify(
+                    entity_kind,
+                    key_kind,
+                    factor_source.factor_source_id(),
+                    network_id,
+                    profile,
+                ))
+                .await?;
+            derived_factors.insert(derived_factor);
+        }
+        let matrix = MatrixOfFactorInstances::fulfilling_matrix_of_factor_sources_with_instances(
+            derived_factors,
+            matrix.clone(),
+        )?;
+
+        Ok(matrix)
     }
 
     pub async fn provide_factor_instance<'p>(
