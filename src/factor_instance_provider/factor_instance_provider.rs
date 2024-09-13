@@ -400,6 +400,21 @@ impl FactorInstanceProvider {
             // try to re-derive the public keys of addresses of securified entities,
             // just to know the last used index, instead we can just read it from
             // gateway.
+            //
+            // ~~~ OR ~~~
+            // Am I over-complicating things here? Can I supply rely on the index
+            // of an account in the Profile to know the next index to use - filtered
+            // adjusted of course based on the FactorSource used? This code does
+            // not relate to recovery (which I've just worked on, so my mind might
+            // be too used to the idea of not having access to the profile...).
+            // But there might be "gaps" in indices used, but at the very least
+            // we should be able to get an APPROXIMATE next index and then we can
+            // "pad" with some indices before and then we will create a wide
+            // range of indices to derive keys for - which SHOULD "hit" the public
+            // key of the address of the securified entities. Thus we should know
+            // the last index used, and we know which is the next factor.
+            //
+            // Right?
         }
 
         let keys_collector = KeysCollector::new(
