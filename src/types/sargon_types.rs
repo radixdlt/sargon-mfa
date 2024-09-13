@@ -877,6 +877,17 @@ impl AccountOrPersona {
             AccountOrPersona::PersonaEntity(p) => p.network_id(),
         }
     }
+
+    pub fn matches_key_space(&self, key_space: KeySpace) -> bool {
+        match key_space {
+            KeySpace::Securified => self.is_securified(),
+            KeySpace::Unsecurified => !self.is_securified(),
+        }
+    }
+
+    pub fn is_securified(&self) -> bool {
+        self.security_state().is_securified()
+    }
 }
 
 pub trait IsEntityAddress: Sized {
@@ -962,13 +973,6 @@ pub trait IsEntity: Into<AccountOrPersona> + TryFrom<AccountOrPersona> + Clone {
             .all_factor_instances()
             .into_iter()
             .collect()
-    }
-
-    fn matches_key_space(&self, key_space: KeySpace) -> bool {
-        match key_space {
-            KeySpace::Securified => self.is_securified(),
-            KeySpace::Unsecurified => !self.is_securified(),
-        }
     }
 
     fn is_securified(&self) -> bool {
@@ -1462,26 +1466,26 @@ pub struct SecurifiedEntity {
 }
 
 impl Profile {
-    pub fn get_entities_erased(&self, entity_kind: CAP26EntityKind) -> IndexSet<E> {
+    pub fn get_entities_erased(&self, entity_kind: CAP26EntityKind) -> IndexSet<AccountOrPersona> {
         match entity_kind {
             CAP26EntityKind::Account => self
                 .accounts
                 .values()
                 .cloned()
                 .map(AccountOrPersona::from)
-                .collect::<IndexSet<E>>(),
+                .collect::<IndexSet<_>>(),
             CAP26EntityKind::Identity => self
                 .personas
                 .values()
                 .cloned()
                 .map(AccountOrPersona::from)
-                .collect::<IndexSet<E>>(),
+                .collect::<IndexSet<_>>(),
         }
     }
     pub fn get_entities<E: IsEntity + std::hash::Hash + Eq>(&self) -> IndexSet<E> {
         self.get_entities_erased(E::kind())
             .into_iter()
-            .map(E::try_from(e).ok().unwrap())
+            .map(|e| E::try_from(e).ok().unwrap())
             .collect()
     }
 
