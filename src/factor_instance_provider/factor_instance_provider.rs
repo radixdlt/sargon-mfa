@@ -1,38 +1,19 @@
 use core::num;
-use std::sync::RwLock;
+use std::{f32::consts::E, sync::RwLock};
 
 use derive_more::derive;
 
 use crate::prelude::*;
 
-/// The reason why a derivation request might be "unfulfillable" by the a
-/// "PreDerivedKeysCache" - either because there are not enough cached factors
-/// left in the cache, or because the request would exactly consume the last factor.
-enum UnfulfillableRequestReason {
-    /// The request would exactly consume the last factor.
-    Last,
-    /// Not enough factors to fulfill the request (last would be consumed and
-    /// would not be enough)
-    TooFew,
-}
-
-/// A derivation request which is unfulfillable, and the reason why it is.
-struct UnfulfillableRequest {
-    request: DerivationRequest,
-    reason: UnfulfillableRequestReason,
-}
-
-/// A non-empty map of unfulfillable requests and the reason why they are
-/// unfulfillable.
+/// A non-empty collection of unsatisfied requests
 struct UnfulfillableRequests {
-    /// A non-empty map of unsatisfied requests and the reason why they are
-    /// unsatisfied.
-    unsatisfied: IndexMap<DerivationRequest, UnfulfillableRequest>,
+    /// A non-empty collection of unsatisfied requests
+    unsatisfied: IndexSet<DerivationRequest>,
 }
 impl UnfulfillableRequests {
     /// # Panics
     /// Panics if `unsatisfied` is empty.
-    pub fn new(unsatisfied: IndexMap<DerivationRequest, UnsatisfiedRequest>) -> Self {
+    pub fn new(unsatisfied: IndexSet<DerivationRequest>) -> Self {
         assert!(!unsatisfied.is_empty(), "non_empty must not be empty");
         Self { unsatisfied }
     }
@@ -165,6 +146,55 @@ impl From<DerivationRequest> for DerivationPathWithoutIndex {
     }
 }
 
+#[derive(Clone, PartialEq, Eq, Hash)]
+struct Tuple {
+    request: DerivationRequest,
+    path: DerivationPathWithoutIndex,
+}
+impl InMemoryPreDerivedKeysCache {
+    fn tuples(requests: IndexSet<DerivationRequest>) -> IndexSet<Tuple> {
+        requests
+            .clone()
+            .into_iter()
+            .map(|request| Tuple {
+                request,
+                path: DerivationPathWithoutIndex::from(request),
+            })
+            .collect::<IndexSet<Tuple>>()
+    }
+
+    /// Internal helper for implementing `peek`.
+    /// `peek` will will this and map:
+    /// 1. `Err(e)` -> `NextDerivationPeekOutcome::Failure(e)`
+    /// 1. `Ok(None)` -> `NextDerivationPeekOutcome::Fulfillable`
+    /// 1. `Ok(requests)` -> `NextDerivationPeekOutcome::Unfulfillable(UnfulfillableRequests::new(requests))`
+    async fn try_peek(
+        &self,
+        requests: IndexSet<DerivationRequest>,
+    ) -> Result<Option<UnfulfillableRequests>> {
+        let cached = self.cache.try_read().map_err(|_| CommonError::Failure)?;
+
+        let request_and_path_tuples = InMemoryPreDerivedKeysCache::tuples(requests.clone());
+
+        let mut unfulfillable = IndexSet::<DerivationRequest>::new();
+        for tuple in request_and_path_tuples.iter() {
+            let for_key = cached.get(&tuple.path).ok_or(CommonError::Failure)?;
+            if for_key.len() <= 1 {
+                if for_key.is_empty() {
+                    warn!("Incorrect implementation of Cache! Should never be empty!");
+                }
+                unfulfillable.insert(tuple.request.clone());
+            }
+        }
+
+        if unfulfillable.is_empty() {
+            Ok(None)
+        } else {
+            Ok(Some(UnfulfillableRequests::new(unfulfillable)))
+        }
+    }
+}
+
 #[async_trait::async_trait]
 impl IsPreDerivedKeysCache for InMemoryPreDerivedKeysCache {
     async fn consume_next_factor_instances(
@@ -173,23 +203,10 @@ impl IsPreDerivedKeysCache for InMemoryPreDerivedKeysCache {
     ) -> Result<IndexMap<DerivationRequest, HierarchicalDeterministicFactorInstance>> {
         let mut cached = self.cache.try_write().map_err(|_| CommonError::Failure)?;
 
-        #[derive(Clone, PartialEq, Eq, Hash)]
-        struct Tuple {
-            request: DerivationRequest,
-            path: DerivationPathWithoutIndex,
-        }
-
-        let request_and_path_tuples = requests
-            .clone()
-            .into_iter()
-            .map(|request| Tuple {
-                request,
-                path: DerivationPathWithoutIndex::from(request),
-            })
-            .collect::<IndexSet<Tuple>>();
-
         let mut instances_read_from_cache =
             IndexMap::<DerivationRequest, HierarchicalDeterministicFactorInstance>::new();
+
+        let request_and_path_tuples = InMemoryPreDerivedKeysCache::tuples(requests.clone());
 
         for tuple in request_and_path_tuples {
             let for_key = cached.get_mut(&tuple.path).ok_or(CommonError::Failure)?;
@@ -201,22 +218,12 @@ impl IsPreDerivedKeysCache for InMemoryPreDerivedKeysCache {
     }
 
     async fn peek(&self, requests: IndexSet<DerivationRequest>) -> NextDerivationPeekOutcome {
-        let cached = self.cache.try_read().map_err(|_| CommonError::Failure)?;
-
-        let paths = requests
-            .into_iter()
-            .map(DerivationPathWithoutIndex::from)
-            .collect::<IndexSet<_>>();
-
-        for path in paths.iter() {
-            let for_key = cached.get(path).ok_or(CommonError::Failure)?;
-            match for_key.len() {
-                0 => return Ok(false),
-                // return Ok(true);
-            }
+        let outcome = self.try_peek(requests).await;
+        match outcome {
+            Ok(None) => NextDerivationPeekOutcome::Fulfillable,
+            Ok(Some(unfulfillable)) => NextDerivationPeekOutcome::Unfulfillable(unfulfillable),
+            Err(e) => NextDerivationPeekOutcome::Failure(e),
         }
-
-        Ok(false)
     }
 }
 
@@ -236,6 +243,17 @@ impl FactorInstanceProvider {
             derivation_interactors,
             cache,
         }
+    }
+}
+
+impl FactorInstanceProvider {
+    async fn fulfill<'p>(
+        &self,
+        profile: &'p Profile,
+        fulfillable: IndexSet<DerivationRequest>,
+        unfulfillable: IndexSet<DerivationRequest>,
+    ) -> Result<IndexMap<DerivationRequest, HierarchicalDeterministicFactorInstance>> {
+        todo!()
     }
 }
 
@@ -314,56 +332,25 @@ impl FactorInstanceProvider {
         profile: &'p Profile,
         requests: IndexSet<DerivationRequest>,
     ) -> Result<IndexMap<DerivationRequest, HierarchicalDeterministicFactorInstance>> {
-        let would_consume_last = self.cache.would_consume_last(requests.clone()).await?;
+        let peek_outcome = self.cache.peek(requests.clone()).await;
 
-        if !would_consume_last {
-            return self.cache.consume_next_factor_instances(requests).await;
+        match peek_outcome {
+            NextDerivationPeekOutcome::Failure(e) => {
+                error!("Failed to peek next derivation index: {:?}", e);
+                return Err(e);
+            }
+            NextDerivationPeekOutcome::Fulfillable => {
+                return self.cache.consume_next_factor_instances(requests).await;
+            }
+            NextDerivationPeekOutcome::Unfulfillable(unfulfillable) => {
+                let fulfillable = requests
+                    .difference(&unfulfillable.unsatisfied)
+                    .cloned()
+                    .collect::<IndexSet<_>>();
+                return self
+                    .fulfill(profile, fulfillable, unfulfillable.unsatisfied)
+                    .await;
+            }
         }
-
-        // let base =
-        //     index_assigner.derivation_index_for_factor_source(NextFreeIndexAssignerRequest {
-        //         network_id,
-        //         factor_source_id,
-        //         key_space,
-        //         entity_kind,
-        //         profile: self,
-        //     });
-
-        // let mut genesis_factor_and_address: Option<(
-        //     HierarchicalDeterministicFactorInstance,
-        //     E::Address,
-        // )> = None;
-        // for index in base..(base.add_n(50)) {
-        //     let derivation_path = DerivationPath::new(network_id, entity_kind, key_kind, index);
-        //     let factor = HierarchicalDeterministicFactorInstance::new(
-        //         HierarchicalDeterministicPublicKey::mocked_with(derivation_path, &factor_source_id),
-        //         factor_source_id,
-        //     );
-
-        //     let public_key_hash = factor.public_key_hash();
-
-        //     let is_public_key_hash_known_by_gateway = gateway
-        //         .is_key_hash_known(public_key_hash.clone())
-        //         .await
-        //         .unwrap();
-
-        //     let is_address_formed_by_key_already_in_profile = self
-        //         .get_entities::<E>()
-        //         .iter()
-        //         .any(|e| e.address().public_key_hash() == public_key_hash);
-        //     let is_index_taken =
-        //         is_public_key_hash_known_by_gateway || is_address_formed_by_key_already_in_profile;
-
-        //     if is_index_taken {
-        //         continue;
-        //     } else {
-        //         let address = E::Address::new(network_id, public_key_hash);
-        //         genesis_factor_and_address = Some((factor, address));
-        //         break;
-        //     }
-        // }
-
-        // let (genesis_factor, address) = genesis_factor_and_address.unwrap();
-        todo!()
     }
 }
