@@ -7,44 +7,30 @@ pub async fn securify(
     factor_instance_provider: &FactorInstanceProvider,
 ) -> Result<SecurifiedEntityControl> {
     let account = profile.account_by_address(address.clone())?;
+    let matrix_of_factor_instances = factor_instance_provider
+        .securify(&account, &matrix, profile)
+        .await?;
 
-    // let keys_collector = KeysCollector::securifying(
-    //     &account,
-    //     profile,
-    //     matrix.clone(),
-    //     derivation_index_assigner,
-    //     derivation_interactors,
-    // )?;
+    let component_metadata = ComponentMetadata::new(matrix_of_factor_instances.clone());
 
-    // let factor_instances = keys_collector.collect_keys().await.all_factors();
+    let securified_entity_control = SecurifiedEntityControl::new(
+        matrix_of_factor_instances,
+        AccessController {
+            address: AccessControllerAddress::new(account.entity_address()),
+            metadata: component_metadata,
+        },
+    );
 
-    todo!()
-
-    // let matrix = MatrixOfFactorInstances::fulfilling_matrix_of_factor_sources_with_instances(
-    //     factor_instances,
-    //     matrix,
-    // )?;
-
-    // let component_metadata = ComponentMetadata::new(matrix.clone());
-
-    // let securified_entity_control = SecurifiedEntityControl::new(
-    //     matrix,
-    //     AccessController {
-    //         address: AccessControllerAddress::new(account.entity_address()),
-    //         metadata: component_metadata,
-    //     },
-    // );
-
-    // profile.update_account(Account::new(
-    //     account.name(),
-    //     account.entity_address(),
-    //     EntitySecurityState::Securified(securified_entity_control.clone()),
-    // ));
-
-    // gateway
-    //     .set_securified_account(securified_entity_control.clone(), &address)
-    //     .await?;
-    // Ok(securified_entity_control)
+    profile.update_account(Account::new(
+        account.name(),
+        account.entity_address(),
+        EntitySecurityState::Securified(securified_entity_control.clone()),
+    ));
+    let gateway = factor_instance_provider.gateway.clone();
+    gateway
+        .set_securified_account(securified_entity_control.clone(), &address)
+        .await?;
+    Ok(securified_entity_control)
 }
 
 #[cfg(test)]

@@ -105,6 +105,21 @@ impl FactorInstanceProvider {
 }
 
 impl FactorInstanceProvider {
+    pub async fn securify(
+        &self,
+        account: &Account,
+        matrix: &MatrixOfFactorSources,
+        profile: &Profile,
+    ) -> Result<MatrixOfFactorInstances> {
+        // let factor_instances = factor_instance_provider.securifying(address, profile, matrix).await?;
+        // let matrix = MatrixOfFactorInstances::fulfilling_matrix_of_factor_sources_with_instances(
+        //     factor_instances,
+        //     matrix,
+        // )?;
+
+        todo!()
+    }
+
     pub async fn provide_factor_instance<'p>(
         &self,
         request: NextFactorInstanceRequest<'p>,
