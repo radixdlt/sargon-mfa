@@ -376,6 +376,25 @@ impl IsPreDerivedKeysCache for InMemoryPreDerivedKeysCache {
 /// `HierarchicalDeterministicFactorInstance` in both cases for the given request.
 ///
 /// A `DerivationRequest` is a tuple of `(KeySpace, EntityKind, KeyKind, FactorSourceID, NetworkID)`.
+///
+/// It is hard finding the last indices of derivation paths, especially in this scenario:
+/// 1. User creates account `X` with `F = { factor_source: L,  key_space: Unsecurified 🔴, index: 0' 🔴 }`
+/// 2. User securifies account `X`, and `F = { factor_source: M, key_space: Securified 🔵, index: 0^ 🔵 }`
+/// 3. User creates account `Y` with `F = { factor_source: L, key_space: Unsecurified 🔴, index: ❓❓❓ }`
+/// which value to use for `index`?
+/// 4. Naive implementation will assign `index = 0'` to `F` for account `Y`, since that DerivationPath is
+/// not referenced anywhere in Profile.
+/// 5. FAILURE! Account `Y` will have same address as account `X`!
+/// 6. Solution: We must **retain** the `genesis_factor: { index: 0', factor_source: L }` for account `X`
+/// when it gets securified, and persist this in Profile.
+/// 7. We do not need to upload `genesis_factor` it as metadata to Gatway though, here is why:
+/// 8. Imagine user tosses this Profile, and performs recovery using only `M`, then securified account `X`
+/// is found and recovered.
+/// 9. Later user (re-)add FactorSource `L`, which SHOULD immediately trigger it to derive many keys
+/// to be put in the cache, we will hash the derived keys and ask Gateway if it knows any of them. Which
+/// will find that `0'` has been used. So the first key for `L` saved in cache will be `1'`.
+/// 10. Later user uses `M` to create a new account `Z`, which using this `FactorInstanceProcider` will
+/// find the "next" FactorInstance of `L` at `1'`. Success!
 pub struct FactorInstanceProvider {
     pub gateway: Arc<dyn Gateway>,
     derivation_interactors: Arc<dyn KeysDerivationInteractors>,
@@ -537,6 +556,12 @@ impl FactorInstanceProvider {
             // try to re-derive the public keys of addresses of securified entities,
             // just to know the last used index, instead we can just read it from
             // gateway.
+            //
+            // ~~~ We dont wanna rely on Gateway's lookup by key hash ~~~
+            // We do not wanna rely on the Gateway API looking up key hashes, since
+            // it requires having the public key derived, and we wanna avoid deriving
+            // keys if we can, since we want to perform a SINGLE "pass" to the KeysCollector
+            // in the end of this method.
             //
             // Right?
         }
