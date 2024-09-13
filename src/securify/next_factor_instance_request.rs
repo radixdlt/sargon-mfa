@@ -5,7 +5,7 @@ use crate::prelude::*;
 use rand::Rng;
 use sha2::{Digest, Sha256, Sha512};
 
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub struct DerivationRequest {
     pub key_space: KeySpace,
     pub entity_kind: CAP26EntityKind,
@@ -28,6 +28,20 @@ impl DerivationRequest {
             factor_source_id,
             network_id,
         }
+    }
+    pub fn securify(
+        entity_kind: CAP26EntityKind,
+        key_kind: CAP26KeyKind,
+        factor_source_id: FactorSourceIDFromHash,
+        network_id: NetworkID,
+    ) -> Self {
+        Self::new(
+            KeySpace::Securified,
+            entity_kind,
+            key_kind,
+            factor_source_id,
+            network_id,
+        )
     }
 }
 

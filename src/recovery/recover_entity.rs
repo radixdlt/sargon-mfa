@@ -17,14 +17,7 @@ impl Profile {
             .contains(&factor_source_id));
 
         let genesis_factor = factor_instance_provider
-            .provide_factor_instance(NextFactorInstanceRequest::new(
-                KeySpace::Unsecurified,
-                E::kind(),
-                CAP26KeyKind::TransactionSigning,
-                factor_source_id,
-                network_id,
-                self,
-            ))
+            .provide_genesis_factor_for(factor_source_id, E::kind(), network_id, self)
             .await?;
 
         let address = E::Address::by_hashing(network_id, genesis_factor.clone());

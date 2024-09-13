@@ -1,4 +1,7 @@
 use core::num;
+use std::sync::RwLock;
+
+use derive_more::derive;
 
 use crate::prelude::*;
 
@@ -9,12 +12,12 @@ pub trait IsPreDerivedKeysCache {
     /// Must be async since might need to derive more keys if we are about
     /// to use the last, thus will require usage of KeysCollector - which is async.
     /// Also typically we cache to file - which itself is async
-    async fn consume_next_factor_instance(
+    async fn consume_next_factor_instances(
         &self,
-        request: DerivationRequest,
-    ) -> Result<HierarchicalDeterministicFactorInstance>;
+        requests: IndexSet<DerivationRequest>,
+    ) -> Result<IndexMap<DerivationRequest, HierarchicalDeterministicFactorInstance>>;
 
-    async fn would_consume_last_factor(&self, request: DerivationRequest) -> bool;
+    async fn would_consume_last(&self, requests: IndexSet<DerivationRequest>) -> Result<bool>;
 }
 
 /// Like a `DerivationPath` but without the last path component. Used as a
@@ -69,19 +72,73 @@ impl From<(DerivationPathWithoutIndex, HDPathComponent)> for DerivationPath {
 /// file which the live implementation will use.
 #[derive(Default)]
 pub struct InMemoryPreDerivedKeysCache {
-    cache: HashMap<DerivationPathWithoutIndex, IndexSet<HierarchicalDeterministicFactorInstance>>,
+    cache: RwLock<
+        HashMap<DerivationPathWithoutIndex, IndexSet<HierarchicalDeterministicFactorInstance>>,
+    >,
+}
+
+impl From<DerivationRequest> for DerivationPathWithoutIndex {
+    fn from(value: DerivationRequest) -> Self {
+        Self::new(
+            value.network_id,
+            value.entity_kind,
+            value.key_kind,
+            value.key_space,
+        )
+    }
 }
 
 #[async_trait::async_trait]
 impl IsPreDerivedKeysCache for InMemoryPreDerivedKeysCache {
-    async fn consume_next_factor_instance(
+    async fn consume_next_factor_instances(
         &self,
-        request: DerivationRequest,
-    ) -> Result<HierarchicalDeterministicFactorInstance> {
-        todo!()
+        requests: IndexSet<DerivationRequest>,
+    ) -> Result<IndexMap<DerivationRequest, HierarchicalDeterministicFactorInstance>> {
+        let mut cached = self.cache.try_write().map_err(|_| CommonError::Failure)?;
+
+        #[derive(Clone, PartialEq, Eq, Hash)]
+        struct Tuple {
+            request: DerivationRequest,
+            path: DerivationPathWithoutIndex,
+        }
+
+        let request_and_path_tuples = requests
+            .clone()
+            .into_iter()
+            .map(|request| Tuple {
+                request,
+                path: DerivationPathWithoutIndex::from(request),
+            })
+            .collect::<IndexSet<Tuple>>();
+
+        let mut instances_read_from_cache =
+            IndexMap::<DerivationRequest, HierarchicalDeterministicFactorInstance>::new();
+
+        for tuple in request_and_path_tuples {
+            let for_key = cached.get_mut(&tuple.path).ok_or(CommonError::Failure)?;
+            let read_from_cache = for_key.pop().ok_or(CommonError::Failure)?;
+            instances_read_from_cache.insert(tuple.request, read_from_cache);
+        }
+
+        Ok(instances_read_from_cache)
     }
-    async fn would_consume_last_factor(&self, request: DerivationRequest) -> bool {
-        todo!()
+
+    async fn would_consume_last(&self, requests: IndexSet<DerivationRequest>) -> Result<bool> {
+        let cached = self.cache.try_read().map_err(|_| CommonError::Failure)?;
+
+        let paths = requests
+            .into_iter()
+            .map(DerivationPathWithoutIndex::from)
+            .collect::<IndexSet<_>>();
+
+        for path in paths.iter() {
+            let for_key = cached.get(path).ok_or(CommonError::Failure)?;
+            if for_key.len() <= 1 {
+                return Ok(true);
+            }
+        }
+
+        Ok(false)
     }
 }
 
@@ -115,19 +172,27 @@ impl FactorInstanceProvider {
         let network_id = entity.address().network_id();
         let key_kind = CAP26KeyKind::TransactionSigning;
 
-        let mut derived_factors = IndexSet::new();
-        for factor_source in matrix.clone().all_factors() {
-            let derived_factor = self
-                .provide_factor_instance(NextFactorInstanceRequest::securify(
+        let requests = matrix
+            .clone()
+            .all_factors()
+            .into_iter()
+            .map(|factor_source| {
+                DerivationRequest::securify(
                     entity_kind,
                     key_kind,
                     factor_source.factor_source_id(),
                     network_id,
-                    profile,
-                ))
-                .await?;
-            derived_factors.insert(derived_factor);
-        }
+                )
+            })
+            .collect::<IndexSet<_>>();
+
+        let derived_factors_map = self.provide_factor_instances(profile, requests).await?;
+        let derived_factors = derived_factors_map
+            .values()
+            .into_iter()
+            .cloned()
+            .collect::<IndexSet<_>>();
+
         let matrix = MatrixOfFactorInstances::fulfilling_matrix_of_factor_sources_with_instances(
             derived_factors,
             matrix.clone(),
@@ -136,20 +201,45 @@ impl FactorInstanceProvider {
         Ok(matrix)
     }
 
-    pub async fn provide_factor_instance<'p>(
+    pub async fn provide_genesis_factor_for<'p>(
         &self,
-        request: NextFactorInstanceRequest<'p>,
+        factor_source_id: FactorSourceIDFromHash,
+        entity_kind: CAP26EntityKind,
+        network_id: NetworkID,
+        profile: &'p Profile,
     ) -> Result<HierarchicalDeterministicFactorInstance> {
-        let would_consume_last_factor = self
-            .cache
-            .would_consume_last_factor(request.derivation_request.clone())
-            .await;
+        let key_kind = CAP26KeyKind::TransactionSigning;
 
-        if !would_consume_last_factor {
-            return self
-                .cache
-                .consume_next_factor_instance(request.derivation_request.clone())
-                .await;
+        let request = DerivationRequest::new(
+            KeySpace::Unsecurified,
+            entity_kind,
+            key_kind,
+            factor_source_id,
+            network_id,
+        );
+
+        let derived_factors_map = self
+            .provide_factor_instances(profile, IndexSet::just(request))
+            .await?;
+
+        let derived_factor = derived_factors_map
+            .into_iter()
+            .next()
+            .ok_or(CommonError::Failure)?
+            .1;
+
+        Ok(derived_factor)
+    }
+
+    pub async fn provide_factor_instances<'p>(
+        &self,
+        profile: &'p Profile,
+        requests: IndexSet<DerivationRequest>,
+    ) -> Result<IndexMap<DerivationRequest, HierarchicalDeterministicFactorInstance>> {
+        let would_consume_last = self.cache.would_consume_last(requests.clone()).await?;
+
+        if !would_consume_last {
+            return self.cache.consume_next_factor_instances(requests).await;
         }
 
         // We NEED to have one factor left fulfilling the request, so that we can
@@ -169,10 +259,6 @@ impl FactorInstanceProvider {
         // (0...N) keys and BEFORE `N` is consumed, we derive the next `(N+1, N+N)` keys and cache them.
         // This way we need only derive more keys when they are needed. And in fact no "next index assigner" is needed,
         // the cache IS the next KEY assigner, and keeps track of the indices.
-
-        let entity_kind = request.derivation_request.entity_kind;
-        let key_kind = request.derivation_request.key_kind;
-        let key_space = request.derivation_request.key_kind;
 
         // let base =
         //     index_assigner.derivation_index_for_factor_source(NextFreeIndexAssignerRequest {
