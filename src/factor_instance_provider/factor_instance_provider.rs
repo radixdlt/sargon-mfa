@@ -5,21 +5,65 @@ use derive_more::derive;
 
 use crate::prelude::*;
 
+/// The reason why a request is unfulfillable, and if the reason is that the
+/// last factor would be consumed, the value of that last factor is included,
+/// to act as the range.
+#[derive(Clone, PartialEq, Eq, Hash, Debug)]
+pub enum UnfulfillableRequestReason {
+    /// Users before Radix Wallet 2.0 does not have any cache.
+    /// This will be kick of the cumbersome process of analyzing the Profile
+    /// and deriving a broad range of keys to find out the "last used" key per
+    /// factor source, and then use that to derive the next batch of keys and
+    /// cache them.
+    Empty,
+
+    /// The request would consume the last factor, the `HDPathComponent` is
+    /// the value of this last factor, which we can use as a base for the
+    /// next index range to derive keys for, i.e. we will derive keys in the range
+    /// `(last_index + 1, last_index + N)` where `N` is the batch size (e.g. 50).
+    Last(HDPathComponent),
+}
+
+/// A request that cannot be fulfilled, and the reason why.
+#[derive(Clone, PartialEq, Eq, Hash, Debug)]
+pub struct UnfulfillableRequest {
+    /// The request which cannot be fulfilled.
+    request: DerivationRequest,
+
+    /// The reason why `request` could not be fulfilled.
+    reason: UnfulfillableRequestReason,
+}
+
 /// A non-empty collection of unsatisfied requests
-struct UnfulfillableRequests {
+#[derive(Clone, PartialEq, Eq, Hash, Debug)]
+pub struct UnfulfillableRequests {
     /// A non-empty collection of unsatisfied requests
-    unsatisfied: IndexSet<DerivationRequest>,
+    unsatisfied: Vec<UnfulfillableRequest>, // we want `Set` but `IndexSet` is not `Hash`
 }
 impl UnfulfillableRequests {
     /// # Panics
     /// Panics if `unsatisfied` is empty.
-    pub fn new(unsatisfied: IndexSet<DerivationRequest>) -> Self {
+    pub fn new(unsatisfied: IndexSet<UnfulfillableRequest>) -> Self {
         assert!(!unsatisfied.is_empty(), "non_empty must not be empty");
-        Self { unsatisfied }
+        Self {
+            unsatisfied: unsatisfied.into_iter().collect(),
+        }
+    }
+    pub fn unsatisfied(&self) -> IndexSet<UnfulfillableRequest> {
+        self.unsatisfied.clone().into_iter().collect()
+    }
+
+    pub fn requests(&self) -> IndexSet<DerivationRequest> {
+        self.unsatisfied
+            .clone()
+            .into_iter()
+            .map(|ur| ur.request)
+            .collect()
     }
 }
 
 /// The outcome of peeking the next derivation index for a request.
+#[derive(Clone, PartialEq, Eq, Debug)]
 pub enum NextDerivationPeekOutcome {
     /// We failed to peek the next derivation index for the request, probably
     /// an error while reading from cache.
@@ -176,14 +220,25 @@ impl InMemoryPreDerivedKeysCache {
 
         let request_and_path_tuples = InMemoryPreDerivedKeysCache::tuples(requests.clone());
 
-        let mut unfulfillable = IndexSet::<DerivationRequest>::new();
+        let mut unfulfillable = IndexSet::<UnfulfillableRequest>::new();
         for tuple in request_and_path_tuples.iter() {
             let for_key = cached.get(&tuple.path).ok_or(CommonError::Failure)?;
-            if for_key.len() <= 1 {
-                if for_key.is_empty() {
-                    warn!("Incorrect implementation of Cache! Should never be empty!");
-                }
-                unfulfillable.insert(tuple.request.clone());
+            let factors_left = for_key.len();
+            // if for_key.len() <= 1 {
+            //     if for_key.is_empty() {
+            //         warn!("Incorrect implementation of Cache! Should never be empty!");
+            //     }
+            //     unfulfillable.insert(tuple.request.clone());
+            // }
+            if factors_left == 0 {
+                unfulfillable.insert(UnfulfillableRequest {
+                    request: tuple.request.clone(),
+                    reason: UnfulfillableRequestReason::Empty,
+                });
+            } else if factors_left == 1 {
+            } else {
+                // all good
+                continue;
             }
         }
 
@@ -250,21 +305,43 @@ impl FactorInstanceProvider {
     async fn derive_new_and_fill_cache<'p>(
         &self,
         profile: &'p Profile,
-        unfulfillable: IndexSet<DerivationRequest>,
+        unfulfillable: &UnfulfillableRequests,
     ) -> Result<()> {
+        let factor_sources = profile.factor_sources.clone();
+
+        // let request_by_factor: HashMap<FactorSourceIDFromHash, IndexSet<DerivationPath>> =
+        //     unfulfillable
+        //         .into_iter()
+        //         .into_grouping_map_by(|x| x)
+        //         .collect::<IndexSet<_>>();
+
+        // let derivation_paths = request_by_factor
+        //     .into_iter()
+        //     .collect::<IndexMap<FactorSourceIDFromHash, IndexSet<DerivationPath>>>();
+        // derivation_paths: IndexMap<FactorSourceIDFromHash, IndexSet<DerivationPath>>,
+
+        // let keys_collector = KeysCollector::new(
+        //     factor_sources,
+        //     derivation_paths,
+        //     self.derivation_interactors.clone(),
+        // )?;
+
+        // let derivation_outcome = keys_collector.collect_keys().await?;
+        // let newly_derived = derivation_outcome.factor_instances;
+
         todo!()
     }
-    
+
     async fn fulfill<'p>(
         &self,
         profile: &'p Profile,
         fulfillable: IndexSet<DerivationRequest>,
-        unfulfillable: IndexSet<DerivationRequest>,
+        unfulfillable: UnfulfillableRequests,
     ) -> Result<IndexMap<DerivationRequest, HierarchicalDeterministicFactorInstance>> {
-        self.derive_new_and_fill_cache(profile, unfulfillable.clone())
+        self.derive_new_and_fill_cache(profile, &unfulfillable)
             .await?;
         let requests = fulfillable
-            .union(&unfulfillable)
+            .union(&unfulfillable.requests())
             .cloned()
             .collect::<IndexSet<_>>();
         return self.cache.consume_next_factor_instances(requests).await;
@@ -358,12 +435,10 @@ impl FactorInstanceProvider {
             }
             NextDerivationPeekOutcome::Unfulfillable(unfulfillable) => {
                 let fulfillable = requests
-                    .difference(&unfulfillable.unsatisfied)
+                    .difference(&unfulfillable.requests())
                     .cloned()
                     .collect::<IndexSet<_>>();
-                return self
-                    .fulfill(profile, fulfillable, unfulfillable.unsatisfied)
-                    .await;
+                return self.fulfill(profile, fulfillable, unfulfillable).await;
             }
         }
     }

@@ -5,7 +5,7 @@ use crate::prelude::*;
 use rand::Rng;
 use sha2::{Digest, Sha256, Sha512};
 
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub struct DerivationRequest {
     pub key_space: KeySpace,
     pub entity_kind: CAP26EntityKind,
@@ -13,6 +13,7 @@ pub struct DerivationRequest {
     pub factor_source_id: FactorSourceIDFromHash,
     pub network_id: NetworkID,
 }
+
 impl DerivationRequest {
     pub fn new(
         key_space: KeySpace,
@@ -41,50 +42,6 @@ impl DerivationRequest {
             key_kind,
             factor_source_id,
             network_id,
-        )
-    }
-}
-
-#[derive(Clone, Copy, PartialEq)]
-pub struct NextFactorInstanceRequest<'p> {
-    pub derivation_request: DerivationRequest,
-    pub profile: &'p Profile,
-}
-
-impl<'p> NextFactorInstanceRequest<'p> {
-    pub fn new(
-        key_space: KeySpace,
-        entity_kind: CAP26EntityKind,
-        key_kind: CAP26KeyKind,
-        factor_source_id: FactorSourceIDFromHash,
-        network_id: NetworkID,
-        profile: &'p Profile,
-    ) -> Self {
-        Self {
-            derivation_request: DerivationRequest::new(
-                key_space,
-                entity_kind,
-                key_kind,
-                factor_source_id,
-                network_id,
-            ),
-            profile,
-        }
-    }
-    pub fn securify(
-        entity_kind: CAP26EntityKind,
-        key_kind: CAP26KeyKind,
-        factor_source_id: FactorSourceIDFromHash,
-        network_id: NetworkID,
-        profile: &'p Profile,
-    ) -> Self {
-        Self::new(
-            KeySpace::Securified,
-            entity_kind,
-            key_kind,
-            factor_source_id,
-            network_id,
-            profile,
         )
     }
 }

@@ -7,10 +7,10 @@ pub(crate) struct SignaturesCollectorPreprocessor {
 pub(crate) fn sort_group_factors(
     used_factor_sources: HashSet<HDFactorSource>,
 ) -> IndexSet<FactorSourcesOfKind> {
-    let factors_of_kind = used_factor_sources
+    let factors_of_kind: HashMap<FactorSourceKind, IndexSet<HDFactorSource>> = used_factor_sources
         .into_iter()
         .into_grouping_map_by(|x| x.factor_source_kind())
-        .collect::<IndexSet<HDFactorSource>>();
+        .collect::<IndexSet<_>>();
 
     let mut factors_of_kind = factors_of_kind
         .into_iter()
