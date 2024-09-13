@@ -1,5 +1,5 @@
 use core::num;
-use std::{f32::consts::E, sync::RwLock};
+use std::sync::RwLock;
 
 use derive_more::derive;
 
@@ -33,28 +33,67 @@ pub struct UnfulfillableRequest {
     /// The reason why `request` could not be fulfilled.
     reason: UnfulfillableRequestReason,
 }
+impl UnfulfillableRequest {
+    pub fn empty(request: DerivationRequest) -> Self {
+        Self {
+            request,
+            reason: UnfulfillableRequestReason::Empty,
+        }
+    }
 
-/// A non-empty collection of unsatisfied requests
+    /// # Panics
+    /// Panics if `last_factor` does not share same parameters as `request`
+    pub fn last(
+        request: DerivationRequest,
+        last_factor: &HierarchicalDeterministicFactorInstance,
+    ) -> Self {
+        assert!(
+            last_factor.matches(&request),
+            "last_factor must match request"
+        );
+        Self {
+            request,
+            reason: UnfulfillableRequestReason::Last(last_factor.derivation_path().index),
+        }
+    }
+}
+
+impl HierarchicalDeterministicFactorInstance {
+    fn matches(&self, request: &DerivationRequest) -> bool {
+        self.factor_source_id() == request.factor_source_id
+            && self.derivation_path().matches(request)
+    }
+}
+impl DerivationPath {
+    fn matches(&self, request: &DerivationRequest) -> bool {
+        self.network_id == request.network_id
+            && self.entity_kind == request.entity_kind
+            && self.key_kind == request.key_kind
+            && self.index.key_space() == request.key_space
+    }
+}
+
+/// A non-empty collection of unfulfillable requests
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
 pub struct UnfulfillableRequests {
-    /// A non-empty collection of unsatisfied requests
-    unsatisfied: Vec<UnfulfillableRequest>, // we want `Set` but `IndexSet` is not `Hash`
+    /// A non-empty collection of unfulfillable requests
+    unfulfillable: Vec<UnfulfillableRequest>, // we want `Set` but `IndexSet` is not `Hash`
 }
 impl UnfulfillableRequests {
     /// # Panics
-    /// Panics if `unsatisfied` is empty.
-    pub fn new(unsatisfied: IndexSet<UnfulfillableRequest>) -> Self {
-        assert!(!unsatisfied.is_empty(), "non_empty must not be empty");
+    /// Panics if `unfulfillable` is empty.
+    pub fn new(unfulfillable: IndexSet<UnfulfillableRequest>) -> Self {
+        assert!(!unfulfillable.is_empty(), "non_empty must not be empty");
         Self {
-            unsatisfied: unsatisfied.into_iter().collect(),
+            unfulfillable: unfulfillable.into_iter().collect(),
         }
     }
-    pub fn unsatisfied(&self) -> IndexSet<UnfulfillableRequest> {
-        self.unsatisfied.clone().into_iter().collect()
+    pub fn unfulfillable(&self) -> IndexSet<UnfulfillableRequest> {
+        self.unfulfillable.clone().into_iter().collect()
     }
 
     pub fn requests(&self) -> IndexSet<DerivationRequest> {
-        self.unsatisfied
+        self.unfulfillable
             .clone()
             .into_iter()
             .map(|ur| ur.request)
@@ -81,8 +120,28 @@ pub enum NextDerivationPeekOutcome {
 
 /// A cache for pre-derived keys, saved on file and which will derive more keys
 /// if needed, using UI/UX via KeysCollector.
+///
+/// We must implement the `FactorInstanceProvider` in a way that it can handle
+/// the case where the cache does not exist, which it does not for users before
+/// Radix Wallet version 2.0.
+///
+/// The purpose of this cache is only to speed up the process of accessing  
+/// FactorInstances.
 #[async_trait::async_trait]
 pub trait IsPreDerivedKeysCache {
+    /// Inserts the `derived` keys into the cache, notice the asymmetry of this
+    /// "save" vs the `consume_next_factor_instances` ("load") - this method accepts
+    /// a set of factors per request, while the `consume_next_factor_instances`
+    /// returns a single factor per request.
+    ///
+    /// The reason is that we are deriving many keys and caching them, per request,
+    /// whereas the `consume_next_factor_instances` ("load") only ever cares about
+    /// the next key to be consumed.
+    async fn insert(
+        &self,
+        derived: IndexMap<DerivationRequest, IndexSet<HierarchicalDeterministicFactorInstance>>,
+    ) -> Result<()>;
+
     /// Must be async since might need to derive more keys if we are about
     /// to use the last, thus will require usage of KeysCollector - which is async.
     /// Also typically we cache to file - which itself is async
@@ -224,18 +283,12 @@ impl InMemoryPreDerivedKeysCache {
         for tuple in request_and_path_tuples.iter() {
             let for_key = cached.get(&tuple.path).ok_or(CommonError::Failure)?;
             let factors_left = for_key.len();
-            // if for_key.len() <= 1 {
-            //     if for_key.is_empty() {
-            //         warn!("Incorrect implementation of Cache! Should never be empty!");
-            //     }
-            //     unfulfillable.insert(tuple.request.clone());
-            // }
+            let request = tuple.request;
             if factors_left == 0 {
-                unfulfillable.insert(UnfulfillableRequest {
-                    request: tuple.request.clone(),
-                    reason: UnfulfillableRequestReason::Empty,
-                });
+                unfulfillable.insert(UnfulfillableRequest::empty(request));
             } else if factors_left == 1 {
+                let last_factor = for_key.last().expect("Just checked length.");
+                unfulfillable.insert(UnfulfillableRequest::last(request, last_factor));
             } else {
                 // all good
                 continue;
@@ -252,6 +305,13 @@ impl InMemoryPreDerivedKeysCache {
 
 #[async_trait::async_trait]
 impl IsPreDerivedKeysCache for InMemoryPreDerivedKeysCache {
+    async fn insert(
+        &self,
+        derived: IndexMap<DerivationRequest, IndexSet<HierarchicalDeterministicFactorInstance>>,
+    ) -> Result<()> {
+        todo!()
+    }
+
     async fn consume_next_factor_instances(
         &self,
         requests: IndexSet<DerivationRequest>,
@@ -282,6 +342,14 @@ impl IsPreDerivedKeysCache for InMemoryPreDerivedKeysCache {
     }
 }
 
+/// A coordinator of sorts between `PreDeriveKeysCache`, `KeysCollector` and Gateway,
+/// used to provide `HierarchicalDeterministicFactorInstance`s for a given `DerivationRequest`.
+///
+/// This FactorInstanceProvider is used when creating new entities or when
+/// securing existing entities.  It is used to provide the "next"
+/// `HierarchicalDeterministicFactorInstance` in both cases for the given request.
+///
+/// A `DerivationRequest` is a tuple of `(KeySpace, EntityKind, KeyKind, FactorSourceID, NetworkID)`.
 pub struct FactorInstanceProvider {
     pub gateway: Arc<dyn Gateway>,
     derivation_interactors: Arc<dyn KeysDerivationInteractors>,
@@ -305,31 +373,55 @@ impl FactorInstanceProvider {
     async fn derive_new_and_fill_cache<'p>(
         &self,
         profile: &'p Profile,
-        unfulfillable: &UnfulfillableRequests,
+        unfulfillable_requests: &UnfulfillableRequests,
     ) -> Result<()> {
         let factor_sources = profile.factor_sources.clone();
+        let unfulfillable_requests = unfulfillable_requests.unfulfillable();
 
-        // let request_by_factor: HashMap<FactorSourceIDFromHash, IndexSet<DerivationPath>> =
-        //     unfulfillable
-        //         .into_iter()
-        //         .into_grouping_map_by(|x| x)
-        //         .collect::<IndexSet<_>>();
+        let derivation_paths = IndexMap::<FactorSourceIDFromHash, IndexSet<DerivationPath>>::new();
 
-        // let derivation_paths = request_by_factor
-        //     .into_iter()
-        //     .collect::<IndexMap<FactorSourceIDFromHash, IndexSet<DerivationPath>>>();
-        // derivation_paths: IndexMap<FactorSourceIDFromHash, IndexSet<DerivationPath>>,
+        for unfulfillable_request in unfulfillable_requests {
+            // this is HARD. we might have to re-derive the public keys to re-discover
+            // know which DerivationPath was used to derive key public keys of
+            // securified accounts. The reason is that a securified account is
+            // no longer referencing its "genesis" factor in `KeySpace::Unsecurified`,
+            // and thus we cannot know which DerivationPath was used to derive that
+            // public key.
+            //
+            // We might derive some kind of naive best effort guess and then use
+            // gateway to see if the hash of this public key is "known". But this
+            // might result in multiple "passes" of `KeysCollector`... which is
+            // terrible UX.
+            //
+            // OR
+            //
+            // We might upload the derivation index of the genesis factor instance
+            // for an account when it gets securified. That way we do not need to
+            // try to re-derive the public keys of addresses of securified entities,
+            // just to know the last used index, instead we can just read it from
+            // gateway.
+        }
 
-        // let keys_collector = KeysCollector::new(
-        //     factor_sources,
-        //     derivation_paths,
-        //     self.derivation_interactors.clone(),
-        // )?;
+        let keys_collector = KeysCollector::new(
+            factor_sources,
+            derivation_paths,
+            self.derivation_interactors.clone(),
+        )?;
 
-        // let derivation_outcome = keys_collector.collect_keys().await?;
-        // let newly_derived = derivation_outcome.factor_instances;
+        let derivation_outcome = keys_collector.collect_keys().await;
+        let derived_factors = derivation_outcome.all_factors();
 
-        todo!()
+        let mut to_insert: IndexMap<
+            DerivationRequest,
+            IndexSet<HierarchicalDeterministicFactorInstance>,
+        > = IndexMap::new();
+
+        for derived_factor in derived_factors {
+            // add `HierarchicalDeterministicFactorInstance` into `to_insert`...
+        }
+        self.cache.insert(to_insert).await?;
+
+        Ok(())
     }
 
     async fn fulfill<'p>(
