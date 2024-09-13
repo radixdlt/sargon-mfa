@@ -229,6 +229,7 @@ impl From<(DerivationPathWithoutIndex, HDPathComponent)> for DerivationPath {
     }
 }
 
+#[cfg(test)]
 /// A simple `IsPreDerivedKeysCache` which uses in-memory cache instead of on
 /// file which the live implementation will use.
 #[derive(Default)]
@@ -254,6 +255,7 @@ struct Tuple {
     request: DerivationRequest,
     path: DerivationPathWithoutIndex,
 }
+#[cfg(test)]
 impl InMemoryPreDerivedKeysCache {
     fn tuples(requests: IndexSet<DerivationRequest>) -> IndexSet<Tuple> {
         requests
@@ -303,13 +305,28 @@ impl InMemoryPreDerivedKeysCache {
     }
 }
 
+#[cfg(test)]
 #[async_trait::async_trait]
 impl IsPreDerivedKeysCache for InMemoryPreDerivedKeysCache {
     async fn insert(
         &self,
-        derived: IndexMap<DerivationRequest, IndexSet<HierarchicalDeterministicFactorInstance>>,
+        derived_factors: IndexMap<
+            DerivationRequest,
+            IndexSet<HierarchicalDeterministicFactorInstance>,
+        >,
     ) -> Result<()> {
-        todo!()
+        let mut write_guard = self.cache.try_write().map_err(|_| CommonError::Failure)?;
+
+        for (request, derived_factor) in derived_factors {
+            let key = DerivationPathWithoutIndex::from(request);
+            if let Some(existing_factors) = write_guard.get_mut(&key) {
+                existing_factors.extend(derived_factor);
+            } else {
+                write_guard.insert(key, derived_factor);
+            }
+        }
+
+        Ok(())
     }
 
     async fn consume_next_factor_instances(
