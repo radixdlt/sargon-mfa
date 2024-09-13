@@ -963,6 +963,14 @@ pub trait IsEntity: Into<AccountOrPersona> + TryFrom<AccountOrPersona> + Clone {
             .into_iter()
             .collect()
     }
+
+    fn matches_key_space(&self, key_space: KeySpace) -> bool {
+        match key_space {
+            KeySpace::Securified => self.is_securified(),
+            KeySpace::Unsecurified => !self.is_securified(),
+        }
+    }
+
     fn is_securified(&self) -> bool {
         match self.security_state() {
             EntitySecurityState::Securified(_) => true,
@@ -1447,25 +1455,70 @@ pub struct Profile {
     pub personas: HashMap<IdentityAddress, Persona>,
 }
 
+#[derive(Clone, PartialEq, Eq, Debug, Hash)]
+pub struct SecurifiedEntity {
+    pub entity: AccountOrPersona,
+    pub control: SecurifiedEntityControl,
+}
+
 impl Profile {
-    pub fn get_entities<E: IsEntity + std::hash::Hash + Eq>(&self) -> IndexSet<E> {
-        match E::kind() {
+    pub fn get_entities_erased(&self, entity_kind: CAP26EntityKind) -> IndexSet<E> {
+        match entity_kind {
             CAP26EntityKind::Account => self
                 .accounts
                 .values()
                 .cloned()
                 .map(AccountOrPersona::from)
-                .map(|e| E::try_from(e).ok().unwrap())
                 .collect::<IndexSet<E>>(),
             CAP26EntityKind::Identity => self
                 .personas
                 .values()
                 .cloned()
                 .map(AccountOrPersona::from)
-                .map(|e| E::try_from(e).ok().unwrap())
                 .collect::<IndexSet<E>>(),
         }
     }
+    pub fn get_entities<E: IsEntity + std::hash::Hash + Eq>(&self) -> IndexSet<E> {
+        self.get_entities_erased(E::kind())
+            .into_iter()
+            .map(E::try_from(e).ok().unwrap())
+            .collect()
+    }
+
+    pub fn get_entities_of_kind_on_network_in_key_space(
+        &self,
+        entity_kind: CAP26EntityKind,
+        network_id: NetworkID,
+        key_space: KeySpace,
+    ) -> IndexSet<AccountOrPersona> {
+        self.get_entities_erased(entity_kind)
+            .into_iter()
+            .filter(|e| e.network_id() == network_id)
+            .filter(|e| e.matches_key_space(key_space))
+            .collect()
+    }
+
+    pub fn get_securified_entities_of_kind_on_network(
+        &self,
+        entity_kind: CAP26EntityKind,
+        network_id: NetworkID,
+    ) -> IndexSet<SecurifiedEntity> {
+        self.get_entities_of_kind_on_network_in_key_space(
+            entity_kind,
+            network_id,
+            KeySpace::Securified,
+        )
+        .into_iter()
+        .map(|e: AccountOrPersona| {
+            let control = match e.security_state() {
+                EntitySecurityState::Securified(control) => control,
+                _ => unreachable!(),
+            };
+            SecurifiedEntity { entity: e, control }
+        })
+        .collect()
+    }
+
     pub fn get_accounts(&self) -> IndexSet<Account> {
         self.get_entities()
     }

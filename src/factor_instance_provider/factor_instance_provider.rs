@@ -1,14 +1,15 @@
 use core::num;
-use std::sync::RwLock;
+use std::{error::Request, sync::RwLock};
 
 use derive_more::derive;
+use rand::seq::index;
 
 use crate::prelude::*;
 
 /// The reason why a request is unfulfillable, and if the reason is that the
 /// last factor would be consumed, the value of that last factor is included,
 /// to act as the range.
-#[derive(Clone, PartialEq, Eq, Hash, Debug)]
+#[derive(Clone, PartialEq, Eq, Hash, Debug, EnumAsInner)]
 pub enum UnfulfillableRequestReason {
     /// Users before Radix Wallet 2.0 does not have any cache.
     /// This will be kick of the cumbersome process of analyzing the Profile
@@ -55,6 +56,14 @@ impl UnfulfillableRequest {
             request,
             reason: UnfulfillableRequestReason::Last(last_factor.derivation_path().index),
         }
+    }
+
+    pub fn is_reason_empty(&self) -> bool {
+        matches!(self.reason, UnfulfillableRequestReason::Empty)
+    }
+
+    pub fn is_reason_last(&self) -> bool {
+        matches!(self.reason, UnfulfillableRequestReason::Last(_))
     }
 }
 
@@ -386,6 +395,47 @@ impl FactorInstanceProvider {
     }
 }
 
+impl From<(DerivationRequest, HDPathComponent)> for DerivationPath {
+    fn from(value: (DerivationRequest, HDPathComponent)) -> Self {
+        let (request, index) = value;
+        DerivationPath::new(
+            request.network_id,
+            request.entity_kind,
+            request.key_kind,
+            index,
+        )
+    }
+}
+
+impl MatrixOfFactorInstances {
+    fn highest_derivation_path_index(
+        &self,
+        request: &DerivationRequest,
+    ) -> Option<HDPathComponent> {
+        self.all_factors()
+            .into_iter()
+            .filter(|f| f.matches(request))
+            .map(|f| f.derivation_path().index)
+            .max()
+    }
+}
+impl SecurifiedEntityControl {
+    fn highest_derivation_path_index(
+        &self,
+        request: &DerivationRequest,
+    ) -> Option<HDPathComponent> {
+        self.matrix.highest_derivation_path_index(request)
+    }
+}
+impl SecurifiedEntity {
+    fn highest_derivation_path_index(
+        &self,
+        request: &DerivationRequest,
+    ) -> Option<HDPathComponent> {
+        self.control.highest_derivation_path_index(request)
+    }
+}
+
 impl FactorInstanceProvider {
     async fn derive_new_and_fill_cache<'p>(
         &self,
@@ -395,9 +445,79 @@ impl FactorInstanceProvider {
         let factor_sources = profile.factor_sources.clone();
         let unfulfillable_requests = unfulfillable_requests.unfulfillable();
 
-        let derivation_paths = IndexMap::<FactorSourceIDFromHash, IndexSet<DerivationPath>>::new();
+        let unfulfillable_requests_because_empty = unfulfillable_requests
+            .iter()
+            .filter(|ur| ur.is_reason_empty())
+            .cloned()
+            .collect::<IndexSet<_>>();
 
-        for unfulfillable_request in unfulfillable_requests {
+        let unfulfillable_requests_because_last = unfulfillable_requests
+            .iter()
+            .filter(|ur| ur.is_reason_last())
+            .cloned()
+            .collect::<IndexSet<_>>();
+
+        _ = drop(unfulfillable_requests);
+
+        let securified_space_requests_because_empty = unfulfillable_requests_because_empty
+            .iter()
+            .filter(|ur| ur.request.key_space == KeySpace::Securified)
+            .cloned()
+            .collect::<IndexSet<_>>();
+
+        let unsecurified_space_requests_because_empty = unfulfillable_requests_because_empty
+            .iter()
+            .filter(|ur| ur.request.key_space == KeySpace::Unsecurified)
+            .cloned()
+            .collect::<IndexSet<_>>();
+
+        let mut derivation_paths =
+            IndexMap::<FactorSourceIDFromHash, IndexSet<DerivationPath>>::new();
+
+        let mut add = |key: FactorSourceIDFromHash, path: DerivationPath| {
+            if let Some(paths) = derivation_paths.get_mut(&key) {
+                paths.insert(path);
+            } else {
+                derivation_paths.insert(key, IndexSet::just(path));
+            }
+        };
+
+        for unfulfillable_request_because_last in unfulfillable_requests_because_last {
+            // This is VERY EASY
+            let request = unfulfillable_request_because_last.request;
+            let last_index = unfulfillable_request_because_last
+                .reason
+                .into_last()
+                .unwrap();
+            let next_index = last_index.add_one();
+            let path = DerivationPath::from((request, next_index));
+            add(request.factor_source_id, path);
+        }
+
+        for securified_space_request in securified_space_requests_because_empty {
+            // This is not as easy, but not hard.
+            let request = securified_space_request.request;
+            let last_index: Option<HDPathComponent> = {
+                let all_securified_in_profile = profile.get_securified_entities_of_kind_on_network(
+                    request.entity_kind,
+                    request.network_id,
+                );
+
+                all_securified_in_profile
+                    .into_iter()
+                    .flat_map(|e: SecurifiedEntity| e.highest_derivation_path_index(&request))
+                    .max()
+            };
+
+            let next_index = last_index
+                .map(|l| l.add_one())
+                .unwrap_or(HDPathComponent::securified(0));
+            let path = DerivationPath::from((request, next_index));
+
+            add(request.factor_source_id, path);
+        }
+
+        for unsecurified_space_request in unsecurified_space_requests_because_empty {
             // this is HARD. we might have to re-derive the public keys to re-discover
             // know which DerivationPath was used to derive key public keys of
             // securified accounts. The reason is that a securified account is
@@ -410,26 +530,13 @@ impl FactorInstanceProvider {
             // might result in multiple "passes" of `KeysCollector`... which is
             // terrible UX.
             //
-            // OR
+            // ~~~ OR ~~~
             //
             // We might upload the derivation index of the genesis factor instance
             // for an account when it gets securified. That way we do not need to
             // try to re-derive the public keys of addresses of securified entities,
             // just to know the last used index, instead we can just read it from
             // gateway.
-            //
-            // ~~~ OR ~~~
-            // Am I over-complicating things here? Can I supply rely on the index
-            // of an account in the Profile to know the next index to use - filtered
-            // adjusted of course based on the FactorSource used? This code does
-            // not relate to recovery (which I've just worked on, so my mind might
-            // be too used to the idea of not having access to the profile...).
-            // But there might be "gaps" in indices used, but at the very least
-            // we should be able to get an APPROXIMATE next index and then we can
-            // "pad" with some indices before and then we will create a wide
-            // range of indices to derive keys for - which SHOULD "hit" the public
-            // key of the address of the securified entities. Thus we should know
-            // the last index used, and we know which is the next factor.
             //
             // Right?
         }
