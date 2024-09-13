@@ -247,13 +247,27 @@ impl FactorInstanceProvider {
 }
 
 impl FactorInstanceProvider {
+    async fn derive_new_and_fill_cache<'p>(
+        &self,
+        profile: &'p Profile,
+        unfulfillable: IndexSet<DerivationRequest>,
+    ) -> Result<()> {
+        todo!()
+    }
+    
     async fn fulfill<'p>(
         &self,
         profile: &'p Profile,
         fulfillable: IndexSet<DerivationRequest>,
         unfulfillable: IndexSet<DerivationRequest>,
     ) -> Result<IndexMap<DerivationRequest, HierarchicalDeterministicFactorInstance>> {
-        todo!()
+        self.derive_new_and_fill_cache(profile, unfulfillable.clone())
+            .await?;
+        let requests = fulfillable
+            .union(&unfulfillable)
+            .cloned()
+            .collect::<IndexSet<_>>();
+        return self.cache.consume_next_factor_instances(requests).await;
     }
 }
 
