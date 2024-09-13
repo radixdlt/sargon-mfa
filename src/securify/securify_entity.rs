@@ -5,8 +5,6 @@ pub async fn securify(
     matrix: MatrixOfFactorSources,
     profile: &mut Profile,
     factor_instance_provider: &FactorInstanceProvider,
-    derivation_interactors: Arc<dyn KeysDerivationInteractors>,
-    gateway: Arc<dyn Gateway>,
 ) -> Result<SecurifiedEntityControl> {
     let account = profile.account_by_address(address.clone())?;
 
@@ -82,6 +80,7 @@ mod securify_tests {
 
         let factor_instance_provider = FactorInstanceProvider::new(
             gateway.clone(),
+            interactors,
             Arc::new(InMemoryPreDerivedKeysCache::default()),
         );
 
@@ -90,8 +89,6 @@ mod securify_tests {
             matrix.clone(),
             &mut profile,
             &factor_instance_provider,
-            interactors.clone(),
-            gateway.clone(),
         )
         .await
         .unwrap();
@@ -112,8 +109,6 @@ mod securify_tests {
             matrix.clone(),
             &mut profile,
             &factor_instance_provider,
-            interactors.clone(),
-            gateway.clone(),
         )
         .await
         .unwrap();

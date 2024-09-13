@@ -86,12 +86,21 @@ impl IsPreDerivedKeysCache for InMemoryPreDerivedKeysCache {
 }
 
 pub struct FactorInstanceProvider {
-    gateway: Arc<dyn Gateway>,
+    pub gateway: Arc<dyn Gateway>,
+    derivation_interactors: Arc<dyn KeysDerivationInteractors>,
     cache: Arc<dyn IsPreDerivedKeysCache>,
 }
 impl FactorInstanceProvider {
-    pub fn new(gateway: Arc<dyn Gateway>, cache: Arc<dyn IsPreDerivedKeysCache>) -> Self {
-        Self { gateway, cache }
+    pub fn new(
+        gateway: Arc<dyn Gateway>,
+        derivation_interactors: Arc<dyn KeysDerivationInteractors>,
+        cache: Arc<dyn IsPreDerivedKeysCache>,
+    ) -> Self {
+        Self {
+            gateway,
+            derivation_interactors,
+            cache,
+        }
     }
 }
 

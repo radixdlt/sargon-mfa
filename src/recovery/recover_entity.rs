@@ -906,8 +906,10 @@ mod tests {
                     let mut profile = Profile::new(all_factors.clone(), [], []);
 
                     let keys_cache = Arc::new(InMemoryPreDerivedKeysCache::default());
+                    let interactors = Arc::new(TestDerivationInteractors::default());
+
                     let factor_instance_provider =
-                        FactorInstanceProvider::new(gateway.clone(), keys_cache);
+                        FactorInstanceProvider::new(gateway.clone(), interactors, keys_cache);
 
                     let alice_address = profile
                         .new_account(
@@ -920,8 +922,6 @@ mod tests {
                         .unwrap()
                         .entity_address();
 
-                    let interactors = Arc::new(TestDerivationInteractors::default());
-
                     securify(
                         alice_address.clone(),
                         MatrixOfFactorSources::new(
@@ -931,8 +931,6 @@ mod tests {
                         ),
                         &mut profile,
                         &factor_instance_provider,
-                        interactors.clone(),
-                        gateway.clone(),
                     )
                     .await
                     .unwrap();
@@ -953,8 +951,6 @@ mod tests {
                         MatrixOfFactorSources::new([fs_at(1), fs_at(3)], 2, [fs_at(7)]),
                         &mut profile,
                         &factor_instance_provider,
-                        interactors,
-                        gateway.clone(),
                     )
                     .await
                     .unwrap();
