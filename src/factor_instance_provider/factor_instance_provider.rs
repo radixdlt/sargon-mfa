@@ -5,6 +5,55 @@ use derive_more::derive;
 
 use crate::prelude::*;
 
+/// The reason why a derivation request might be "unfulfillable" by the a
+/// "PreDerivedKeysCache" - either because there are not enough cached factors
+/// left in the cache, or because the request would exactly consume the last factor.
+enum UnfulfillableRequestReason {
+    /// The request would exactly consume the last factor.
+    Last,
+    /// Not enough factors to fulfill the request (last would be consumed and
+    /// would not be enough)
+    TooFew,
+}
+
+/// A derivation request which is unfulfillable, and the reason why it is.
+struct UnfulfillableRequest {
+    request: DerivationRequest,
+    reason: UnfulfillableRequestReason,
+}
+
+/// A non-empty map of unfulfillable requests and the reason why they are
+/// unfulfillable.
+struct UnfulfillableRequests {
+    /// A non-empty map of unsatisfied requests and the reason why they are
+    /// unsatisfied.
+    unsatisfied: IndexMap<DerivationRequest, UnfulfillableRequest>,
+}
+impl UnfulfillableRequests {
+    /// # Panics
+    /// Panics if `unsatisfied` is empty.
+    pub fn new(unsatisfied: IndexMap<DerivationRequest, UnsatisfiedRequest>) -> Self {
+        assert!(!unsatisfied.is_empty(), "non_empty must not be empty");
+        Self { unsatisfied }
+    }
+}
+
+/// The outcome of peeking the next derivation index for a request.
+pub enum NextDerivationPeekOutcome {
+    /// We failed to peek the next derivation index for the request, probably
+    /// an error while reading from cache.
+    Failure(CommonError),
+
+    /// All requests would have at least one factor left after they are fulfilled.
+    Fulfillable,
+
+    /// The `IndexMap` contains the last consumed index for each request.
+    ///
+    /// N.B. that if some request would not consume the last factor, it will not
+    /// be present in this map.
+    Unfulfillable(UnfulfillableRequests),
+}
+
 /// A cache for pre-derived keys, saved on file and which will derive more keys
 /// if needed, using UI/UX via KeysCollector.
 #[async_trait::async_trait]
@@ -17,7 +66,35 @@ pub trait IsPreDerivedKeysCache {
         requests: IndexSet<DerivationRequest>,
     ) -> Result<IndexMap<DerivationRequest, HierarchicalDeterministicFactorInstance>>;
 
-    async fn would_consume_last(&self, requests: IndexSet<DerivationRequest>) -> Result<bool>;
+    /// Returns `NextDerivationPeekOutcome::WouldHaveAtLeastOneFactorLeftPerFulfilledRequests`
+    /// if there would be **at least on key left** after we have consumed
+    /// (deleted) keys fulfilling all `requests`. Otherwise returns
+    ///`NextDerivationPeekOutcome::WouldConsumeLastFactorOfRequests(last)` where `indices` is a map of the last consumed indices
+    /// for each request. By index we mean Derivation Entity Index (`HDPathComponent`).
+    /// If there is any problem with the cache, returns `Err`.
+    ///
+    /// We **must** have one key/factor left fulfilling the request, so that we can
+    /// derive the next keys based on that.
+    /// This prevents us from a problem:
+    /// 1. Account X with address `A` is created by FactorInstance `F` with
+    /// `{ factor_source: L, key_space: Unsecurified, index: 0 }`
+    /// 2. User securified account `X`, and `F = { factor_source: L, key_space: Unsecurified, index: 0 }`
+    /// is now "free", since it is no longer found in the Profile.
+    /// 3. User tries to create account `Y` with `L` and if we would have used
+    /// Profile "static analysis" it would say that `F = { factor_source: L, key_space: Unsecurified, index: 0 }`
+    /// is next/available.
+    /// 4. Failure! Account `Y` was never created since it would have same
+    /// address `A` as account `X`, since it would have used same FactorInstance.
+    /// 5. This problem is we cannot do this simple static analysis of Profile
+    /// to find next index we would actually need to form derivation paths and
+    /// derive the keys and check if that public key has been used to create any
+    /// of the addresses in profile.
+    ///
+    /// Eureka! Or we just ensure to not loose track of the fact that `0` has
+    /// been used, by letting the cache contains (0...N) keys and **before** `N`
+    /// is consumed, we derive the next `(N+1, N+N)` keys and cache them. This
+    /// way we need only derive more keys when they are needed.
+    async fn peek(&self, requests: IndexSet<DerivationRequest>) -> NextDerivationPeekOutcome;
 }
 
 /// Like a `DerivationPath` but without the last path component. Used as a
@@ -123,7 +200,7 @@ impl IsPreDerivedKeysCache for InMemoryPreDerivedKeysCache {
         Ok(instances_read_from_cache)
     }
 
-    async fn would_consume_last(&self, requests: IndexSet<DerivationRequest>) -> Result<bool> {
+    async fn peek(&self, requests: IndexSet<DerivationRequest>) -> NextDerivationPeekOutcome {
         let cached = self.cache.try_read().map_err(|_| CommonError::Failure)?;
 
         let paths = requests
@@ -133,8 +210,9 @@ impl IsPreDerivedKeysCache for InMemoryPreDerivedKeysCache {
 
         for path in paths.iter() {
             let for_key = cached.get(path).ok_or(CommonError::Failure)?;
-            if for_key.len() <= 1 {
-                return Ok(true);
+            match for_key.len() {
+                0 => return Ok(false),
+                // return Ok(true);
             }
         }
 
@@ -241,24 +319,6 @@ impl FactorInstanceProvider {
         if !would_consume_last {
             return self.cache.consume_next_factor_instances(requests).await;
         }
-
-        // We NEED to have one factor left fulfilling the request, so that we can
-        // derive the NEXT keys based on that.
-        // This prevents us from a problem:
-        // i. Account X with address `A` is created by FactorInstance `F` with { factor_source: L, key_space: Unsecurified, index: 0 }`
-        // ii. User securified account X, and `F = { factor_source: L, key_space: Unsecurified, index: 0 }` is now "free", since
-        //  it is no longer found in the Profile.
-        // iii. User tries to create account Y with `L` and if we would have used Profile "static analysis" it would say that
-        // F = { factor_source: L, key_space: Unsecurified, index: 0 }` is next.
-        // iv. Failure! Account Y was never created since it would have same address `A` as account X, since it would have used same FactorInstance.
-        // v. This problem is we cannot do this simple static analysis of Profile to find next index
-        //  we would actually need to form derivation paths and derive the keys and check if that public key
-        //  has been used to create any of the addresses in profile.
-        //
-        // Eureka!: Or we just ensure to not loose track of the fact that `0` has been used, by letting the cache contains
-        // (0...N) keys and BEFORE `N` is consumed, we derive the next `(N+1, N+N)` keys and cache them.
-        // This way we need only derive more keys when they are needed. And in fact no "next index assigner" is needed,
-        // the cache IS the next KEY assigner, and keeps track of the indices.
 
         // let base =
         //     index_assigner.derivation_index_for_factor_source(NextFreeIndexAssignerRequest {
