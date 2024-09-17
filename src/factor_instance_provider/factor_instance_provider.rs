@@ -286,13 +286,18 @@ impl InMemoryPreDerivedKeysCache {
         &self,
         requests: IndexSet<DerivationRequest>,
     ) -> Result<Option<UnfulfillableRequests>> {
-        let cached = self.cache.try_read().map_err(|_| CommonError::Failure)?;
+        let cached = self
+            .cache
+            .try_read()
+            .map_err(|_| CommonError::KeysCacheReadGuard)?;
 
         let request_and_path_tuples = InMemoryPreDerivedKeysCache::tuples(requests.clone());
 
         let mut unfulfillable = IndexSet::<UnfulfillableRequest>::new();
         for tuple in request_and_path_tuples.iter() {
-            let for_key = cached.get(&tuple.path).ok_or(CommonError::Failure)?;
+            let for_key = cached
+                .get(&tuple.path)
+                .ok_or(CommonError::KeysCacheUnknownKey)?;
             let factors_left = for_key.len();
             let request = tuple.request;
             if factors_left == 0 {
@@ -324,7 +329,10 @@ impl IsPreDerivedKeysCache for InMemoryPreDerivedKeysCache {
             IndexSet<HierarchicalDeterministicFactorInstance>,
         >,
     ) -> Result<()> {
-        let mut write_guard = self.cache.try_write().map_err(|_| CommonError::Failure)?;
+        let mut write_guard = self
+            .cache
+            .try_write()
+            .map_err(|_| CommonError::KeysCacheWriteGuard)?;
 
         for (request, derived_factor) in derived_factors {
             let key = DerivationPathWithoutIndex::from(request);
@@ -342,7 +350,10 @@ impl IsPreDerivedKeysCache for InMemoryPreDerivedKeysCache {
         &self,
         requests: IndexSet<DerivationRequest>,
     ) -> Result<IndexMap<DerivationRequest, HierarchicalDeterministicFactorInstance>> {
-        let mut cached = self.cache.try_write().map_err(|_| CommonError::Failure)?;
+        let mut cached = self
+            .cache
+            .try_write()
+            .map_err(|_| CommonError::KeysCacheWriteGuard)?;
 
         let mut instances_read_from_cache =
             IndexMap::<DerivationRequest, HierarchicalDeterministicFactorInstance>::new();
@@ -350,8 +361,10 @@ impl IsPreDerivedKeysCache for InMemoryPreDerivedKeysCache {
         let request_and_path_tuples = InMemoryPreDerivedKeysCache::tuples(requests.clone());
 
         for tuple in request_and_path_tuples {
-            let for_key = cached.get_mut(&tuple.path).ok_or(CommonError::Failure)?;
-            let read_from_cache = for_key.pop().ok_or(CommonError::Failure)?;
+            let for_key = cached
+                .get_mut(&tuple.path)
+                .ok_or(CommonError::KeysCacheUnknownKey)?;
+            let read_from_cache = for_key.pop().ok_or(CommonError::KeysCacheEmptyForKey)?;
             instances_read_from_cache.insert(tuple.request, read_from_cache);
         }
 
@@ -706,7 +719,7 @@ impl FactorInstanceProvider {
         let derived_factor = derived_factors_map
             .into_iter()
             .next()
-            .ok_or(CommonError::Failure)?
+            .ok_or(CommonError::InstanceProviderFailedToCreateGenesisFactor)?
             .1;
 
         Ok(derived_factor)

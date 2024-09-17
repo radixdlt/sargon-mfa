@@ -837,7 +837,7 @@ impl TryFrom<AddressOfAccountOrPersona> for AccountAddress {
     fn try_from(value: AddressOfAccountOrPersona) -> Result<Self> {
         match value {
             AddressOfAccountOrPersona::Account(a) => Ok(a),
-            AddressOfAccountOrPersona::Identity(_) => Err(CommonError::Failure),
+            AddressOfAccountOrPersona::Identity(_) => Err(CommonError::AddressConversionError),
         }
     }
 }
@@ -847,7 +847,7 @@ impl TryFrom<AddressOfAccountOrPersona> for IdentityAddress {
     fn try_from(value: AddressOfAccountOrPersona) -> Result<Self> {
         match value {
             AddressOfAccountOrPersona::Identity(a) => Ok(a),
-            AddressOfAccountOrPersona::Account(_) => Err(CommonError::Failure),
+            AddressOfAccountOrPersona::Account(_) => Err(CommonError::AddressConversionError),
         }
     }
 }
@@ -1133,7 +1133,7 @@ impl TryFrom<AccountOrPersona> for Account {
     fn try_from(value: AccountOrPersona) -> Result<Self> {
         match value {
             AccountOrPersona::AccountEntity(a) => Ok(a),
-            AccountOrPersona::PersonaEntity(_) => Err(CommonError::Failure),
+            AccountOrPersona::PersonaEntity(_) => Err(CommonError::EntityConversionError),
         }
     }
 }
@@ -1144,7 +1144,7 @@ impl TryFrom<AccountOrPersona> for Persona {
     fn try_from(value: AccountOrPersona) -> Result<Self> {
         match value {
             AccountOrPersona::PersonaEntity(p) => Ok(p),
-            AccountOrPersona::AccountEntity(_) => Err(CommonError::Failure),
+            AccountOrPersona::AccountEntity(_) => Err(CommonError::EntityConversionError),
         }
     }
 }
@@ -1302,7 +1302,7 @@ impl MatrixOfFactorInstances {
                             .iter()
                             .find(|i| i.factor_source_id() == f.factor_source_id())
                             .cloned()
-                            .ok_or(CommonError::Failure)
+                            .ok_or(CommonError::MissingFactorMappingInstancesIntoMatrix)
                         })
                     .collect::<Result<Vec<HierarchicalDeterministicFactorInstance>>>()
             };
@@ -1563,8 +1563,8 @@ pub struct Signature([u8; 64]);
 impl Signature {
     pub fn new_with_hex(s: impl AsRef<str>) -> Result<Self> {
         hex::decode(s.as_ref())
-            .map_err(|_| CommonError::Failure)
-            .and_then(|b| b.try_into().map_err(|_| CommonError::Failure))
+            .map_err(|_| CommonError::StringNotHex)
+            .and_then(|b| b.try_into().map_err(|_| CommonError::BytesLengthError))
             .map(Self)
     }
 }
@@ -1624,9 +1624,6 @@ pub enum CommonError {
     #[error("Unknown factor source")]
     UnknownFactorSource,
 
-    #[error("Failed")]
-    Failure,
-
     #[error("Invalid factor source kind")]
     InvalidFactorSourceKind,
 
@@ -1638,6 +1635,57 @@ pub enum CommonError {
 
     #[error("Unknown persona")]
     UnknownPersona,
+
+    #[error("Failed To Acquire ReadGuard of KeysCache")]
+    KeysCacheReadGuard,
+
+    #[error("Failed To Acquire WriteGuard of KeysCache")]
+    KeysCacheWriteGuard,
+
+    #[error("KeysCache does not contain any references for key")]
+    KeysCacheUnknownKey,
+
+    #[error("KeysCache empty list for key")]
+    KeysCacheEmptyForKey,
+
+    #[error("FactorInstanceProvider failed to create genesis factor")]
+    InstanceProviderFailedToCreateGenesisFactor,
+
+    #[error("Address conversion error")]
+    AddressConversionError,
+
+    #[error("Entity conversion error")]
+    EntityConversionError,
+
+    #[error("String not hex")]
+    StringNotHex,
+
+    #[error("Bytes length error")]
+    BytesLengthError,
+
+    #[error("Missing a FactorInstance while mapping FactorInstances and MatrixOfFactorSources into MatrixOfFactorInstances")]
+    MissingFactorMappingInstancesIntoMatrix,
+
+    #[error("Matrix From ScryptoAccessRule Not Protected")]
+    MatrixFromRulesNotProtected,
+
+    #[error("Matrix From ScryptoAccessRule Not AnyOf")]
+    MatrixFromRulesNotAnyOf,
+
+    #[error("Matrix From ScryptoAccessRule Expected Two Any")]
+    MatrixFromRulesExpectedTwoAny,
+
+    #[error("Matrix From ScryptoAccessRule Not ProofRule")]
+    MatrixFromRulesNotProofRule,
+
+    #[error("Matrix From ScryptoAccessRule Not CountOf")]
+    MatrixFromRulesNotCountOf,
+
+    #[error("Matrix From ScryptoAccessRule ResourceOrNonFungible not PublicKeyHash")]
+    MatrixFromRulesResourceOrNonFungibleNotKeyHash,
+
+    #[error("TestDerivationInteractor hardcoded failure")]
+    HardcodedFailureTestDerivationInteractor,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -1828,34 +1876,48 @@ impl TryFrom<ScryptoAccessRule> for MatrixOfKeyHashes {
     type Error = CommonError;
 
     fn try_from(value: ScryptoAccessRule) -> Result<Self> {
-        let protected = value.into_protected().map_err(|_| CommonError::Failure)?;
-        let root_any_of = protected.into_any_of().map_err(|_| CommonError::Failure)?;
+        let protected = value
+            .into_protected()
+            .map_err(|_| CommonError::MatrixFromRulesNotProtected)?;
+        let root_any_of = protected
+            .into_any_of()
+            .map_err(|_| CommonError::MatrixFromRulesNotAnyOf)?;
         if root_any_of.len() != 2 {
-            return Err(CommonError::Failure);
+            return Err(CommonError::MatrixFromRulesExpectedTwoAny);
         }
         let rule_0 = root_any_of[0]
             .clone()
             .into_proof_rule()
-            .map_err(|_| CommonError::Failure)?;
+            .map_err(|_| CommonError::MatrixFromRulesNotProofRule)?;
 
         let rule_1 = root_any_of[1]
             .clone()
             .into_proof_rule()
-            .map_err(|_| CommonError::Failure)?;
+            .map_err(|_| CommonError::MatrixFromRulesNotProofRule)?;
 
-        let threshold_rule = rule_0.into_count_of().map_err(|_| CommonError::Failure)?;
-        let override_rule = rule_1.into_any_of().map_err(|_| CommonError::Failure)?;
+        let threshold_rule = rule_0
+            .into_count_of()
+            .map_err(|_| CommonError::MatrixFromRulesNotCountOf)?;
+        let override_rule = rule_1
+            .into_any_of()
+            .map_err(|_| CommonError::MatrixFromRulesNotAnyOf)?;
 
         let threshold = threshold_rule.0;
         let threshold_hashes = threshold_rule
             .1
             .into_iter()
-            .map(|r| r.into_public_key_hash().map_err(|_| CommonError::Failure))
+            .map(|r| {
+                r.into_public_key_hash()
+                    .map_err(|_| CommonError::MatrixFromRulesResourceOrNonFungibleNotKeyHash)
+            })
             .collect::<Result<Vec<PublicKeyHash>>>()?;
 
         let override_hashes = override_rule
             .into_iter()
-            .map(|r| r.into_public_key_hash().map_err(|_| CommonError::Failure))
+            .map(|r| {
+                r.into_public_key_hash()
+                    .map_err(|_| CommonError::MatrixFromRulesResourceOrNonFungibleNotKeyHash)
+            })
             .collect::<Result<Vec<PublicKeyHash>>>()?;
 
         Ok(Self::new(

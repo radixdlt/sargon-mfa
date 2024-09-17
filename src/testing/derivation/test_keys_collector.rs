@@ -22,16 +22,16 @@ impl TestDerivationInteractors {
 impl TestDerivationInteractors {
     pub(crate) fn fail() -> Self {
         Self::new(
-            TestDerivationParallelInteractor::fail(),
-            TestDerivationSerialInteractor::fail(),
+            TestDerivationPolyInteractor::fail(),
+            TestDerivationMonoInteractor::fail(),
         )
     }
 }
 impl Default for TestDerivationInteractors {
     fn default() -> Self {
         Self::new(
-            TestDerivationParallelInteractor::default(),
-            TestDerivationSerialInteractor::default(),
+            TestDerivationPolyInteractor::default(),
+            TestDerivationMonoInteractor::default(),
         )
     }
 }
@@ -45,12 +45,12 @@ impl KeysDerivationInteractors for TestDerivationInteractors {
     }
 }
 
-pub(crate) struct TestDerivationParallelInteractor {
+pub(crate) struct TestDerivationPolyInteractor {
     handle: fn(
         MonoFactorKeyDerivationRequest,
     ) -> Result<IndexSet<HierarchicalDeterministicFactorInstance>>,
 }
-impl TestDerivationParallelInteractor {
+impl TestDerivationPolyInteractor {
     pub(crate) fn new(
         handle: fn(
             MonoFactorKeyDerivationRequest,
@@ -59,7 +59,7 @@ impl TestDerivationParallelInteractor {
         Self { handle }
     }
     pub(crate) fn fail() -> Self {
-        Self::new(|_| Err(CommonError::Failure))
+        Self::new(|_| Err(CommonError::HardcodedFailureTestDerivationInteractor))
     }
     fn derive(
         &self,
@@ -68,7 +68,7 @@ impl TestDerivationParallelInteractor {
         (self.handle)(request)
     }
 }
-impl Default for TestDerivationParallelInteractor {
+impl Default for TestDerivationPolyInteractor {
     fn default() -> Self {
         Self::new(do_derive_serially)
     }
@@ -88,7 +88,7 @@ fn do_derive_serially(
 }
 
 #[async_trait::async_trait]
-impl PolyFactorKeyDerivationInteractor for TestDerivationParallelInteractor {
+impl PolyFactorKeyDerivationInteractor for TestDerivationPolyInteractor {
     async fn derive(
         &self,
         request: PolyFactorKeyDerivationRequest,
@@ -108,12 +108,12 @@ impl PolyFactorKeyDerivationInteractor for TestDerivationParallelInteractor {
     }
 }
 
-pub(crate) struct TestDerivationSerialInteractor {
+pub(crate) struct TestDerivationMonoInteractor {
     handle: fn(
         MonoFactorKeyDerivationRequest,
     ) -> Result<IndexSet<HierarchicalDeterministicFactorInstance>>,
 }
-impl TestDerivationSerialInteractor {
+impl TestDerivationMonoInteractor {
     pub(crate) fn new(
         handle: fn(
             MonoFactorKeyDerivationRequest,
@@ -122,7 +122,7 @@ impl TestDerivationSerialInteractor {
         Self { handle }
     }
     pub(crate) fn fail() -> Self {
-        Self::new(|_| Err(CommonError::Failure))
+        Self::new(|_| Err(CommonError::HardcodedFailureTestDerivationInteractor))
     }
     fn derive(
         &self,
@@ -131,14 +131,14 @@ impl TestDerivationSerialInteractor {
         (self.handle)(request)
     }
 }
-impl Default for TestDerivationSerialInteractor {
+impl Default for TestDerivationMonoInteractor {
     fn default() -> Self {
         Self::new(do_derive_serially)
     }
 }
 
 #[async_trait::async_trait]
-impl MonoFactorKeyDerivationInteractor for TestDerivationSerialInteractor {
+impl MonoFactorKeyDerivationInteractor for TestDerivationMonoInteractor {
     async fn derive(
         &self,
         request: MonoFactorKeyDerivationRequest,

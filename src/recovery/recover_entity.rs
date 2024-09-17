@@ -354,7 +354,9 @@ pub async fn recover_entity<E: IsEntity + Sync + Hash + Eq>(
             .map(|(k, v)| {
                 let typed_address = v
                     .into_iter()
-                    .map(|a| E::Address::try_from(a).map_err(|_| CommonError::Failure))
+                    .map(|a| {
+                        E::Address::try_from(a).map_err(|_| CommonError::AddressConversionError)
+                    })
                     .collect::<Result<HashSet<E::Address>>>()?;
 
                 Ok((k, typed_address))
