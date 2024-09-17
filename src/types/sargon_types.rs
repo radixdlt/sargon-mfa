@@ -1502,21 +1502,7 @@ impl MatrixOfFactorInstances {
         matrix_of_factor_sources: MatrixOfFactorSources,
     ) -> Result<Self> {
         let instances = instances.into_iter().collect_vec();
-        let mut actual = instances
-            .clone()
-            .into_iter()
-            .map(|f| f.factor_source_id())
-            .collect::<IndexSet<_>>();
-        actual.sort();
-        println!("🍬 actual: {:?}", actual);
-        let mut expected = matrix_of_factor_sources
-            .clone()
-            .all_factors()
-            .into_iter()
-            .map(|f| f.factor_source_id())
-            .collect::<IndexSet<_>>();
-        expected.sort();
-        println!("🍬 expect: {:?}", expected);
+
         let get_factors =
             |required: Vec<HDFactorSource>| -> Result<Vec<HierarchicalDeterministicFactorInstance>> {
                 required

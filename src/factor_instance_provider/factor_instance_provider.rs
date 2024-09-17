@@ -422,9 +422,7 @@ impl IsPreDerivedKeysCache for InMemoryPreDerivedKeysCache {
                 .clone();
             assert!(
                 read_from_cache.matches(&tuple.request),
-                "VERY BAD! BAD CACHE LOGIC, 'read_from_cache' {:?} does not match request: {:?}",
-                read_from_cache,
-                tuple.request
+                "incorrect implementation"
             );
             for_key.shift_remove(&read_from_cache);
             instances_read_from_cache.insert(tuple.request, read_from_cache);
@@ -449,65 +447,6 @@ impl IsPreDerivedKeysCache for InMemoryPreDerivedKeysCache {
 /// This FactorInstanceProvider is used when creating new entities or when
 /// securing existing entities.  It is used to provide the "next"
 /// `HierarchicalDeterministicFactorInstance` in both cases for the given request.
-///
-/// A `DerivationRequest` is a tuple of `(KeySpace, EntityKind, KeyKind, FactorSourceID, NetworkID)`.
-///
-/// Gateway MUST be able find entities by PAST public key hashes, not only current ones, ponder this
-/// scenario:
-///
-/// NOTATION:
-/// Accounts are written as `A`, `B`, `C`, etc.
-/// FactorSources are written as `L`, `M`, `N`, etc.
-/// FactorInstances derived in:
-/// * Unsecurified  Keyspace are written as: `🔴α` (alpha), `🔴β` (beta), `🔴γ` (gamma), `🔴δ` (delta).
-/// * Securified    KeySpace are written as: `🔵π` (pi), `🔵ρ` (rho), `🔵σ` (sigma), `🔵τ` (tau), `🔵φ (Phi)`
-/// Those FactorInstances are spelled out as:
-/// `🔴α=(0', L)`, derived using FactorSource `L` at index `0'`.
-/// `🔵π=(0^, M)`, derived using FactorSource `M` at index `0^`.
-///
-/// Derivation Entity Index: `0'` means 0 hardened, which is in the Unsecurified KeySpace.
-/// Derivation Entity Index: `0^` means 0 hardened, which is in the Securified KeySpace.
-/// The FactorInstance which was used to form the Address of an entity is called a
-/// "genesis factor instance".
-///
-/// SCENARIO
-/// 1. User creates account `A` with genesis FactorInstance `🔴α=(0', L)`
-/// 2. User securifies account `A` with `{ override_factors: [🔵π=(0^, L), 🔵ρ=(0^, M)] }`
-/// 3. User updates security shield of account `A` with `{ override_factors: [🔵ρ=(0^, M) }`
-/// 4. If user tries to create a new account `🔴(❓, L) which value to use for index?
-/// 5. Naive implementation will assign `index = 0'`, since that DerivationPath is
-/// not referenced anywhere in Profile.
-/// 6. FAILURE! We cannot create a new account with `0'`, since it will have same address as account `A`.
-/// Solution: We must **retain** the genesis factor instance `🔴α=(0', L)` for account `A`
-/// when it gets securified, and persist this in Profile.
-///
-/// Let us talk about recovery without Profile...
-///
-/// 7. Imagine user tosses this Profile, and performs recovery using only `M`, then securified account `A`
-/// is found and recovered.
-/// 8. Later user (re-)add FactorSource `L`, which SHOULD immediately trigger it to derive many keys
-/// to be put in the cache. We MUST NOT put `🔴α = (0', L)` in the cache as the "next free" instance
-/// to use, since we would have same problem as in step 3-5. Since  `🔴α=(0', L)` is in unsecurified
-/// key space we would be able to form an Address from it and see that it is the same address of A.
-/// However, we MUST NOT save 🔵π=(0^, L) as a free factor instance either. It has already been used by in
-/// step 2, with account `A`.
-///
-/// The conclusion is this:
-/// 💡🔮 Gateway MUST be able find entities by PAST public key hashes, not only current ones. 🔮💡
-///
-/// Using Gateway's lookup by past and present public key hashes, it will tell use that the hash of both
-/// `🔴α =(0', L)` and 🔵π=(0^, L) have been used, so when `L` is saved into Profile and the derived instances
-/// are saved into the cache, we will NOT save `🔴α=(0', L)` not `🔵π=(0^, L)`, the cached instances will be
-/// `🔴β=(1', L)`, `🔴γ=(2', L)`, ...  and 🔵σ=(1^, L), `🔵τ`=(2^, L), ..., up to some batch size (e.g. `30`).
-/// Next time user creates an unsecurified entity it will use FactorInstanceProvider which uses the cache,
-/// to consume the next-never-used FactorInstance from the Unsecurified KeySpace. And the next time the user
-/// securifies an entity it will consume the next-never-used FactorInstances from the Securified KeySpace - for
-/// each FactorSource.
-///
-/// 9. Later user uses `L` to create a new account `B`, which using this `FactorInstanceProcider` will
-/// find the "next" FactorInstance `🔴β=(1', L)`, success!
-/// 10. User securifies account `B` with `{ override_factors: [🔵σ=(1^, L), 🔵φ=(1^, M)] }`, success!
-/// 11. User know has two securified accounts, none of them share any public key hashes.
 pub struct FactorInstanceProvider {
     pub gateway: Arc<dyn Gateway>,
     derivation_interactors: Arc<dyn KeysDerivationInteractors>,
@@ -592,7 +531,6 @@ impl FactorInstanceProvider {
         profile: &'p Profile,
         unfulfillable_requests: &UnfulfillableRequests,
     ) -> Result<()> {
-        println!("🌈 derive_new_and_fill_cache...");
         let factor_sources = profile.factor_sources.clone();
         let unfulfillable_requests = unfulfillable_requests.unfulfillable();
 
@@ -715,11 +653,6 @@ impl FactorInstanceProvider {
             }
         }
 
-        println!(
-            "🚗 dispatching to KeysCollector, derivation paths: {:?}",
-            derivation_paths
-        );
-
         let keys_collector = KeysCollector::new(
             factor_sources,
             derivation_paths,
@@ -733,8 +666,6 @@ impl FactorInstanceProvider {
             PreDeriveKeysCacheKey,
             IndexSet<HierarchicalDeterministicFactorInstance>,
         > = IndexMap::new();
-
-        println!("🛍️ derived factors: {:?}", derived_factors);
 
         for derived_factor in derived_factors {
             let key = PreDeriveKeysCacheKey::from(derived_factor.clone());
@@ -761,21 +692,7 @@ impl FactorInstanceProvider {
             .union(&unfulfillable.requests())
             .cloned()
             .collect::<IndexSet<_>>();
-        println!("🐝 requests: {:?}", requests);
-        let instances = self.cache.consume_next_factor_instances(requests).await;
-        println!("🐝 instances: {:?}", instances);
-
-        if let Ok(map) = instances.clone() {
-            for (key, value) in map.iter() {
-                assert_eq!(
-                    value.factor_source_id(),
-                    key.factor_source_id,
-                    "BAD! Wrong factor source!"
-                );
-            }
-        }
-
-        instances
+        self.cache.consume_next_factor_instances(requests).await
     }
 }
 
@@ -814,18 +731,12 @@ impl FactorInstanceProvider {
             })
             .collect::<IndexSet<_>>();
 
-        println!("🐙 requests: {:?}", requests);
-
         let derived_factors_map = self.provide_factor_instances(profile, requests).await?;
-
-        println!("🐙 derived_factors_map: {:?}", derived_factors_map);
 
         let derived_factors = derived_factors_map
             .values()
             .cloned()
             .collect::<IndexSet<_>>();
-
-        println!("🐙 derived_factors: {:?}", derived_factors);
 
         let matrix = MatrixOfFactorInstances::fulfilling_matrix_of_factor_sources_with_instances(
             derived_factors,
