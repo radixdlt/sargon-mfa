@@ -376,7 +376,7 @@ impl IsPreDerivedKeysCache for InMemoryPreDerivedKeysCache {
                 assert_eq!(
                     value.factor_source_id(),
                     key.factor_source_id,
-                    "BAD! Wrong factor source!"
+                    "Discrepancy! FactorSourceID mismatch, this is a developer error."
                 );
             }
         }
@@ -662,12 +662,36 @@ impl FactorInstanceProvider {
         let derivation_outcome = keys_collector.collect_keys().await;
         let derived_factors = derivation_outcome.all_factors();
 
+        let public_key_hash_to_factor_map = derived_factors
+            .into_iter()
+            .map(|f| (f.public_key_hash(), f))
+            .collect::<IndexMap<_, _>>();
+
+        let is_known_by_gateway_map = self
+            .gateway
+            .query_public_key_hash_is_known(
+                public_key_hash_to_factor_map
+                    .keys()
+                    .cloned()
+                    .collect::<IndexSet<_>>(),
+            )
+            .await?;
+
+        // believed to be free by gateway
+        let mut free = IndexSet::<HierarchicalDeterministicFactorInstance>::new();
+        for (hash, public_key) in public_key_hash_to_factor_map.into_iter() {
+            let is_known_by_gateway = is_known_by_gateway_map.get(&hash).unwrap();
+            if !is_known_by_gateway {
+                free.insert(public_key.clone());
+            }
+        }
+
         let mut to_insert: IndexMap<
             PreDeriveKeysCacheKey,
             IndexSet<HierarchicalDeterministicFactorInstance>,
         > = IndexMap::new();
 
-        for derived_factor in derived_factors {
+        for derived_factor in free {
             let key = PreDeriveKeysCacheKey::from(derived_factor.clone());
             if let Some(existing) = to_insert.get_mut(&key) {
                 existing.insert(derived_factor);

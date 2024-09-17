@@ -153,6 +153,17 @@ impl OnChainEntityState {
 #[async_trait::async_trait]
 pub trait GatewayReadonly: Sync + Send {
     async fn is_key_hash_known(&self, hash: PublicKeyHash) -> Result<bool>;
+    async fn query_public_key_hash_is_known(
+        &self,
+        hashes: IndexSet<PublicKeyHash>,
+    ) -> Result<HashMap<PublicKeyHash, bool>> {
+        let mut is_known_map = HashMap::<PublicKeyHash, bool>::new();
+        for hash in hashes.into_iter() {
+            let is_known = self.is_key_hash_known(hash.clone()).await?;
+            is_known_map.insert(hash, is_known);
+        }
+        Ok(is_known_map)
+    }
 
     async fn get_entity_addresses_of_by_public_key_hashes(
         &self,
@@ -247,6 +258,7 @@ where
     pub recovered_securified: IndexSet<E>,
     pub unrecovered: Vec<UncoveredEntity>, // want `IndexSet` but is not `Hash`
 }
+
 impl<E: IsEntity + Hash + Eq> EntityRecoveryOutcome<E> {
     pub fn new(
         recovered_unsecurified: impl IntoIterator<Item = E>,
