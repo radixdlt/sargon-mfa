@@ -1,3 +1,7 @@
-mod recover_entity;
+mod entity_recovery_outcome;
 
-pub use recover_entity::*;
+#[allow(clippy::module_inception)]
+mod recovery;
+
+pub use entity_recovery_outcome::*;
+pub use recovery::*;

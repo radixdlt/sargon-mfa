@@ -9,7 +9,6 @@ mod derivation;
 mod factor_instance_provider;
 mod recovery;
 mod samples;
-mod securify;
 mod signing;
 mod types;
 
@@ -20,12 +19,10 @@ pub mod prelude {
     pub use crate::derivation::*;
 
     pub use crate::factor_instance_provider::*;
-    pub use crate::recovery::*;
 
     pub(crate) use crate::samples::*;
 
-    pub use crate::securify::*;
-
+    pub use crate::recovery::*;
     pub use crate::signing::*;
     pub use crate::types::*;
 
@@ -44,7 +41,7 @@ pub mod prelude {
 
     pub(crate) use std::{
         collections::{HashMap, HashSet},
-        sync::Arc,
+        sync::{Arc, RwLock},
     };
 
     pub(crate) use log::*;
