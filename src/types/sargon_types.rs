@@ -1465,6 +1465,12 @@ pub struct SecurifiedEntity {
     pub control: SecurifiedEntityControl,
 }
 
+#[derive(Clone, PartialEq, Eq, Debug, Hash)]
+pub struct UnsecurifiedEntity {
+    pub entity: AccountOrPersona,
+    pub factor_instance: HierarchicalDeterministicFactorInstance,
+}
+
 impl Profile {
     pub fn get_entities_erased(&self, entity_kind: CAP26EntityKind) -> IndexSet<AccountOrPersona> {
         match entity_kind {
@@ -1523,6 +1529,30 @@ impl Profile {
         .collect()
     }
 
+    pub fn get_unsecurified_entities_of_kind_on_network(
+        &self,
+        entity_kind: CAP26EntityKind,
+        network_id: NetworkID,
+    ) -> IndexSet<UnsecurifiedEntity> {
+        self.get_entities_of_kind_on_network_in_key_space(
+            entity_kind,
+            network_id,
+            KeySpace::Unsecurified,
+        )
+        .into_iter()
+        .map(|e: AccountOrPersona| {
+            let factor_instance = match e.security_state() {
+                EntitySecurityState::Unsecured(factor_instance) => factor_instance,
+                _ => unreachable!(),
+            };
+            UnsecurifiedEntity {
+                entity: e,
+                factor_instance,
+            }
+        })
+        .collect()
+    }
+
     pub fn get_accounts(&self) -> IndexSet<Account> {
         self.get_entities()
     }
@@ -1544,17 +1574,28 @@ impl Profile {
                 .collect::<HashMap<_, _>>(),
         }
     }
-    pub fn account_by_address(&self, address: AccountAddress) -> Result<Account> {
-        self.accounts
-            .get(&address)
-            .ok_or(CommonError::UnknownAccount)
-            .cloned()
+    pub fn account_by_address(&self, address: &AccountAddress) -> Result<Account> {
+        self.entity_by_address(address)
     }
-    pub fn update_account(&mut self, account: Account) {
-        assert!(self
-            .accounts
-            .insert(account.entity_address(), account)
-            .is_some());
+    pub fn entity_by_address<E: IsEntity + std::hash::Hash + std::cmp::Eq>(
+        &self,
+        address: &E::Address,
+    ) -> Result<E> {
+        self.get_entities::<E>()
+            .into_iter()
+            .find(|e| e.entity_address() == *address)
+            .ok_or(CommonError::UnknownEntity)
+    }
+
+    pub fn update_entity<E: IsEntity>(&mut self, entity: E) {
+        match Into::<AccountOrPersona>::into(entity.clone()) {
+            AccountOrPersona::AccountEntity(a) => {
+                assert!(self.accounts.insert(a.entity_address(), a).is_some());
+            }
+            AccountOrPersona::PersonaEntity(p) => {
+                assert!(self.personas.insert(p.entity_address(), p).is_some());
+            }
+        }
     }
 }
 
@@ -1635,6 +1676,9 @@ pub enum CommonError {
 
     #[error("Unknown persona")]
     UnknownPersona,
+
+    #[error("Unknown entity")]
+    UnknownEntity,
 
     #[error("Failed To Acquire ReadGuard of KeysCache")]
     KeysCacheReadGuard,

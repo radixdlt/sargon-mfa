@@ -295,11 +295,13 @@ impl InMemoryPreDerivedKeysCache {
 
         let mut unfulfillable = IndexSet::<UnfulfillableRequest>::new();
         for tuple in request_and_path_tuples.iter() {
-            let for_key = cached
-                .get(&tuple.path)
-                .ok_or(CommonError::KeysCacheUnknownKey)?;
-            let factors_left = for_key.len();
             let request = tuple.request;
+            let Some(for_key) = cached.get(&tuple.path) else {
+                unfulfillable.insert(UnfulfillableRequest::empty(request));
+                continue;
+            };
+
+            let factors_left = for_key.len();
             if factors_left == 0 {
                 unfulfillable.insert(UnfulfillableRequest::empty(request));
             } else if factors_left == 1 {
@@ -506,12 +508,31 @@ impl SecurifiedEntity {
     }
 }
 
+impl From<HierarchicalDeterministicFactorInstance> for DerivationRequest {
+    fn from(value: HierarchicalDeterministicFactorInstance) -> Self {
+        let key_space = value.derivation_path().index.key_space();
+        let key_kind = value.derivation_path().key_kind;
+        let entity_kind = value.derivation_path().entity_kind;
+        let network_id = value.derivation_path().network_id;
+        let factor_source_id = value.factor_source_id();
+
+        Self::new(
+            key_space,
+            entity_kind,
+            key_kind,
+            factor_source_id,
+            network_id,
+        )
+    }
+}
+
 impl FactorInstanceProvider {
     async fn derive_new_and_fill_cache<'p>(
         &self,
         profile: &'p Profile,
         unfulfillable_requests: &UnfulfillableRequests,
     ) -> Result<()> {
+        println!("🌈 derive_new_and_fill_cache...");
         let factor_sources = profile.factor_sources.clone();
         let unfulfillable_requests = unfulfillable_requests.unfulfillable();
 
@@ -555,66 +576,83 @@ impl FactorInstanceProvider {
         for unfulfillable_request_because_last in unfulfillable_requests_because_last {
             // This is VERY EASY
             let request = unfulfillable_request_because_last.request;
-            let last_index = unfulfillable_request_because_last
-                .reason
-                .into_last()
-                .unwrap();
-            let next_index = last_index.add_one();
-            let path = DerivationPath::from((request, next_index));
-            add(request.factor_source_id, path);
+
+            let index_range = {
+                let last_index = unfulfillable_request_because_last
+                    .reason
+                    .into_last()
+                    .unwrap();
+                let next_index = last_index.add_one();
+                next_index..next_index.add_n(DERIVATION_INDEX_BATCH_SIZE)
+            };
+
+            for index in index_range {
+                let path = DerivationPath::from((request, index));
+                add(request.factor_source_id, path);
+            }
         }
 
         for securified_space_request in securified_space_requests_because_empty {
             // This is not as easy, but not hard.
             let request = securified_space_request.request;
-            let last_index: Option<HDPathComponent> = {
-                let all_securified_in_profile = profile.get_securified_entities_of_kind_on_network(
-                    request.entity_kind,
-                    request.network_id,
-                );
 
-                all_securified_in_profile
-                    .into_iter()
-                    .flat_map(|e: SecurifiedEntity| e.highest_derivation_path_index(&request))
-                    .max()
+            let index_range = {
+                let last_index: Option<HDPathComponent> = {
+                    let all_securified_in_profile = profile
+                        .get_securified_entities_of_kind_on_network(
+                            request.entity_kind,
+                            request.network_id,
+                        );
+
+                    all_securified_in_profile
+                        .into_iter()
+                        .flat_map(|e: SecurifiedEntity| e.highest_derivation_path_index(&request))
+                        .max()
+                };
+
+                let next_index = last_index
+                    .map(|l| l.add_one())
+                    .unwrap_or(HDPathComponent::securified(0));
+
+                next_index..next_index.add_n(DERIVATION_INDEX_BATCH_SIZE)
             };
 
-            let next_index = last_index
-                .map(|l| l.add_one())
-                .unwrap_or(HDPathComponent::securified(0));
-            let path = DerivationPath::from((request, next_index));
-
-            add(request.factor_source_id, path);
+            for index in index_range {
+                let path = DerivationPath::from((request, index));
+                add(request.factor_source_id, path);
+            }
         }
 
         for unsecurified_space_request in unsecurified_space_requests_because_empty {
-            // this is HARD. we might have to re-derive the public keys to re-discover
-            // know which DerivationPath was used to derive key public keys of
-            // securified accounts. The reason is that a securified account is
-            // no longer referencing its "genesis" factor in `KeySpace::Unsecurified`,
-            // and thus we cannot know which DerivationPath was used to derive that
-            // public key.
-            //
-            // We might derive some kind of naive best effort guess and then use
-            // gateway to see if the hash of this public key is "known". But this
-            // might result in multiple "passes" of `KeysCollector`... which is
-            // terrible UX.
-            //
-            // ~~~ OR ~~~
-            //
-            // We might upload the derivation index of the genesis factor instance
-            // for an account when it gets securified. That way we do not need to
-            // try to re-derive the public keys of addresses of securified entities,
-            // just to know the last used index, instead we can just read it from
-            // gateway.
-            //
-            // ~~~ We dont wanna rely on Gateway's lookup by key hash ~~~
-            // We do not wanna rely on the Gateway API looking up key hashes, since
-            // it requires having the public key derived, and we wanna avoid deriving
-            // keys if we can, since we want to perform a SINGLE "pass" to the KeysCollector
-            // in the end of this method.
-            //
-            // Right?
+            let request = unsecurified_space_request.request;
+
+            let index_range = {
+                let last_index: Option<HDPathComponent> = {
+                    let all_unsecurified_in_profile = profile
+                        .get_unsecurified_entities_of_kind_on_network(
+                            request.entity_kind,
+                            request.network_id,
+                        );
+
+                    all_unsecurified_in_profile
+                        .into_iter()
+                        .map(|ue| ue.factor_instance)
+                        .filter(|fi| fi.matches(&request))
+                        .map(|fi| fi.derivation_path().index)
+                        .max()
+                };
+
+                let next_index = last_index
+                    .map(|l| l.add_one())
+                    .unwrap_or(HDPathComponent::unsecurified(0));
+
+                next_index..next_index.add_n(DERIVATION_INDEX_BATCH_SIZE)
+            };
+
+            for index in index_range {
+                let path = DerivationPath::from((request, index));
+                add(request.factor_source_id, path);
+            }
         }
 
         let keys_collector = KeysCollector::new(
@@ -632,7 +670,12 @@ impl FactorInstanceProvider {
         > = IndexMap::new();
 
         for derived_factor in derived_factors {
-            // add `HierarchicalDeterministicFactorInstance` into `to_insert`...
+            let key = DerivationRequest::from(derived_factor.clone());
+            if let Some(existing) = to_insert.get_mut(&key) {
+                existing.insert(derived_factor);
+            } else {
+                to_insert.insert(key, IndexSet::just(derived_factor));
+            }
         }
         self.cache.insert(to_insert).await?;
 
@@ -656,12 +699,22 @@ impl FactorInstanceProvider {
 }
 
 impl FactorInstanceProvider {
+    pub async fn securify_with_address<E: IsEntity + std::hash::Hash + std::cmp::Eq>(
+        &self,
+        address: &E::Address,
+        matrix: MatrixOfFactorSources,
+        profile: &mut Profile,
+    ) -> Result<SecurifiedEntityControl> {
+        let entity = profile.entity_by_address::<E>(address)?;
+        self.securify(&entity, &matrix, profile).await
+    }
+
     pub async fn securify<E: IsEntity>(
         &self,
         entity: &E,
         matrix: &MatrixOfFactorSources,
-        profile: &Profile,
-    ) -> Result<MatrixOfFactorInstances> {
+        profile: &mut Profile,
+    ) -> Result<SecurifiedEntityControl> {
         let entity_kind = E::kind();
         let network_id = entity.address().network_id();
         let key_kind = CAP26KeyKind::TransactionSigning;
@@ -692,7 +745,27 @@ impl FactorInstanceProvider {
             matrix.clone(),
         )?;
 
-        Ok(matrix)
+        let component_metadata = ComponentMetadata::new(matrix.clone());
+
+        let securified_entity_control = SecurifiedEntityControl::new(
+            matrix,
+            AccessController {
+                address: AccessControllerAddress::new(entity.entity_address()),
+                metadata: component_metadata,
+            },
+        );
+
+        profile.update_entity(E::new(
+            entity.name(),
+            entity.entity_address(),
+            EntitySecurityState::Securified(securified_entity_control.clone()),
+        ));
+
+        let gateway = self.gateway.clone();
+        gateway
+            .set_securified_entity(securified_entity_control.clone(), entity.address())
+            .await?;
+        Ok(securified_entity_control)
     }
 
     pub async fn provide_genesis_factor_for<'p>(

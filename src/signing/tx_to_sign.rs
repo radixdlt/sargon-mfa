@@ -41,7 +41,7 @@ impl TXToSign {
 
         let accounts = summary
             .addresses_of_accounts_requiring_auth
-            .into_iter()
+            .iter()
             .map(|a| profile.account_by_address(a))
             .collect::<Result<Vec<_>>>()?;
 

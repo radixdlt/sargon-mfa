@@ -1,38 +1,5 @@
 use crate::{factor_instance_provider, prelude::*};
 
-pub async fn securify(
-    address: AccountAddress,
-    matrix: MatrixOfFactorSources,
-    profile: &mut Profile,
-    factor_instance_provider: &FactorInstanceProvider,
-) -> Result<SecurifiedEntityControl> {
-    let account = profile.account_by_address(address.clone())?;
-    let matrix_of_factor_instances = factor_instance_provider
-        .securify(&account, &matrix, profile)
-        .await?;
-
-    let component_metadata = ComponentMetadata::new(matrix_of_factor_instances.clone());
-
-    let securified_entity_control = SecurifiedEntityControl::new(
-        matrix_of_factor_instances,
-        AccessController {
-            address: AccessControllerAddress::new(account.entity_address()),
-            metadata: component_metadata,
-        },
-    );
-
-    profile.update_account(Account::new(
-        account.name(),
-        account.entity_address(),
-        EntitySecurityState::Securified(securified_entity_control.clone()),
-    ));
-    let gateway = factor_instance_provider.gateway.clone();
-    gateway
-        .set_securified_account(securified_entity_control.clone(), &address)
-        .await?;
-    Ok(securified_entity_control)
-}
-
 #[cfg(test)]
 mod securify_tests {
 
@@ -70,14 +37,10 @@ mod securify_tests {
             Arc::new(InMemoryPreDerivedKeysCache::default()),
         );
 
-        let b_sec = securify(
-            b.entity_address(),
-            matrix.clone(),
-            &mut profile,
-            &factor_instance_provider,
-        )
-        .await
-        .unwrap();
+        let b_sec = factor_instance_provider
+            .securify(b, &matrix, &mut profile)
+            .await
+            .unwrap();
 
         assert_eq!(
             b_sec
@@ -90,14 +53,10 @@ mod securify_tests {
             HashSet::just(HDPathComponent::securified(0))
         );
 
-        let a_sec = securify(
-            a.entity_address(),
-            matrix.clone(),
-            &mut profile,
-            &factor_instance_provider,
-        )
-        .await
-        .unwrap();
+        let a_sec = factor_instance_provider
+            .securify(a, &matrix, &mut profile)
+            .await
+            .unwrap();
 
         assert_eq!(
             a_sec

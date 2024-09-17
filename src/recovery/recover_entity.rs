@@ -215,7 +215,7 @@ pub trait Gateway: GatewayReadonly {
     }
 }
 
-const RECOVERY_BATCH_SIZE_DERIVATION_ENTITY_INDEX: HDPathValue = 50;
+pub const DERIVATION_INDEX_BATCH_SIZE: HDPathValue = 50;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct UncoveredEntity {
@@ -298,7 +298,7 @@ pub async fn recover_entity<E: IsEntity + Sync + Hash + Eq>(
 
     // B. Create a set of derivation paths, both for securified and unsecurified entities
     let map_paths = {
-        let index_range = 0..RECOVERY_BATCH_SIZE_DERIVATION_ENTITY_INDEX;
+        let index_range = 0..DERIVATION_INDEX_BATCH_SIZE;
         let make_paths =
             |make_entity_index: fn(HDPathValue) -> HDPathComponent| -> IndexSet<DerivationPath> {
                 index_range
@@ -917,18 +917,18 @@ mod tests {
                         .unwrap()
                         .entity_address();
 
-                    securify(
-                        alice_address.clone(),
-                        MatrixOfFactorSources::new(
-                            [fs_at(0), fs_at(1), fs_at(2), fs_at(3)],
-                            3,
-                            [fs_at(6)],
-                        ),
-                        &mut profile,
-                        &factor_instance_provider,
-                    )
-                    .await
-                    .unwrap();
+                    factor_instance_provider
+                        .securify_with_address::<Account>(
+                            &alice_address,
+                            MatrixOfFactorSources::new(
+                                [fs_at(0), fs_at(1), fs_at(2), fs_at(3)],
+                                3,
+                                [fs_at(6)],
+                            ),
+                            &mut profile,
+                        )
+                        .await
+                        .unwrap();
 
                     let bob_address = profile
                         .new_account(
@@ -941,14 +941,14 @@ mod tests {
                         .unwrap()
                         .entity_address();
 
-                    securify(
-                        bob_address.clone(),
-                        MatrixOfFactorSources::new([fs_at(1), fs_at(3)], 2, [fs_at(7)]),
-                        &mut profile,
-                        &factor_instance_provider,
-                    )
-                    .await
-                    .unwrap();
+                    factor_instance_provider
+                        .securify_with_address::<Account>(
+                            &bob_address,
+                            MatrixOfFactorSources::new([fs_at(1), fs_at(3)], 2, [fs_at(7)]),
+                            &mut profile,
+                        )
+                        .await
+                        .unwrap();
 
                     let charlie_address = profile
                         .new_account(
@@ -965,9 +965,9 @@ mod tests {
 
                     assert_eq!(accounts.len(), 3);
 
-                    let alice = profile.account_by_address(alice_address).unwrap();
-                    let bob = profile.account_by_address(bob_address).unwrap();
-                    let charlie = profile.account_by_address(charlie_address).unwrap();
+                    let alice: Account = profile.entity_by_address(&alice_address).unwrap();
+                    let bob: Account = profile.entity_by_address(&bob_address).unwrap();
+                    let charlie: Account = profile.entity_by_address(&charlie_address).unwrap();
 
                     gateway
                         .simulate_network_activity_for(charlie.address())

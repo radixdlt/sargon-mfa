@@ -368,7 +368,7 @@ mod tests {
             )),
             &Profile::new(IndexSet::new(), [], []),
         );
-        assert!(matches!(res, Err(CommonError::UnknownAccount)));
+        assert!(matches!(res, Err(CommonError::UnknownEntity)));
     }
 
     #[test]
