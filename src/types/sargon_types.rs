@@ -52,7 +52,17 @@ fn take_last_n(str: impl AsRef<str>, n: usize) -> String {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, std::hash::Hash, derive_more::Display, derive_more::Debug)]
+#[derive(
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    std::hash::Hash,
+    derive_more::Display,
+    derive_more::Debug,
+)]
 #[display("{kind}:{}", take_last_n(self.id.to_string(), 2))]
 #[debug("{}", self.to_string())]
 pub struct FactorSourceIDFromHash {
@@ -507,7 +517,7 @@ impl HDPathComponent {
     }
 
     #[allow(unused)]
-    pub(crate) fn securified_index(&self) -> Option<HDPathValue> {
+    pub(crate) fn securified_base_index(&self) -> Option<HDPathValue> {
         match self {
             Self::Hardened(h) => match h {
                 HDPathComponentHardened::Securified(s) => Some(s.base_index()),
@@ -535,27 +545,27 @@ mod tests_hdpathcomp {
 
     #[test]
     fn add_one_successful() {
-        let t = |value: Sut, expected_index: HDPathValue| {
+        let t = |value: Sut, expected_base_index: HDPathValue| {
             let actual = value.add_one();
-            assert_eq!(actual.base_index(), expected_index)
+            assert_eq!(actual.base_index(), expected_base_index)
         };
         t(Sut::unsecurified_hardening_base_index(0), 1);
         t(Sut::unsecurified_hardening_base_index(5), 6);
         t(
-            Sut::unsecurified_hardening_base_index(BIP32_SECURIFIED_HALF - 2),
+            Sut::new_from_base_index(BIP32_SECURIFIED_HALF - 2),
             BIP32_SECURIFIED_HALF - 1,
         );
 
-        t(Sut::securifying_base_index(0), 1 + BIP32_SECURIFIED_HALF);
-        t(Sut::securifying_base_index(5), 6 + BIP32_SECURIFIED_HALF);
+        t(Sut::securifying_base_index(0), 1);
+        t(Sut::securifying_base_index(5), 6);
         t(
             Sut::securifying_base_index(BIP32_SECURIFIED_HALF - 3),
-            BIP32_SECURIFIED_HALF - 2 + BIP32_SECURIFIED_HALF,
+            BIP32_SECURIFIED_HALF - 2,
         );
 
         t(
             Sut::securifying_base_index(BIP32_SECURIFIED_HALF - 2),
-            BIP32_SECURIFIED_HALF - 1 + BIP32_SECURIFIED_HALF,
+            BIP32_SECURIFIED_HALF - 1,
         );
     }
 
@@ -577,8 +587,8 @@ mod tests_hdpathcomp {
     fn index_if_securified() {
         let i = 5;
         let sut = Sut::securifying_base_index(i);
-        assert_eq!(sut.base_index(), i + BIP32_SECURIFIED_HALF);
-        assert_eq!(sut.securified_index(), Some(i));
+        assert_eq!(sut.base_index(), i);
+        assert_eq!(sut.securified_base_index(), Some(i));
     }
 }
 
@@ -1492,8 +1502,21 @@ impl MatrixOfFactorInstances {
         matrix_of_factor_sources: MatrixOfFactorSources,
     ) -> Result<Self> {
         let instances = instances.into_iter().collect_vec();
-        println!("🍬 instances: {:?}", instances);
-        println!("🍬 matrix: {:?}", matrix_of_factor_sources);
+        let mut actual = instances
+            .clone()
+            .into_iter()
+            .map(|f| f.factor_source_id())
+            .collect::<IndexSet<_>>();
+        actual.sort();
+        println!("🍬 actual: {:?}", actual);
+        let mut expected = matrix_of_factor_sources
+            .clone()
+            .all_factors()
+            .into_iter()
+            .map(|f| f.factor_source_id())
+            .collect::<IndexSet<_>>();
+        expected.sort();
+        println!("🍬 expect: {:?}", expected);
         let get_factors =
             |required: Vec<HDFactorSource>| -> Result<Vec<HierarchicalDeterministicFactorInstance>> {
                 required

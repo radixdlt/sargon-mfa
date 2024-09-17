@@ -148,7 +148,7 @@ pub trait IsPreDerivedKeysCache {
     /// the next key to be consumed.
     async fn insert(
         &self,
-        derived: IndexMap<DerivationRequest, IndexSet<HierarchicalDeterministicFactorInstance>>,
+        derived: IndexMap<PreDeriveKeysCacheKey, IndexSet<HierarchicalDeterministicFactorInstance>>,
     ) -> Result<()>;
 
     /// Must be async since might need to derive more keys if we are about
@@ -190,10 +190,35 @@ pub trait IsPreDerivedKeysCache {
     async fn peek(&self, requests: IndexSet<DerivationRequest>) -> NextDerivationPeekOutcome;
 }
 
-/// Like a `DerivationPath` but without the last path component. Used as a
-/// HashMap key in `InMemoryPreDerivedKeysCache`.
+/// Used as a map key in `InMemoryPreDerivedKeysCache`.
 #[derive(Clone, PartialEq, Eq, Hash)]
-struct DerivationPathWithoutIndex {
+pub struct PreDeriveKeysCacheKey {
+    factor_source_id: FactorSourceIDFromHash,
+    path_without_index: DerivationPathWithoutIndex,
+}
+impl From<HierarchicalDeterministicFactorInstance> for PreDeriveKeysCacheKey {
+    fn from(value: HierarchicalDeterministicFactorInstance) -> Self {
+        Self::new(
+            value.factor_source_id(),
+            DerivationPathWithoutIndex::from(value),
+        )
+    }
+}
+impl PreDeriveKeysCacheKey {
+    pub fn new(
+        factor_source_id: FactorSourceIDFromHash,
+        path_without_index: DerivationPathWithoutIndex,
+    ) -> Self {
+        Self {
+            factor_source_id,
+            path_without_index,
+        }
+    }
+}
+
+/// Like a `DerivationPath` but without the last path component.
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct DerivationPathWithoutIndex {
     network_id: NetworkID,
     entity_kind: CAP26EntityKind,
     key_kind: CAP26KeyKind,
@@ -212,6 +237,16 @@ impl DerivationPathWithoutIndex {
             key_kind,
             key_space,
         }
+    }
+}
+impl From<HierarchicalDeterministicFactorInstance> for DerivationPathWithoutIndex {
+    fn from(value: HierarchicalDeterministicFactorInstance) -> Self {
+        Self::new(
+            value.derivation_path().network_id,
+            value.derivation_path().entity_kind,
+            value.derivation_path().key_kind,
+            value.derivation_path().index.key_space(),
+        )
     }
 }
 impl From<DerivationPath> for DerivationPathWithoutIndex {
@@ -243,9 +278,8 @@ impl From<(DerivationPathWithoutIndex, HDPathComponent)> for DerivationPath {
 /// file which the live implementation will use.
 #[derive(Default)]
 pub struct InMemoryPreDerivedKeysCache {
-    cache: RwLock<
-        HashMap<DerivationPathWithoutIndex, IndexSet<HierarchicalDeterministicFactorInstance>>,
-    >,
+    cache:
+        RwLock<HashMap<PreDeriveKeysCacheKey, IndexSet<HierarchicalDeterministicFactorInstance>>>,
 }
 
 impl From<DerivationRequest> for DerivationPathWithoutIndex {
@@ -263,6 +297,12 @@ impl From<DerivationRequest> for DerivationPathWithoutIndex {
 struct Tuple {
     request: DerivationRequest,
     path: DerivationPathWithoutIndex,
+}
+impl Tuple {
+    #[allow(unused)]
+    fn cache_key(&self) -> PreDeriveKeysCacheKey {
+        PreDeriveKeysCacheKey::new(self.request.factor_source_id, self.path.clone())
+    }
 }
 #[cfg(test)]
 impl InMemoryPreDerivedKeysCache {
@@ -296,7 +336,7 @@ impl InMemoryPreDerivedKeysCache {
         let mut unfulfillable = IndexSet::<UnfulfillableRequest>::new();
         for tuple in request_and_path_tuples.iter() {
             let request = tuple.request;
-            let Some(for_key) = cached.get(&tuple.path) else {
+            let Some(for_key) = cached.get(&tuple.cache_key()) else {
                 unfulfillable.insert(UnfulfillableRequest::empty(request));
                 continue;
             };
@@ -326,24 +366,34 @@ impl InMemoryPreDerivedKeysCache {
 impl IsPreDerivedKeysCache for InMemoryPreDerivedKeysCache {
     async fn insert(
         &self,
-        derived_factors: IndexMap<
-            DerivationRequest,
+        derived_factors_map: IndexMap<
+            PreDeriveKeysCacheKey,
             IndexSet<HierarchicalDeterministicFactorInstance>,
         >,
     ) -> Result<()> {
+        for (key, values) in derived_factors_map.iter() {
+            for value in values {
+                assert_eq!(
+                    value.factor_source_id(),
+                    key.factor_source_id,
+                    "BAD! Wrong factor source!"
+                );
+            }
+        }
+
         let mut write_guard = self
             .cache
             .try_write()
             .map_err(|_| CommonError::KeysCacheWriteGuard)?;
 
-        for (request, derived_factor) in derived_factors {
-            let key = DerivationPathWithoutIndex::from(request);
+        for (key, derived_factors) in derived_factors_map {
             if let Some(existing_factors) = write_guard.get_mut(&key) {
-                existing_factors.extend(derived_factor);
+                existing_factors.extend(derived_factors);
             } else {
-                write_guard.insert(key, derived_factor);
+                write_guard.insert(key, derived_factors);
             }
         }
+        drop(write_guard);
 
         Ok(())
     }
@@ -364,12 +414,18 @@ impl IsPreDerivedKeysCache for InMemoryPreDerivedKeysCache {
 
         for tuple in request_and_path_tuples {
             let for_key = cached
-                .get_mut(&tuple.path)
+                .get_mut(&tuple.cache_key())
                 .ok_or(CommonError::KeysCacheUnknownKey)?;
             let read_from_cache = for_key
                 .first()
                 .ok_or(CommonError::KeysCacheEmptyForKey)?
                 .clone();
+            assert!(
+                read_from_cache.matches(&tuple.request),
+                "VERY BAD! BAD CACHE LOGIC, 'read_from_cache' {:?} does not match request: {:?}",
+                read_from_cache,
+                tuple.request
+            );
             for_key.shift_remove(&read_from_cache);
             instances_read_from_cache.insert(tuple.request, read_from_cache);
         }
@@ -552,7 +608,7 @@ impl FactorInstanceProvider {
             .cloned()
             .collect::<IndexSet<_>>();
 
-        _ = drop(unfulfillable_requests);
+        drop(unfulfillable_requests);
 
         let securified_space_requests_because_empty = unfulfillable_requests_because_empty
             .iter()
@@ -640,7 +696,7 @@ impl FactorInstanceProvider {
 
                     all_unsecurified_in_profile
                         .into_iter()
-                        .map(|ue| ue.factor_instance)
+                        .map(|u| u.factor_instance)
                         .filter(|fi| fi.matches(&request))
                         .map(|fi| fi.derivation_path().index)
                         .max()
@@ -674,14 +730,14 @@ impl FactorInstanceProvider {
         let derived_factors = derivation_outcome.all_factors();
 
         let mut to_insert: IndexMap<
-            DerivationRequest,
+            PreDeriveKeysCacheKey,
             IndexSet<HierarchicalDeterministicFactorInstance>,
         > = IndexMap::new();
 
         println!("🛍️ derived factors: {:?}", derived_factors);
 
         for derived_factor in derived_factors {
-            let key = DerivationRequest::from(derived_factor.clone());
+            let key = PreDeriveKeysCacheKey::from(derived_factor.clone());
             if let Some(existing) = to_insert.get_mut(&key) {
                 existing.insert(derived_factor);
             } else {
@@ -706,7 +762,20 @@ impl FactorInstanceProvider {
             .cloned()
             .collect::<IndexSet<_>>();
         println!("🐝 requests: {:?}", requests);
-        return self.cache.consume_next_factor_instances(requests).await;
+        let instances = self.cache.consume_next_factor_instances(requests).await;
+        println!("🐝 instances: {:?}", instances);
+
+        if let Ok(map) = instances.clone() {
+            for (key, value) in map.iter() {
+                assert_eq!(
+                    value.factor_source_id(),
+                    key.factor_source_id,
+                    "BAD! Wrong factor source!"
+                );
+            }
+        }
+
+        instances
     }
 }
 
@@ -749,11 +818,14 @@ impl FactorInstanceProvider {
 
         let derived_factors_map = self.provide_factor_instances(profile, requests).await?;
 
+        println!("🐙 derived_factors_map: {:?}", derived_factors_map);
+
         let derived_factors = derived_factors_map
             .values()
-            .into_iter()
             .cloned()
             .collect::<IndexSet<_>>();
+
+        println!("🐙 derived_factors: {:?}", derived_factors);
 
         let matrix = MatrixOfFactorInstances::fulfilling_matrix_of_factor_sources_with_instances(
             derived_factors,
@@ -823,17 +895,17 @@ impl FactorInstanceProvider {
         match peek_outcome {
             NextDerivationPeekOutcome::Failure(e) => {
                 error!("Failed to peek next derivation index: {:?}", e);
-                return Err(e);
+                Err(e)
             }
             NextDerivationPeekOutcome::Fulfillable => {
-                return self.cache.consume_next_factor_instances(requests).await;
+                self.cache.consume_next_factor_instances(requests).await
             }
             NextDerivationPeekOutcome::Unfulfillable(unfulfillable) => {
                 let fulfillable = requests
                     .difference(&unfulfillable.requests())
                     .cloned()
                     .collect::<IndexSet<_>>();
-                return self.fulfill(profile, fulfillable, unfulfillable).await;
+                self.fulfill(profile, fulfillable, unfulfillable).await
             }
         }
     }
