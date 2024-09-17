@@ -12,7 +12,7 @@ mod securify_tests {
             "A0",
             HierarchicalDeterministicFactorInstance::mainnet_tx(
                 CAP26EntityKind::Account,
-                HDPathComponent::unsecurified(0),
+                HDPathComponent::unsecurified_hardening_base_index(0),
                 FactorSourceIDFromHash::fs0(),
             ),
         );
@@ -20,7 +20,7 @@ mod securify_tests {
             "A1",
             HierarchicalDeterministicFactorInstance::mainnet_tx(
                 CAP26EntityKind::Account,
-                HDPathComponent::unsecurified(1),
+                HDPathComponent::unsecurified_hardening_base_index(1),
                 FactorSourceIDFromHash::fs0(),
             ),
         );
@@ -49,8 +49,20 @@ mod securify_tests {
                 .clone()
                 .into_iter()
                 .map(|f| f.derivation_path().index)
+                .collect::<HashSet<_>>()
+                .len(),
+            1
+        );
+
+        assert_eq!(
+            b_sec
+                .matrix
+                .all_factors()
+                .clone()
+                .into_iter()
+                .map(|f| f.derivation_path().index)
                 .collect::<HashSet<_>>(),
-            HashSet::just(HDPathComponent::securified(0))
+            HashSet::just(HDPathComponent::securifying_base_index(0))
         );
 
         let a_sec = factor_instance_provider
@@ -66,7 +78,7 @@ mod securify_tests {
                 .into_iter()
                 .map(|f| f.derivation_path().index)
                 .collect::<HashSet<_>>(),
-            HashSet::just(HDPathComponent::securified(1))
+            HashSet::just(HDPathComponent::securifying_base_index(1))
         );
     }
 }

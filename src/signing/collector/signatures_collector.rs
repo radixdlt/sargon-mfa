@@ -550,7 +550,7 @@ mod tests {
                         NetworkID::Mainnet,
                         CAP26EntityKind::Account,
                         CAP26KeyKind::TransactionSigning,
-                        HDPathComponent::securified(6)
+                        HDPathComponent::securifying_base_index(6)
                     ),
                     5
                 )

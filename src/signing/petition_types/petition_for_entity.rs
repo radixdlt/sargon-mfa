@@ -340,7 +340,7 @@ mod tests {
         let matrix =
             MatrixOfFactorInstances::override_only([d0.clone(), d1.clone()].into_iter().map(|f| {
                 HierarchicalDeterministicFactorInstance::mainnet_tx_account(
-                    HDPathComponent::securified(0),
+                    HDPathComponent::securifying_base_index(0),
                     f.factor_source_id(),
                 )
             }));
@@ -367,7 +367,7 @@ mod tests {
         let matrix =
             MatrixOfFactorInstances::override_only([d0.clone(), d1.clone()].into_iter().map(|f| {
                 HierarchicalDeterministicFactorInstance::mainnet_tx_account(
-                    HDPathComponent::securified(0),
+                    HDPathComponent::securifying_base_index(0),
                     f.factor_source_id(),
                 )
             }));
@@ -389,7 +389,7 @@ mod tests {
         let matrix = MatrixOfFactorInstances::threshold_only(
             [d0.clone(), d1.clone()].into_iter().map(|f| {
                 HierarchicalDeterministicFactorInstance::mainnet_tx_account(
-                    HDPathComponent::securified(0),
+                    HDPathComponent::securifying_base_index(0),
                     f.factor_source_id(),
                 )
             }),
@@ -418,7 +418,7 @@ mod tests {
         let matrix = MatrixOfFactorInstances::threshold_only(
             [d0.clone(), d1.clone()].into_iter().map(|f| {
                 HierarchicalDeterministicFactorInstance::mainnet_tx_account(
-                    HDPathComponent::securified(0),
+                    HDPathComponent::securifying_base_index(0),
                     f.factor_source_id(),
                 )
             }),
@@ -446,7 +446,7 @@ mod tests {
         let matrix = MatrixOfFactorInstances::threshold_only(
             [d0.clone(), d1.clone()].into_iter().map(|f| {
                 HierarchicalDeterministicFactorInstance::mainnet_tx_account(
-                    HDPathComponent::securified(0),
+                    HDPathComponent::securifying_base_index(0),
                     f.factor_source_id(),
                 )
             }),
@@ -490,7 +490,7 @@ mod tests {
     #[should_panic(expected = "A factor MUST NOT be present in both threshold AND override list.")]
     fn factor_should_not_be_used_in_both_lists() {
         Account::securified_mainnet("Alice", AccountAddress::sample(), || {
-            let idx = HDPathComponent::securified(0);
+            let idx = HDPathComponent::securifying_base_index(0);
             let fi = HierarchicalDeterministicFactorInstance::f(CAP26EntityKind::Account, idx);
             MatrixOfFactorInstances::new(
                 [FactorSourceIDFromHash::fs0()].map(&fi),
@@ -505,7 +505,7 @@ mod tests {
     fn cannot_add_same_signature_twice() {
         let intent_hash = IntentHash::sample();
         let entity = Account::securified_mainnet("Alice", AccountAddress::sample(), || {
-            let idx = HDPathComponent::securified(0);
+            let idx = HDPathComponent::securifying_base_index(0);
             let fi = HierarchicalDeterministicFactorInstance::f(CAP26EntityKind::Account, idx);
             MatrixOfFactorInstances::new(
                 [FactorSourceIDFromHash::fs0()].map(&fi),
@@ -519,7 +519,7 @@ mod tests {
             OwnedFactorInstance::new(
                 entity.address(),
                 HierarchicalDeterministicFactorInstance::mainnet_tx_account(
-                    HDPathComponent::unsecurified(0),
+                    HDPathComponent::unsecurified_hardening_base_index(0),
                     FactorSourceIDFromHash::fs0(),
                 ),
             ),
@@ -539,7 +539,7 @@ mod tests {
                 OwnedFactorInstance::new(
                     sut.entity.clone(),
                     HierarchicalDeterministicFactorInstance::mainnet_tx_account(
-                        HDPathComponent::securified(6),
+                        HDPathComponent::securifying_base_index(6),
                         FactorSourceIDFromHash::fs1(),
                     ),
                 ),

@@ -73,11 +73,17 @@ mod integration_test_derivation {
             (
                 f0.factor_source_id(),
                 IndexSet::<_>::from_iter([
-                    DerivationPath::account_tx(NetworkID::Mainnet, HDPathComponent::securified(0)),
-                    DerivationPath::account_tx(NetworkID::Mainnet, HDPathComponent::securified(1)),
+                    DerivationPath::account_tx(
+                        NetworkID::Mainnet,
+                        HDPathComponent::securifying_base_index(0),
+                    ),
+                    DerivationPath::account_tx(
+                        NetworkID::Mainnet,
+                        HDPathComponent::securifying_base_index(1),
+                    ),
                     DerivationPath::account_tx(
                         NetworkID::Stokenet,
-                        HDPathComponent::unsecurified(2),
+                        HDPathComponent::unsecurified_hardening_base_index(2),
                     ),
                 ]),
             ),
@@ -85,14 +91,14 @@ mod integration_test_derivation {
                 f1.factor_source_id(),
                 IndexSet::<_>::just(DerivationPath::account_tx(
                     NetworkID::Stokenet,
-                    HDPathComponent::unsecurified(3),
+                    HDPathComponent::unsecurified_hardening_base_index(3),
                 )),
             ),
             (
                 f2.factor_source_id(),
                 IndexSet::<_>::just(DerivationPath::account_tx(
                     NetworkID::Mainnet,
-                    HDPathComponent::unsecurified(4),
+                    HDPathComponent::unsecurified_hardening_base_index(4),
                 )),
             ),
             (
@@ -101,7 +107,7 @@ mod integration_test_derivation {
                     NetworkID::Mainnet,
                     CAP26EntityKind::Identity,
                     CAP26KeyKind::AuthenticationSigning,
-                    HDPathComponent::securified(5),
+                    HDPathComponent::securifying_base_index(5),
                 )),
             ),
         ]);
@@ -224,7 +230,7 @@ mod integration_test_signing {
         let f4 = HDFactorSource::off_device();
 
         let alice = Account::securified_mainnet("Alice", AccountAddress::sample(), || {
-            let i = HDPathComponent::securified(0);
+            let i = HDPathComponent::securifying_base_index(0);
             MatrixOfFactorInstances::threshold_only(
                 [
                     FI::mainnet_tx_account(i, f0.factor_source_id()), // SKIPPED
@@ -236,7 +242,7 @@ mod integration_test_signing {
         });
 
         let bob = Account::securified_mainnet("Bob", AccountAddress::sample_2(), || {
-            let i = HDPathComponent::securified(1);
+            let i = HDPathComponent::securifying_base_index(1);
             MatrixOfFactorInstances::override_only([FI::mainnet_tx_account(
                 i,
                 f3.factor_source_id(),
@@ -244,7 +250,7 @@ mod integration_test_signing {
         });
 
         let carol = Account::securified_mainnet("Carol", AccountAddress::sample_3(), || {
-            let i = HDPathComponent::securified(2);
+            let i = HDPathComponent::securifying_base_index(2);
             MatrixOfFactorInstances::new(
                 [FI::mainnet_tx_account(i, f2.factor_source_id())],
                 1,
@@ -255,7 +261,7 @@ mod integration_test_signing {
         let satoshi = Persona::unsecurified_mainnet(
             "Satoshi",
             HierarchicalDeterministicFactorInstance::mainnet_tx_identity(
-                HDPathComponent::unsecurified(0),
+                HDPathComponent::unsecurified_hardening_base_index(0),
                 f4.factor_source_id(),
             ),
         );

@@ -438,7 +438,7 @@ mod tests {
                         NetworkID::Mainnet,
                         CAP26EntityKind::Account,
                         CAP26KeyKind::TransactionSigning,
-                        HDPathComponent::unsecurified(0)
+                        HDPathComponent::unsecurified_hardening_base_index(0)
                     )]
                 )
             }
@@ -512,7 +512,7 @@ mod tests {
                         "A0",
                         HierarchicalDeterministicFactorInstance::mainnet_tx(
                             CAP26EntityKind::Account,
-                            HDPathComponent::unsecurified(0),
+                            HDPathComponent::unsecurified_hardening_base_index(0),
                             FactorSourceIDFromHash::fs0(),
                         ),
                     ),
@@ -520,7 +520,7 @@ mod tests {
                         "A1",
                         HierarchicalDeterministicFactorInstance::mainnet_tx(
                             CAP26EntityKind::Account,
-                            HDPathComponent::unsecurified(1),
+                            HDPathComponent::unsecurified_hardening_base_index(1),
                             FactorSourceIDFromHash::fs0(),
                         ),
                     ),
@@ -538,11 +538,11 @@ mod tests {
                     [
                         DerivationPath::account_tx(
                             NetworkID::Mainnet,
-                            HDPathComponent::unsecurified(0)
+                            HDPathComponent::unsecurified_hardening_base_index(0)
                         ),
                         DerivationPath::account_tx(
                             NetworkID::Mainnet,
-                            HDPathComponent::unsecurified(1)
+                            HDPathComponent::unsecurified_hardening_base_index(1)
                         ),
                     ]
                     .into_iter()
@@ -780,7 +780,7 @@ mod tests {
             >() {
                 let collector = SignaturesCollector::test_lazy_sign_minimum_no_failures([
                     TXToSign::new([E::securified_mainnet("Alice", E::Address::sample(), || {
-                        let idx = HDPathComponent::securified(0);
+                        let idx = HDPathComponent::securifying_base_index(0);
                         MatrixOfFactorInstances::override_only(
                             HDFactorSource::all().into_iter().map(|f| {
                                 HierarchicalDeterministicFactorInstance::mainnet_tx_account(

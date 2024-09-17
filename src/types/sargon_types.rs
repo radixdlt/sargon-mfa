@@ -200,17 +200,222 @@ pub type HDPathValue = u32;
 #[derive(
     Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, derive_more::Display, derive_more::Debug,
 )]
-#[display("{value}")]
-#[debug("{value}")]
-pub struct HDPathComponent {
-    pub value: HDPathValue,
+#[display("{_0}")]
+#[debug("{_0}")]
+pub struct UnhardenedIndex(u32);
+impl UnhardenedIndex {
+    /// # Panics
+    /// Panics if value is >= BIP32_HARDENED
+    pub fn new(value: u32) -> Self {
+        assert!(value < BIP32_HARDENED);
+        Self(value)
+    }
+    pub fn to_bytes(&self) -> Vec<u8> {
+        self.0.to_be_bytes().to_vec()
+    }
+
+    pub fn add_n(&self, n: HDPathValue) -> Self {
+        let base_index = self.base_index();
+
+        assert!(
+            (base_index as u64 + n as u64) < BIP32_HARDENED as u64,
+            "Index would overflow beyond BIP32_HARDENED if we would add {}.",
+            n
+        );
+
+        Self::new(self.0 + n)
+    }
+
+    pub(crate) fn base_index(&self) -> HDPathValue {
+        self.0
+    }
 }
+
+/// Hardened Unsecurified Index
+#[derive(
+    Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, derive_more::Display, derive_more::Debug,
+)]
+#[display("{}'", self.base_index())]
+#[debug("{}'", self.base_index())]
+pub struct UnsecurifiedIndex(HDPathValue);
+impl UnsecurifiedIndex {
+    /// # Panics
+    /// Panics if value < BIP32_HARDENED || >= BIP32_SECURIFIED_HALF
+    pub fn new(value: HDPathValue) -> Self {
+        assert!(value >= BIP32_HARDENED);
+        assert!(value < (BIP32_HARDENED + BIP32_SECURIFIED_HALF));
+        Self(value)
+    }
+    pub fn unsecurified_hardening_base_index(base_index: HDPathValue) -> Self {
+        Self::new(base_index + BIP32_HARDENED)
+    }
+    pub fn to_bytes(&self) -> Vec<u8> {
+        self.0.to_be_bytes().to_vec()
+    }
+
+    pub fn add_n(&self, n: HDPathValue) -> Self {
+        let base_index = self.base_index();
+        assert!(
+            (base_index as u64 + n as u64) < (BIP32_HARDENED + BIP32_SECURIFIED_HALF) as u64,
+            "Index would overflow beyond BIP32_SECURIFIED_HALF if incremented with {:?}.",
+            n,
+        );
+
+        Self::new(self.0 + n)
+    }
+
+    pub(crate) fn base_index(&self) -> HDPathValue {
+        self.0 - BIP32_HARDENED
+    }
+}
+
+/// Hardened Securified Index
+#[derive(
+    Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, derive_more::Display, derive_more::Debug,
+)]
+#[display("{}^", self.base_index())]
+#[debug("{}^", self.base_index())]
+pub struct SecurifiedIndex(u32);
+impl SecurifiedIndex {
+    /// # Panics
+    /// Panics if value < BIP32_HARDENED + BIP32_SECURIFIED_HALF
+    pub fn new(value: u32) -> Self {
+        assert!(value >= BIP32_HARDENED + BIP32_SECURIFIED_HALF);
+        Self(value)
+    }
+
+    pub fn securifying_base_index(base_index: u32) -> Self {
+        Self::new(base_index + BIP32_HARDENED + BIP32_SECURIFIED_HALF)
+    }
+
+    pub fn to_bytes(&self) -> Vec<u8> {
+        self.0.to_be_bytes().to_vec()
+    }
+
+    pub fn add_n(&self, n: HDPathValue) -> Self {
+        let base_index = self.base_index();
+        assert!(
+            (base_index as u64 + n as u64) < HDPathValue::MAX as u64,
+            "Index would overflow beyond 2^32 if incremented with {:?}.",
+            n,
+        );
+
+        Self::new(self.0 + n)
+    }
+
+    pub(crate) fn base_index(&self) -> HDPathValue {
+        self.0 - BIP32_HARDENED - BIP32_SECURIFIED_HALF
+    }
+}
+
+#[derive(
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Hash,
+    PartialOrd,
+    Ord,
+    EnumAsInner,
+    derive_more::Display,
+    derive_more::Debug,
+)]
+pub enum HDPathComponentHardened {
+    #[display("{_0}")]
+    #[debug("{_0}")]
+    Unsecurified(UnsecurifiedIndex),
+    #[display("{_0}")]
+    #[debug("{_0}")]
+    Securified(SecurifiedIndex),
+}
+
+impl From<UnsecurifiedIndex> for HDPathComponentHardened {
+    fn from(u: UnsecurifiedIndex) -> Self {
+        Self::Unsecurified(u)
+    }
+}
+impl From<SecurifiedIndex> for HDPathComponentHardened {
+    fn from(u: SecurifiedIndex) -> Self {
+        Self::Securified(u)
+    }
+}
+impl HDPathComponentHardened {
+    pub fn to_bytes(&self) -> Vec<u8> {
+        match self {
+            Self::Unsecurified(u) => u.to_bytes(),
+            Self::Securified(s) => s.to_bytes(),
+        }
+    }
+
+    pub fn is_in_key_space(&self, key_space: KeySpace) -> bool {
+        match self {
+            Self::Unsecurified(_) => key_space == KeySpace::Unsecurified,
+            Self::Securified(_) => key_space == KeySpace::Securified,
+        }
+    }
+
+    pub fn add_n(&self, n: HDPathValue) -> Self {
+        match self {
+            Self::Unsecurified(u) => u.add_n(n).into(),
+            Self::Securified(s) => s.add_n(n).into(),
+        }
+    }
+
+    pub(crate) fn base_index(&self) -> HDPathValue {
+        match self {
+            Self::Unsecurified(u) => u.base_index(),
+            Self::Securified(s) => s.base_index(),
+        }
+    }
+}
+
+#[derive(
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Hash,
+    PartialOrd,
+    Ord,
+    EnumAsInner,
+    derive_more::Display,
+    derive_more::Debug,
+)]
+pub enum HDPathComponent {
+    #[display("{_0}")]
+    #[debug("{_0}")]
+    Unhardened(UnhardenedIndex),
+    #[display("{_0}")]
+    #[debug("{_0}")]
+    Hardened(HDPathComponentHardened),
+}
+
+impl From<UnhardenedIndex> for HDPathComponent {
+    fn from(u: UnhardenedIndex) -> Self {
+        Self::Unhardened(u)
+    }
+}
+impl From<HDPathComponentHardened> for HDPathComponent {
+    fn from(u: HDPathComponentHardened) -> Self {
+        Self::Hardened(u)
+    }
+}
+
+impl HDPathComponent {
+    pub fn to_bytes(&self) -> Vec<u8> {
+        match self {
+            Self::Unhardened(u) => u.to_bytes(),
+            Self::Hardened(h) => h.to_bytes(),
+        }
+    }
+}
+
 pub const BIP32_SECURIFIED_HALF: u32 = 0x4000_0000;
 pub(crate) const BIP32_HARDENED: u32 = 0x8000_0000;
 
 impl Step for HDPathComponent {
     fn steps_between(start: &Self, end: &Self) -> Option<usize> {
-        Some((end.index() - start.index()) as usize)
+        Some((end.base_index() - start.base_index()) as usize)
     }
 
     fn forward_checked(start: Self, count: usize) -> Option<Self> {
@@ -223,18 +428,33 @@ impl Step for HDPathComponent {
 }
 
 impl HDPathComponent {
-    fn hardening(value: HDPathValue) -> Self {
-        assert!(
-            value < BIP32_HARDENED,
-            "Passed value was hardened, expected it to not be."
-        );
-        Self {
-            value: value + BIP32_HARDENED,
+    pub fn new_from_base_index(base_index: HDPathValue) -> Self {
+        if base_index < BIP32_HARDENED {
+            Self::Unhardened(UnhardenedIndex::new(base_index))
+        } else if base_index < BIP32_SECURIFIED_HALF {
+            Self::Hardened(HDPathComponentHardened::Unsecurified(
+                UnsecurifiedIndex::new(base_index),
+            ))
+        } else {
+            Self::Hardened(HDPathComponentHardened::Securified(SecurifiedIndex::new(
+                base_index,
+            )))
         }
     }
-    pub fn unsecurified(value: HDPathValue) -> Self {
-        Self::hardening(value)
+    pub fn unsecurified_hardening_base_index(value: HDPathValue) -> Self {
+        Self::Hardened(HDPathComponentHardened::Unsecurified(
+            UnsecurifiedIndex::unsecurified_hardening_base_index(value),
+        ))
     }
+    /// Provide a value which is not yet hardened nor securified
+    pub fn securifying_base_index(base_index: HDPathValue) -> Self {
+        Self::Hardened(HDPathComponentHardened::Securified(
+            SecurifiedIndex::securifying_base_index(base_index),
+        ))
+    }
+}
+
+impl HDPathComponent {
     pub fn key_space(&self) -> KeySpace {
         if self.is_securified() {
             KeySpace::Securified
@@ -243,47 +463,25 @@ impl HDPathComponent {
         }
     }
     pub fn is_in_key_space(&self, key_space: KeySpace) -> bool {
-        self.key_space() == key_space
-    }
-    pub fn new_in_key_space(value: HDPathValue, key_space: KeySpace) -> Self {
-        match key_space {
-            KeySpace::Unsecurified => Self::unsecurified(value),
-            KeySpace::Securified => Self::securified(value),
+        match self {
+            Self::Unhardened(_) => key_space == KeySpace::Unsecurified,
+            Self::Hardened(h) => h.is_in_key_space(key_space),
         }
-    }
-    pub fn securified(value: HDPathValue) -> Self {
-        Self::hardening(value + BIP32_SECURIFIED_HALF)
-    }
-    pub fn to_bytes(&self) -> Vec<u8> {
-        self.value.to_be_bytes().to_vec()
-    }
-
-    pub(crate) fn is_hardened(&self) -> bool {
-        self.value >= BIP32_HARDENED
     }
 
     /// # Panics
-    /// Panics if self would overflow within its keyspace.
+    /// Panics if self would overflow within its key space.
     pub fn add_n_checked(&self, n: HDPathValue) -> Option<Self> {
         use std::panic;
         panic::catch_unwind(|| self.add_n(n)).ok()
     }
 
     /// # Panics
-    /// Panics if self would overflow within its keyspace.
+    /// Panics if self would overflow within its key space.
     pub fn add_n(&self, n: HDPathValue) -> Self {
-        let index = self.index();
-        if self.is_securified() {
-            assert!(
-                index < BIP32_HARDENED - n,
-                "Index would overflow beyond BIP32_HARDENED if incremented with {:?}.",
-                n,
-            )
-        } else {
-            assert!(index < BIP32_SECURIFIED_HALF - n, "Index would overflow beyond BIP32_SECURIFIED_HALF if incremented with {:?}, which is not allowed for unsecurified indexes.", n)
-        }
-        Self {
-            value: self.value + n,
+        match self {
+            Self::Hardened(h) => h.add_n(n).into(),
+            Self::Unhardened(u) => u.add_n(n).into(),
         }
     }
 
@@ -295,34 +493,36 @@ impl HDPathComponent {
 
     #[allow(unused)]
     pub(crate) fn is_securified(&self) -> bool {
-        if self.index() < BIP32_SECURIFIED_HALF {
-            return false;
+        match self {
+            Self::Hardened(h) => h.is_securified(),
+            Self::Unhardened(_) => false,
         }
-        true
     }
 
-    pub(crate) fn index(&self) -> HDPathValue {
-        if self.is_hardened() {
-            self.value - BIP32_HARDENED
-        } else {
-            self.value
+    pub(crate) fn base_index(&self) -> HDPathValue {
+        match self {
+            Self::Hardened(h) => h.base_index(),
+            Self::Unhardened(u) => u.base_index(),
         }
     }
 
     #[allow(unused)]
     pub(crate) fn securified_index(&self) -> Option<HDPathValue> {
-        if !self.is_securified() {
-            return None;
+        match self {
+            Self::Hardened(h) => match h {
+                HDPathComponentHardened::Securified(s) => Some(s.base_index()),
+                _ => None,
+            },
+            Self::Unhardened(_) => None,
         }
-        Some(self.index() - BIP32_SECURIFIED_HALF)
     }
 }
 impl HasSampleValues for HDPathComponent {
     fn sample() -> Self {
-        Self::unsecurified(0)
+        Self::unsecurified_hardening_base_index(0)
     }
     fn sample_other() -> Self {
-        Self::securified(1)
+        Self::securifying_base_index(1)
     }
 }
 
@@ -337,24 +537,24 @@ mod tests_hdpathcomp {
     fn add_one_successful() {
         let t = |value: Sut, expected_index: HDPathValue| {
             let actual = value.add_one();
-            assert_eq!(actual.index(), expected_index)
+            assert_eq!(actual.base_index(), expected_index)
         };
-        t(Sut::unsecurified(0), 1);
-        t(Sut::unsecurified(5), 6);
+        t(Sut::unsecurified_hardening_base_index(0), 1);
+        t(Sut::unsecurified_hardening_base_index(5), 6);
         t(
-            Sut::unsecurified(BIP32_SECURIFIED_HALF - 2),
+            Sut::unsecurified_hardening_base_index(BIP32_SECURIFIED_HALF - 2),
             BIP32_SECURIFIED_HALF - 1,
         );
 
-        t(Sut::securified(0), 1 + BIP32_SECURIFIED_HALF);
-        t(Sut::securified(5), 6 + BIP32_SECURIFIED_HALF);
+        t(Sut::securifying_base_index(0), 1 + BIP32_SECURIFIED_HALF);
+        t(Sut::securifying_base_index(5), 6 + BIP32_SECURIFIED_HALF);
         t(
-            Sut::securified(BIP32_SECURIFIED_HALF - 3),
+            Sut::securifying_base_index(BIP32_SECURIFIED_HALF - 3),
             BIP32_SECURIFIED_HALF - 2 + BIP32_SECURIFIED_HALF,
         );
 
         t(
-            Sut::securified(BIP32_SECURIFIED_HALF - 2),
+            Sut::securifying_base_index(BIP32_SECURIFIED_HALF - 2),
             BIP32_SECURIFIED_HALF - 1 + BIP32_SECURIFIED_HALF,
         );
     }
@@ -362,22 +562,22 @@ mod tests_hdpathcomp {
     #[test]
     #[should_panic]
     fn add_one_unsecurified_max_panics() {
-        let sut = Sut::unsecurified(BIP32_SECURIFIED_HALF - 1);
+        let sut = Sut::unsecurified_hardening_base_index(BIP32_SECURIFIED_HALF - 1);
         _ = sut.add_one()
     }
 
     #[test]
     #[should_panic]
     fn add_one_securified_max_panics() {
-        let sut = Sut::securified(BIP32_SECURIFIED_HALF - 1);
+        let sut = Sut::securifying_base_index(BIP32_SECURIFIED_HALF - 1);
         _ = sut.add_one()
     }
 
     #[test]
     fn index_if_securified() {
         let i = 5;
-        let sut = Sut::securified(i);
-        assert_eq!(sut.index(), i + BIP32_SECURIFIED_HALF);
+        let sut = Sut::securifying_base_index(i);
+        assert_eq!(sut.base_index(), i + BIP32_SECURIFIED_HALF);
         assert_eq!(sut.securified_index(), Some(i));
     }
 }
@@ -474,7 +674,7 @@ impl DerivationPath {
             network_id,
             entity_kind,
             key_kind,
-            HDPathComponent::unsecurified(index),
+            HDPathComponent::unsecurified_hardening_base_index(index),
         )
     }
     pub fn account_tx(network_id: NetworkID, index: HDPathComponent) -> Self {
@@ -1209,7 +1409,7 @@ where
             "Grace",
             <AbstractEntity<T> as IsEntity>::Address::sample_other(),
             || {
-                let idx = HDPathComponent::securified(6);
+                let idx = HDPathComponent::securifying_base_index(6);
                 MatrixOfFactorInstances::m6(HierarchicalDeterministicFactorInstance::f(
                     Self::entity_kind(),
                     idx,
@@ -1292,7 +1492,8 @@ impl MatrixOfFactorInstances {
         matrix_of_factor_sources: MatrixOfFactorSources,
     ) -> Result<Self> {
         let instances = instances.into_iter().collect_vec();
-
+        println!("🍬 instances: {:?}", instances);
+        println!("🍬 matrix: {:?}", matrix_of_factor_sources);
         let get_factors =
             |required: Vec<HDFactorSource>| -> Result<Vec<HierarchicalDeterministicFactorInstance>> {
                 required

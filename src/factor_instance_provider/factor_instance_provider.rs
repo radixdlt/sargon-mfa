@@ -366,7 +366,11 @@ impl IsPreDerivedKeysCache for InMemoryPreDerivedKeysCache {
             let for_key = cached
                 .get_mut(&tuple.path)
                 .ok_or(CommonError::KeysCacheUnknownKey)?;
-            let read_from_cache = for_key.pop().ok_or(CommonError::KeysCacheEmptyForKey)?;
+            let read_from_cache = for_key
+                .first()
+                .ok_or(CommonError::KeysCacheEmptyForKey)?
+                .clone();
+            for_key.shift_remove(&read_from_cache);
             instances_read_from_cache.insert(tuple.request, read_from_cache);
         }
 
@@ -612,7 +616,7 @@ impl FactorInstanceProvider {
 
                 let next_index = last_index
                     .map(|l| l.add_one())
-                    .unwrap_or(HDPathComponent::securified(0));
+                    .unwrap_or(HDPathComponent::securifying_base_index(0));
 
                 next_index..next_index.add_n(DERIVATION_INDEX_BATCH_SIZE)
             };
@@ -644,7 +648,7 @@ impl FactorInstanceProvider {
 
                 let next_index = last_index
                     .map(|l| l.add_one())
-                    .unwrap_or(HDPathComponent::unsecurified(0));
+                    .unwrap_or(HDPathComponent::unsecurified_hardening_base_index(0));
 
                 next_index..next_index.add_n(DERIVATION_INDEX_BATCH_SIZE)
             };
@@ -654,6 +658,11 @@ impl FactorInstanceProvider {
                 add(request.factor_source_id, path);
             }
         }
+
+        println!(
+            "🚗 dispatching to KeysCollector, derivation paths: {:?}",
+            derivation_paths
+        );
 
         let keys_collector = KeysCollector::new(
             factor_sources,
@@ -668,6 +677,8 @@ impl FactorInstanceProvider {
             DerivationRequest,
             IndexSet<HierarchicalDeterministicFactorInstance>,
         > = IndexMap::new();
+
+        println!("🛍️ derived factors: {:?}", derived_factors);
 
         for derived_factor in derived_factors {
             let key = DerivationRequest::from(derived_factor.clone());
@@ -694,6 +705,7 @@ impl FactorInstanceProvider {
             .union(&unfulfillable.requests())
             .cloned()
             .collect::<IndexSet<_>>();
+        println!("🐝 requests: {:?}", requests);
         return self.cache.consume_next_factor_instances(requests).await;
     }
 }
@@ -733,7 +745,10 @@ impl FactorInstanceProvider {
             })
             .collect::<IndexSet<_>>();
 
+        println!("🐙 requests: {:?}", requests);
+
         let derived_factors_map = self.provide_factor_instances(profile, requests).await?;
+
         let derived_factors = derived_factors_map
             .values()
             .into_iter()

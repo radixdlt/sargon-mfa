@@ -9,8 +9,8 @@ pub(crate) struct StatelessDummyIndices;
 impl StatelessDummyIndices {
     pub(crate) fn next_derivation_index_for(&self, key_space: KeySpace) -> HDPathComponent {
         match key_space {
-            KeySpace::Securified => HDPathComponent::unsecurified(BIP32_SECURIFIED_HALF),
-            KeySpace::Unsecurified => HDPathComponent::unsecurified(0),
+            KeySpace::Securified => HDPathComponent::securifying_base_index(0),
+            KeySpace::Unsecurified => HDPathComponent::unsecurified_hardening_base_index(0),
         }
     }
 

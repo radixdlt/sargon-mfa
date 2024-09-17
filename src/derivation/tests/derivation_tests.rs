@@ -18,7 +18,7 @@ mod key_derivation_tests {
                     Mainnet,
                     Account,
                     TransactionSigning,
-                    HDPathComponent::securified(0),
+                    HDPathComponent::securifying_base_index(0),
                 )),
             )),
             Arc::new(TestDerivationInteractors::default()),
@@ -75,7 +75,10 @@ mod key_derivation_tests {
 
         #[actix_rt::test]
         async fn multi_keys_multi_factor_sources_single_index_per() {
-            let path = DerivationPath::account_tx(Mainnet, HDPathComponent::unsecurified(0));
+            let path = DerivationPath::account_tx(
+                Mainnet,
+                HDPathComponent::unsecurified_hardening_base_index(0),
+            );
             let paths = IndexSet::just(path);
             let factor_sources = HDFactorSource::all();
 
@@ -203,7 +206,8 @@ mod key_derivation_tests {
                     BIP32_SECURIFIED_HALF + 2,
                 ]
                 .into_iter()
-                .map(|i| DerivationPath::unsecurified(Mainnet, Account, TransactionSigning, i)),
+                .map(HDPathComponent::new_from_base_index)
+                .map(|p| DerivationPath::new(Mainnet, Account, TransactionSigning, p)),
             );
 
             paths.extend(
@@ -216,7 +220,8 @@ mod key_derivation_tests {
                     BIP32_SECURIFIED_HALF + 2,
                 ]
                 .into_iter()
-                .map(|i| DerivationPath::unsecurified(Stokenet, Account, TransactionSigning, i)),
+                .map(HDPathComponent::new_from_base_index)
+                .map(|p| DerivationPath::new(Stokenet, Account, TransactionSigning, p)),
             );
 
             paths.extend(
@@ -229,7 +234,8 @@ mod key_derivation_tests {
                     BIP32_SECURIFIED_HALF + 2,
                 ]
                 .into_iter()
-                .map(|i| DerivationPath::unsecurified(Mainnet, Identity, TransactionSigning, i)),
+                .map(HDPathComponent::new_from_base_index)
+                .map(|p| DerivationPath::new(Mainnet, Identity, TransactionSigning, p)),
             );
 
             paths.extend(
@@ -242,7 +248,8 @@ mod key_derivation_tests {
                     BIP32_SECURIFIED_HALF + 2,
                 ]
                 .into_iter()
-                .map(|i| DerivationPath::unsecurified(Stokenet, Identity, TransactionSigning, i)),
+                .map(HDPathComponent::new_from_base_index)
+                .map(|p| DerivationPath::new(Stokenet, Identity, TransactionSigning, p)),
             );
 
             paths.extend(
@@ -255,7 +262,8 @@ mod key_derivation_tests {
                     BIP32_SECURIFIED_HALF + 2,
                 ]
                 .into_iter()
-                .map(|i| DerivationPath::unsecurified(Mainnet, Account, AuthenticationSigning, i)),
+                .map(HDPathComponent::new_from_base_index)
+                .map(|p| DerivationPath::new(Mainnet, Account, AuthenticationSigning, p)),
             );
 
             paths.extend(
@@ -268,7 +276,8 @@ mod key_derivation_tests {
                     BIP32_SECURIFIED_HALF + 2,
                 ]
                 .into_iter()
-                .map(|i| DerivationPath::unsecurified(Stokenet, Account, AuthenticationSigning, i)),
+                .map(HDPathComponent::new_from_base_index)
+                .map(|p| DerivationPath::new(Stokenet, Account, AuthenticationSigning, p)),
             );
 
             paths.extend(
@@ -281,7 +290,8 @@ mod key_derivation_tests {
                     BIP32_SECURIFIED_HALF + 2,
                 ]
                 .into_iter()
-                .map(|i| DerivationPath::unsecurified(Mainnet, Identity, AuthenticationSigning, i)),
+                .map(HDPathComponent::new_from_base_index)
+                .map(|p| DerivationPath::new(Mainnet, Identity, AuthenticationSigning, p)),
             );
 
             paths.extend(
@@ -294,9 +304,8 @@ mod key_derivation_tests {
                     BIP32_SECURIFIED_HALF + 2,
                 ]
                 .into_iter()
-                .map(|i| {
-                    DerivationPath::unsecurified(Stokenet, Identity, AuthenticationSigning, i)
-                }),
+                .map(HDPathComponent::new_from_base_index)
+                .map(|p| DerivationPath::new(Stokenet, Identity, AuthenticationSigning, p)),
             );
 
             let factor_sources = HDFactorSource::all();
@@ -379,7 +388,7 @@ mod key_derivation_tests {
                     entity_kind,
                     key_kind,
                     Expected {
-                        index: HDPathComponent::unsecurified(BIP32_SECURIFIED_HALF),
+                        index: HDPathComponent::securifying_base_index(0),
                     },
                 )
                 .await
@@ -417,7 +426,7 @@ mod key_derivation_tests {
                     entity_kind,
                     key_kind,
                     Expected {
-                        index: HDPathComponent::unsecurified(0),
+                        index: HDPathComponent::unsecurified_hardening_base_index(0),
                     },
                 )
                 .await

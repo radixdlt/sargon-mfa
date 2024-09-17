@@ -124,7 +124,7 @@ impl HasSampleValues for MaybeSignedTransactions {
             OwnedFactorInstance::new(
                 AddressOfAccountOrPersona::sample(),
                 HierarchicalDeterministicFactorInstance::mainnet_tx_account(
-                    HDPathComponent::unsecurified(0),
+                    HDPathComponent::unsecurified_hardening_base_index(0),
                     FactorSourceIDFromHash::sample(),
                 ),
             ),
@@ -134,7 +134,7 @@ impl HasSampleValues for MaybeSignedTransactions {
             OwnedFactorInstance::new(
                 AddressOfAccountOrPersona::sample(),
                 HierarchicalDeterministicFactorInstance::mainnet_tx_account(
-                    HDPathComponent::unsecurified(1),
+                    HDPathComponent::unsecurified_hardening_base_index(1),
                     FactorSourceIDFromHash::sample_other(),
                 ),
             ),
@@ -148,7 +148,7 @@ impl HasSampleValues for MaybeSignedTransactions {
             OwnedFactorInstance::new(
                 AddressOfAccountOrPersona::sample(),
                 HierarchicalDeterministicFactorInstance::mainnet_tx_account(
-                    HDPathComponent::unsecurified(2),
+                    HDPathComponent::unsecurified_hardening_base_index(2),
                     FactorSourceIDFromHash::sample_third(),
                 ),
             ),
@@ -158,7 +158,7 @@ impl HasSampleValues for MaybeSignedTransactions {
             OwnedFactorInstance::new(
                 AddressOfAccountOrPersona::sample(),
                 HierarchicalDeterministicFactorInstance::mainnet_tx_account(
-                    HDPathComponent::unsecurified(3),
+                    HDPathComponent::unsecurified_hardening_base_index(3),
                     FactorSourceIDFromHash::sample_fourth(),
                 ),
             ),
@@ -184,7 +184,7 @@ impl HasSampleValues for MaybeSignedTransactions {
             OwnedFactorInstance::new(
                 AddressOfAccountOrPersona::sample(),
                 HierarchicalDeterministicFactorInstance::mainnet_tx_account(
-                    HDPathComponent::unsecurified(10),
+                    HDPathComponent::unsecurified_hardening_base_index(10),
                     FactorSourceIDFromHash::sample(),
                 ),
             ),
@@ -194,7 +194,7 @@ impl HasSampleValues for MaybeSignedTransactions {
             OwnedFactorInstance::new(
                 AddressOfAccountOrPersona::sample(),
                 HierarchicalDeterministicFactorInstance::mainnet_tx_account(
-                    HDPathComponent::unsecurified(11),
+                    HDPathComponent::unsecurified_hardening_base_index(11),
                     FactorSourceIDFromHash::sample_other(),
                 ),
             ),
@@ -204,7 +204,7 @@ impl HasSampleValues for MaybeSignedTransactions {
             OwnedFactorInstance::new(
                 AddressOfAccountOrPersona::sample(),
                 HierarchicalDeterministicFactorInstance::mainnet_tx_account(
-                    HDPathComponent::unsecurified(12),
+                    HDPathComponent::unsecurified_hardening_base_index(12),
                     FactorSourceIDFromHash::sample_third(),
                 ),
             ),
@@ -253,7 +253,7 @@ mod tests {
             OwnedFactorInstance::new(
                 AddressOfAccountOrPersona::sample(),
                 HierarchicalDeterministicFactorInstance::mainnet_tx_account(
-                    HDPathComponent::unsecurified(0),
+                    HDPathComponent::unsecurified_hardening_base_index(0),
                     FactorSourceIDFromHash::sample(),
                 ),
             ),
@@ -273,7 +273,7 @@ mod tests {
             OwnedFactorInstance::new(
                 AddressOfAccountOrPersona::sample(),
                 HierarchicalDeterministicFactorInstance::mainnet_tx_account(
-                    HDPathComponent::unsecurified(0),
+                    HDPathComponent::unsecurified_hardening_base_index(0),
                     FactorSourceIDFromHash::sample(),
                 ),
             ),

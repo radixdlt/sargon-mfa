@@ -315,8 +315,8 @@ pub async fn recover_entity<E: IsEntity + Sync + Hash + Eq>(
                     .collect::<IndexSet<_>>()
             };
 
-        let paths_unsecurified = make_paths(HDPathComponent::unsecurified);
-        let paths_securified = make_paths(HDPathComponent::securified);
+        let paths_unsecurified = make_paths(HDPathComponent::unsecurified_hardening_base_index);
+        let paths_securified = make_paths(HDPathComponent::securifying_base_index);
         let mut all_paths = IndexSet::<DerivationPath>::new();
         all_paths.extend(paths_unsecurified);
         all_paths.extend(paths_securified);
@@ -709,7 +709,10 @@ mod tests {
         let pub_keys = HashSet::<PK>::from_iter(
             (0..n as HDPathValue)
                 .map(|i| {
-                    DerivationPath::account_tx(NetworkID::Mainnet, HDPathComponent::unsecurified(i))
+                    DerivationPath::account_tx(
+                        NetworkID::Mainnet,
+                        HDPathComponent::unsecurified_hardening_base_index(i),
+                    )
                 })
                 .map(|p| PK::mocked_with(p, f)),
         );
@@ -985,7 +988,7 @@ mod tests {
                             .unwrap()
                             .derivation_path()
                             .index
-                            .index(),
+                            .base_index(),
                         1 // second time that factor source was used.
                     );
                     accounts
