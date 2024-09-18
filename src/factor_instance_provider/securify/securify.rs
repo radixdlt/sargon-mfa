@@ -6,9 +6,11 @@ impl FactorInstanceProvider {
         address: &E::Address,
         matrix: MatrixOfFactorSources,
         profile: &mut Profile,
+        derivation_interactors: Arc<dyn KeysDerivationInteractors>,
     ) -> Result<SecurifiedEntityControl> {
         let entity = profile.entity_by_address::<E>(address)?;
-        self.securify(&entity, &matrix, profile).await
+        self.securify(&entity, &matrix, profile, derivation_interactors)
+            .await
     }
 
     pub async fn securify<E: IsEntity>(
@@ -16,6 +18,7 @@ impl FactorInstanceProvider {
         entity: &E,
         matrix: &MatrixOfFactorSources,
         profile: &mut Profile,
+        derivation_interactors: Arc<dyn KeysDerivationInteractors>,
     ) -> Result<SecurifiedEntityControl> {
         let entity_kind = E::kind();
         let network_id = entity.address().network_id();
@@ -35,7 +38,9 @@ impl FactorInstanceProvider {
             })
             .collect::<IndexSet<_>>();
 
-        let derived_factors_map = self.provide_factor_instances(profile, requests).await?;
+        let derived_factors_map = self
+            .provide_factor_instances(profile, requests, derivation_interactors)
+            .await?;
 
         let derived_factors = derived_factors_map
             .values()

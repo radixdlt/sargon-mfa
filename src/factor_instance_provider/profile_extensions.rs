@@ -7,6 +7,7 @@ impl Profile {
         name: impl AsRef<str>,
         factor_source_id: FactorSourceIDFromHash,
         factor_instance_provider: &FactorInstanceProvider,
+        derivation_interactors: Arc<dyn KeysDerivationInteractors>,
     ) -> Result<E> {
         assert!(self
             .factor_sources
@@ -15,7 +16,13 @@ impl Profile {
             .contains(&factor_source_id));
 
         let genesis_factor = factor_instance_provider
-            .provide_genesis_factor_for(factor_source_id, E::kind(), network_id, self)
+            .provide_genesis_factor_for(
+                factor_source_id,
+                E::kind(),
+                network_id,
+                self,
+                derivation_interactors,
+            )
             .await?;
 
         let address = E::Address::by_hashing(network_id, genesis_factor.clone());
@@ -46,9 +53,16 @@ impl Profile {
         name: impl AsRef<str>,
         factor_source_id: FactorSourceIDFromHash,
         factor_instance_provider: &FactorInstanceProvider,
+        derivation_interactors: Arc<dyn KeysDerivationInteractors>,
     ) -> Result<Account> {
-        self.new_entity(network_id, name, factor_source_id, factor_instance_provider)
-            .await
+        self.new_entity(
+            network_id,
+            name,
+            factor_source_id,
+            factor_instance_provider,
+            derivation_interactors,
+        )
+        .await
     }
 }
 

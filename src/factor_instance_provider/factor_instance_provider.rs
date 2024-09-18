@@ -14,21 +14,12 @@ use crate::prelude::*;
 /// `HierarchicalDeterministicFactorInstance` in both cases for the given request.
 pub struct FactorInstanceProvider {
     pub gateway: Arc<dyn Gateway>,
-    derivation_interactors: Arc<dyn KeysDerivationInteractors>,
     cache: Arc<dyn IsPreDerivedKeysCache>,
 }
 
 impl FactorInstanceProvider {
-    pub fn new(
-        gateway: Arc<dyn Gateway>,
-        derivation_interactors: Arc<dyn KeysDerivationInteractors>,
-        cache: Arc<dyn IsPreDerivedKeysCache>,
-    ) -> Self {
-        Self {
-            gateway,
-            derivation_interactors,
-            cache,
-        }
+    pub fn new(gateway: Arc<dyn Gateway>, cache: Arc<dyn IsPreDerivedKeysCache>) -> Self {
+        Self { gateway, cache }
     }
 }
 
@@ -42,6 +33,7 @@ impl FactorInstanceProvider {
         entity_kind: CAP26EntityKind,
         network_id: NetworkID,
         profile: &'p Profile,
+        derivation_interactors: Arc<dyn KeysDerivationInteractors>,
     ) -> Result<HierarchicalDeterministicFactorInstance> {
         let key_kind = CAP26KeyKind::TransactionSigning;
 
@@ -54,7 +46,7 @@ impl FactorInstanceProvider {
         );
 
         let derived_factors_map = self
-            .provide_factor_instances(profile, IndexSet::just(request))
+            .provide_factor_instances(profile, IndexSet::just(request), derivation_interactors)
             .await?;
 
         let derived_factor = derived_factors_map
@@ -70,6 +62,7 @@ impl FactorInstanceProvider {
         &self,
         profile: &'p Profile,
         requests: IndexSet<DerivationRequest>,
+        derivation_interactors: Arc<dyn KeysDerivationInteractors>,
     ) -> Result<IndexMap<DerivationRequest, HierarchicalDeterministicFactorInstance>> {
         let peek_outcome = self.cache.peek(requests.clone()).await;
 
@@ -86,7 +79,8 @@ impl FactorInstanceProvider {
                     .difference(&unfulfillable.requests())
                     .cloned()
                     .collect::<IndexSet<_>>();
-                self.fulfill(profile, fulfillable, unfulfillable).await
+                self.fulfill(profile, fulfillable, unfulfillable, derivation_interactors)
+                    .await
             }
         }
     }
@@ -100,6 +94,7 @@ impl FactorInstanceProvider {
         &self,
         profile: &'p Profile,
         unfulfillable_requests: &UnfulfillableRequests,
+        derivation_interactors: Arc<dyn KeysDerivationInteractors>,
     ) -> Result<()> {
         let factor_sources = profile.factor_sources.clone();
         let unfulfillable_requests = unfulfillable_requests.unfulfillable();
@@ -223,11 +218,8 @@ impl FactorInstanceProvider {
             }
         }
 
-        let keys_collector = KeysCollector::new(
-            factor_sources,
-            derivation_paths,
-            self.derivation_interactors.clone(),
-        )?;
+        let keys_collector =
+            KeysCollector::new(factor_sources, derivation_paths, derivation_interactors)?;
 
         let derivation_outcome = keys_collector.collect_keys().await;
         let derived_factors = derivation_outcome.all_factors();
@@ -279,8 +271,9 @@ impl FactorInstanceProvider {
         profile: &'p Profile,
         fulfillable: IndexSet<DerivationRequest>,
         unfulfillable: UnfulfillableRequests,
+        derivation_interactors: Arc<dyn KeysDerivationInteractors>,
     ) -> Result<IndexMap<DerivationRequest, HierarchicalDeterministicFactorInstance>> {
-        self.derive_new_and_fill_cache(profile, &unfulfillable)
+        self.derive_new_and_fill_cache(profile, &unfulfillable, derivation_interactors)
             .await?;
         let requests = fulfillable
             .union(&unfulfillable.requests())
@@ -380,17 +373,16 @@ mod securify_tests {
         let mut profile = Profile::new(all_factors.clone(), [a, b], []);
         let matrix = MatrixOfFactorSources::new([fs_at(0)], 1, []);
 
-        let interactors = Arc::new(TestDerivationInteractors::default());
         let gateway = Arc::new(TestGateway::default());
 
         let factor_instance_provider = FactorInstanceProvider::new(
             gateway.clone(),
-            interactors,
             Arc::new(InMemoryPreDerivedKeysCache::default()),
         );
 
+        let interactors = Arc::new(TestDerivationInteractors::default());
         let b_sec = factor_instance_provider
-            .securify(b, &matrix, &mut profile)
+            .securify(b, &matrix, &mut profile, interactors.clone())
             .await
             .unwrap();
 
@@ -418,7 +410,7 @@ mod securify_tests {
         );
 
         let a_sec = factor_instance_provider
-            .securify(a, &matrix, &mut profile)
+            .securify(a, &matrix, &mut profile, interactors.clone())
             .await
             .unwrap();
 

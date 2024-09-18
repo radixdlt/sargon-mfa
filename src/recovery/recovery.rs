@@ -505,10 +505,10 @@ mod tests {
                     let mut profile = Profile::new(all_factors.clone(), [], []);
 
                     let keys_cache = Arc::new(InMemoryPreDerivedKeysCache::default());
-                    let interactors = Arc::new(TestDerivationInteractors::default());
 
                     let factor_instance_provider =
-                        FactorInstanceProvider::new(gateway.clone(), interactors, keys_cache);
+                        FactorInstanceProvider::new(gateway.clone(), keys_cache);
+                    let interactors = Arc::new(TestDerivationInteractors::default());
 
                     let alice_address = profile
                         .new_account(
@@ -516,6 +516,7 @@ mod tests {
                             "alice",
                             fs_id_at(0),
                             &factor_instance_provider,
+                            interactors.clone(),
                         )
                         .await
                         .unwrap()
@@ -530,6 +531,7 @@ mod tests {
                                 [fs_at(6)],
                             ),
                             &mut profile,
+                            interactors.clone(),
                         )
                         .await
                         .unwrap();
@@ -540,6 +542,7 @@ mod tests {
                             "bob",
                             fs_id_at(1),
                             &factor_instance_provider,
+                            interactors.clone(),
                         )
                         .await
                         .unwrap()
@@ -550,6 +553,7 @@ mod tests {
                             &bob_address,
                             MatrixOfFactorSources::new([fs_at(1), fs_at(3)], 2, [fs_at(7)]),
                             &mut profile,
+                            interactors.clone(),
                         )
                         .await
                         .unwrap();
@@ -560,6 +564,7 @@ mod tests {
                             "charlie",
                             fs_id_at(1),
                             &factor_instance_provider,
+                            interactors.clone(),
                         )
                         .await
                         .unwrap()
