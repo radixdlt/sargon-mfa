@@ -1,6 +1,6 @@
 #![allow(unused)]
 
-use std::ops::Deref;
+use std::ops::{Deref, Index};
 
 use crate::prelude::*;
 
@@ -58,54 +58,73 @@ type ScanHookGateway<'a> = Box<
     >,
 >;
 
-async fn scan<'p, 'g>(
-    factor_sources: IndexSet<HDFactorSource>,
-    profile_scan_hook: Option<ScanHookSync<'p>>,
-    gateway_scan_hook: Option<ScanHookGateway<'g>>,
+pub struct FactorSourceDerivations {
+    derivations_per_factor_source: IndexMap<HDFactorSource, HDPathValue>,
+}
+impl FactorSourceDerivations {
+    pub fn single_factor_source(
+        factor_source: HDFactorSource,
+        start_base_index_for_each_key_space: HDPathValue,
+    ) -> Self {
+        Self {
+            derivations_per_factor_source: IndexMap::just((
+                factor_source,
+                start_base_index_for_each_key_space,
+            )),
+        }
+    }
+    pub fn add_factor_source(factor_source: HDFactorSource) -> Self {
+        Self::single_factor_source(factor_source, 0)
+    }
+    pub fn recovery(factor_sources: IndexSet<HDFactorSource>) -> Self {
+        Self {
+            derivations_per_factor_source: factor_sources
+                .into_iter()
+                .map(|factor_source| (factor_source, 0))
+                .collect(),
+        }
+    }
+}
+
+async fn scan(
+    factor_source_derivations: FactorSourceDerivations,
+    profile_scan_hook: Option<ScanHookSync<'_>>,
+    gateway: Arc<dyn GatewayReadonly>,
 ) -> Result<(IndexSet<AccountOrPersona>, ProbablyFreeFactorInstances)> {
     todo!()
 }
 
 impl Profile {
-    async fn add_factor_source<'g>(
-        &mut self,
-        factor_source: HDFactorSource,
-        derivation_interactors: Arc<dyn KeysDerivationInteractors>,
-        gateway_scan_hook: ScanHookGateway<'g>,
-    ) -> Result<()> {
+    fn add_all_entities(&mut self, entities: IndexSet<AccountOrPersona>) {
+        todo!()
+    }
+
+    pub async fn recovery(
+        factor_sources: IndexSet<HDFactorSource>,
+        gateway: Arc<dyn GatewayReadonly>,
+    ) -> Result<(Self, ProbablyFreeFactorInstances)> {
         let (found_entities, probably_free) = scan(
-            IndexSet::just(factor_source),
-            Some(self.scan_hook()),
-            Some(gateway_scan_hook),
+            FactorSourceDerivations::recovery(factor_sources),
+            None,
+            gateway,
         )
         .await?;
         todo!()
     }
 
-    async fn add_factor_source_with_gateway(
+    pub async fn add_factor_source(
         &mut self,
         factor_source: HDFactorSource,
         derivation_interactors: Arc<dyn KeysDerivationInteractors>,
         gateway: Arc<dyn GatewayReadonly>,
     ) -> Result<()> {
-        self.add_factor_source(factor_source, derivation_interactors, scan_hook(gateway))
-            .await
-    }
-
-    async fn recovery(
-        factor_sources: IndexSet<HDFactorSource>,
-        gateway_scan_hook: ScanHookGateway<'_>,
-    ) -> Result<(Self, ProbablyFreeFactorInstances)> {
-        let (found_entities, probably_free) =
-            scan(factor_sources, None, Some(gateway_scan_hook)).await?;
+        let (found_entities, probably_free) = scan(
+            FactorSourceDerivations::add_factor_source(factor_source),
+            Some(self.scan_hook()),
+            gateway,
+        )
+        .await?;
         todo!()
-    }
-
-    async fn recovery_with_gateway(
-        factor_sources: IndexSet<HDFactorSource>,
-        gateway: Arc<dyn GatewayReadonly>,
-    ) -> Result<(Self, ProbablyFreeFactorInstances)> {
-        Self::recovery(factor_sources, scan_hook(gateway)).await
     }
 }
 
