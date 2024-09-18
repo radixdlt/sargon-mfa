@@ -4,6 +4,8 @@ use crate::prelude::*;
 pub struct OnChainEntityUnsecurified {
     pub address: AddressOfAccountOrPersona,
     pub owner_keys: Vec<PublicKeyHash>,
+    /// TODO: we should read this...
+    pub third_party_deposits: (),
 }
 
 impl OnChainEntityUnsecurified {
@@ -14,6 +16,7 @@ impl OnChainEntityUnsecurified {
         Self {
             address: address.into(),
             owner_keys,
+            third_party_deposits: (),
         }
     }
 

@@ -5,6 +5,8 @@ pub struct OnChainEntitySecurified {
     pub address: AddressOfAccountOrPersona,
     pub access_controller: AccessController,
     pub owner_keys: Vec<PublicKeyHash>,
+    /// TODO: we should read this...
+    pub third_party_deposits: (),
 }
 
 impl OnChainEntitySecurified {
@@ -17,6 +19,7 @@ impl OnChainEntitySecurified {
             address: address.into(),
             access_controller,
             owner_keys,
+            third_party_deposits: (),
         }
     }
     pub fn owner_keys(&self) -> HashSet<PublicKeyHash> {

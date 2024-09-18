@@ -5,6 +5,7 @@ pub enum OnChainEntityState {
     Unsecurified(OnChainEntityUnsecurified),
     Securified(OnChainEntitySecurified),
 }
+
 impl OnChainEntityState {
     fn unsecurified(unsecurified: OnChainEntityUnsecurified) -> Self {
         Self::Unsecurified(unsecurified)
