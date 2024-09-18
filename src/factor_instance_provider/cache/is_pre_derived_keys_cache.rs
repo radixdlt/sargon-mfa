@@ -10,7 +10,7 @@ use crate::prelude::*;
 /// The purpose of this cache is only to speed up the process of accessing  
 /// FactorInstances.
 #[async_trait::async_trait]
-pub trait IsPreDerivedKeysCache {
+pub trait IsPreDerivedKeysCache: Sync {
     /// Inserts the `derived` keys into the cache, notice the asymmetry of this
     /// "save" vs the `consume_next_factor_instances` ("load") - this method accepts
     /// a set of factors per request, while the `consume_next_factor_instances`
@@ -31,6 +31,21 @@ pub trait IsPreDerivedKeysCache {
         &self,
         requests: IndexSet<DerivationRequest>,
     ) -> Result<IndexMap<DerivationRequest, HierarchicalDeterministicFactorInstance>>;
+
+    async fn consume_next_factor_instance(
+        &self,
+        request: DerivationRequest,
+    ) -> Result<HierarchicalDeterministicFactorInstance> {
+        let instances = self
+            .consume_next_factor_instances(IndexSet::just(request))
+            .await?;
+
+        Ok(instances
+            .values()
+            .next()
+            .cloned()
+            .expect("Should have had instance"))
+    }
 
     /// Returns `NextDerivationPeekOutcome::WouldHaveAtLeastOneFactorLeftPerFulfilledRequests`
     /// if there would be **at least on key left** after we have consumed
@@ -61,4 +76,12 @@ pub trait IsPreDerivedKeysCache {
     /// is consumed, we derive the next `(N+1, N+N)` keys and cache them. This
     /// way we need only derive more keys when they are needed.
     async fn peek(&self, requests: IndexSet<DerivationRequest>) -> NextDerivationPeekOutcome;
+    async fn peek_single(&self, request: DerivationRequest) -> NextDerivationPeekOutcome {
+        self.peek(IndexSet::just(request)).await
+    }
+    async fn can_consume_next_factor(&self, request: DerivationRequest) -> bool {
+        let outcome = self.peek_single(request).await;
+
+        matches!(outcome, NextDerivationPeekOutcome::Fulfillable)
+    }
 }

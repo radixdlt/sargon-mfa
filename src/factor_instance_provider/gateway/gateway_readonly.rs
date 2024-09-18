@@ -4,6 +4,7 @@ use crate::prelude::*;
 
 #[async_trait::async_trait]
 pub trait GatewayReadonly: Sync + Send {
+    async fn has_internet_connection(&self) -> bool;
     async fn is_key_hash_known(&self, hash: PublicKeyHash) -> Result<bool>;
 
     async fn query_public_key_hash_is_known(

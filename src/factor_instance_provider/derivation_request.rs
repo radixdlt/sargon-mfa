@@ -44,6 +44,20 @@ impl DerivationRequest {
             network_id,
         )
     }
+
+    pub fn virtual_entity_creating_factor_instance(
+        entity_kind: CAP26EntityKind,
+        factor_source_id: FactorSourceIDFromHash,
+        network_id: NetworkID,
+    ) -> Self {
+        Self::new(
+            KeySpace::Securified,
+            entity_kind,
+            CAP26KeyKind::TransactionSigning,
+            factor_source_id,
+            network_id,
+        )
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

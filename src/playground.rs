@@ -99,6 +99,33 @@ impl Profile {
         todo!()
     }
 
+    pub async fn new_unsecurified_entity<E: IsEntity>(
+        &mut self,
+        name: String,
+        network_id: NetworkID,
+        factor_source: HDFactorSource,
+        derivation_interactors: Arc<dyn KeysDerivationInteractors>,
+        gateway: Arc<dyn Gateway>,
+        cache: Arc<dyn IsPreDerivedKeysCache>,
+    ) -> Result<E> {
+        let entity_kind = E::kind();
+        let factor_source_id = factor_source.factor_source_id();
+        let request = DerivationRequest::virtual_entity_creating_factor_instance(
+            entity_kind,
+            factor_source_id,
+            network_id,
+        );
+        let can_consume_next_cache = cache.can_consume_next_factor(request).await;
+        if can_consume_next_cache {
+            let instance = cache.consume_next_factor_instance(request).await?;
+        } else {
+            // 🔶 🔶 🔶 🔶 🔶 🔶 🔶 🔶 🔶 🔶 🔶 🔶 🔶 🔶 🔶
+            //  FILL CACHE! WITH INDEX OFFSETS
+            // 🔶 🔶 🔶 🔶 🔶 🔶 🔶 🔶 🔶 🔶 🔶 🔶 🔶 🔶 🔶
+        }
+        todo!()
+    }
+
     pub async fn recovery(
         factor_sources: IndexSet<HDFactorSource>,
         gateway: Arc<dyn GatewayReadonly>,

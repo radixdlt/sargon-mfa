@@ -195,7 +195,27 @@ pub enum FactorSourceKind {
     OffDeviceMnemonic,
     Device,
 }
-
+impl FactorSourceKind {
+    /// (KeyKind::TransactionSigning, KeySpace::Unsecurified)
+    pub fn derivation_size_unsecurified(&self) -> Option<usize> {
+        match self {
+            Self::Device => Some(50), // extra large since fast and most commonly used for unsecurified entities
+            Self::Ledger => Some(30),
+            Self::SecurityQuestions | Self::OffDeviceMnemonic | Self::Arculus | Self::Yubikey => {
+                // Virtual Entity creation not supported using these kinds
+                None
+            }
+        }
+    }
+    /// (KeyKind::TransactionSigning, KeySpace::Securified)
+    pub fn derivation_size_securified(&self) -> Option<usize> {
+        match self {
+            Self::Device | Self::SecurityQuestions | Self::OffDeviceMnemonic => Some(30), //
+            Self::Ledger | Self::Yubikey => Some(20),                                     // Slow
+            Self::Arculus => Some(10), // Very slow
+        }
+    }
+}
 impl HasSampleValues for FactorSourceKind {
     fn sample() -> Self {
         FactorSourceKind::Device

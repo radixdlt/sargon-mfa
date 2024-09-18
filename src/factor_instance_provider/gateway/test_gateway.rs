@@ -2,6 +2,7 @@ use crate::prelude::*;
 
 #[cfg(test)]
 pub struct TestGateway {
+    has_internet_connection: bool,
     /// contains only current state for each entity
     entities: RwLock<HashMap<AddressOfAccountOrPersona, OnChainEntityState>>,
 
@@ -12,6 +13,7 @@ pub struct TestGateway {
 impl Default for TestGateway {
     fn default() -> Self {
         Self {
+            has_internet_connection: true,
             known_hashes: RwLock::new(HashSet::new()),
             entities: RwLock::new(HashMap::new()),
         }
@@ -33,6 +35,10 @@ impl TestGateway {
 #[cfg(test)]
 #[async_trait::async_trait]
 impl GatewayReadonly for TestGateway {
+    async fn has_internet_connection(&self) -> bool {
+        self.has_internet_connection
+    }
+
     async fn is_key_hash_known(&self, hash: PublicKeyHash) -> Result<bool> {
         let is_known = self.known_hashes.try_read().unwrap().contains(&hash);
         Ok(is_known)
