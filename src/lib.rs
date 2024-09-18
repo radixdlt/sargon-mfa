@@ -7,6 +7,7 @@
 
 mod derivation;
 mod factor_instance_provider;
+mod playground;
 mod recovery;
 mod samples;
 mod signing;
@@ -34,6 +35,8 @@ pub mod prelude {
     pub(crate) use indexmap::{IndexMap, IndexSet};
     pub(crate) use itertools::Itertools;
     pub(crate) use std::cell::RefCell;
+    pub(crate) use std::future::Future;
+    pub(crate) use std::pin::Pin;
     pub(crate) use std::time::SystemTime;
     pub(crate) use uuid::Uuid;
 
