@@ -163,6 +163,42 @@ impl HierarchicalDeterministicFactorInstance {
     }
 }
 
+impl PublicKeyHash {
+    pub fn repeat(byte: u8) -> Self {
+        Self::new([byte; 32])
+    }
+    pub fn sample_0() -> Self {
+        Self::repeat(0x50)
+    }
+    pub fn sample_1() -> Self {
+        Self::repeat(0x51)
+    }
+    pub fn sample_2() -> Self {
+        Self::repeat(0x52)
+    }
+    pub fn sample_3() -> Self {
+        Self::repeat(0x53)
+    }
+    pub fn sample_4() -> Self {
+        Self::repeat(0x54)
+    }
+    pub fn sample_5() -> Self {
+        Self::repeat(0x55)
+    }
+    pub fn sample_6() -> Self {
+        Self::repeat(0x56)
+    }
+    pub fn sample_7() -> Self {
+        Self::repeat(0x57)
+    }
+    pub fn sample_8() -> Self {
+        Self::repeat(0x58)
+    }
+    pub fn sample_9() -> Self {
+        Self::repeat(0x59)
+    }
+}
+
 impl MatrixOfFactorInstances {
     /// Securified { Single Threshold only }
     pub(crate) fn m2<F>(fi: F) -> Self

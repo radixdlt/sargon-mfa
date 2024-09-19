@@ -1,6 +1,7 @@
+#![cfg(test)]
+
 use crate::prelude::*;
 
-#[cfg(test)]
 pub struct TestGateway {
     has_internet_connection: bool,
     /// contains only current state for each entity
@@ -9,7 +10,7 @@ pub struct TestGateway {
     /// contains historic state, we only ever add to this set, never remove.
     known_hashes: RwLock<HashSet<PublicKeyHash>>,
 }
-#[cfg(test)]
+
 impl Default for TestGateway {
     fn default() -> Self {
         Self {
@@ -20,7 +21,6 @@ impl Default for TestGateway {
     }
 }
 
-#[cfg(test)]
 impl TestGateway {
     #[allow(unused)]
     pub fn debug_print(&self) {
@@ -32,7 +32,6 @@ impl TestGateway {
     }
 }
 
-#[cfg(test)]
 #[async_trait::async_trait]
 impl GatewayReadonly for TestGateway {
     async fn has_internet_connection(&self) -> bool {
@@ -74,7 +73,7 @@ impl GatewayReadonly for TestGateway {
         Ok(self.entities.try_read().unwrap().get(&address).cloned())
     }
 }
-#[cfg(test)]
+
 impl TestGateway {
     async fn assert_not_securified(&self, address: &AddressOfAccountOrPersona) -> Result<()> {
         let is_already_securified = self.is_securified(address.clone()).await?;
@@ -90,7 +89,6 @@ impl TestGateway {
     }
 }
 
-#[cfg(test)]
 #[async_trait::async_trait]
 impl Gateway for TestGateway {
     async fn simulate_network_activity_for(&self, owner: AddressOfAccountOrPersona) -> Result<()> {
@@ -103,7 +101,7 @@ impl Gateway for TestGateway {
         } else {
             self.entities.try_write().unwrap().insert(
                 owner.clone(),
-                OnChainEntityState::unsecurified_with(owner, owner_key.clone()),
+                OnChainEntityState::unsecurified(owner, owner_key.clone()),
             );
             self.known_hashes.try_write().unwrap().insert(owner_key);
         }
@@ -122,7 +120,7 @@ impl Gateway for TestGateway {
             .all_factors()
             .iter()
             .map(|f| f.public_key_hash())
-            .collect_vec();
+            .collect::<IndexSet<_>>();
 
         if self.contains(&owner) {
             self.entities.try_write().unwrap().remove(&owner);
@@ -135,11 +133,7 @@ impl Gateway for TestGateway {
 
         self.entities.try_write().unwrap().insert(
             owner.clone(),
-            OnChainEntityState::securified_with(
-                owner,
-                securified.access_controller.clone(),
-                owner_keys,
-            ),
+            OnChainEntityState::securified(owner, securified.access_controller.clone(), owner_keys),
         );
 
         Ok(())

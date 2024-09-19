@@ -31,6 +31,23 @@ impl TransactionIntent {
     }
 }
 
+#[derive(Clone, Copy, PartialEq, Eq, Hash, derive_more::Display, derive_more::Debug)]
+pub enum KeySpace {
+    #[display("Unsecurified")]
+    #[debug("Unsecurified")]
+    Unsecurified,
+    #[display("Securified")]
+    #[debug("Securified")]
+    Securified,
+}
+
+#[cfg(test)]
+impl Profile {
+    pub fn accounts<'a>(accounts: impl IntoIterator<Item = &'a Account>) -> Self {
+        Self::new([], accounts, [])
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -6,10 +6,8 @@
 #![feature(step_trait)]
 
 mod derivation;
-mod factor_instance_provider;
 mod gateway;
-mod playground;
-mod recovery;
+mod recovery_securify_cache;
 mod samples;
 mod signing;
 mod types;
@@ -21,11 +19,9 @@ pub mod prelude {
     pub use crate::derivation::*;
     pub use crate::gateway::*;
 
-    pub use crate::factor_instance_provider::*;
-
     pub(crate) use crate::samples::*;
 
-    pub use crate::recovery::*;
+    pub use crate::recovery_securify_cache::*;
     pub use crate::signing::*;
     pub use crate::types::*;
 

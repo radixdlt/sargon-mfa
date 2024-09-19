@@ -1024,7 +1024,7 @@ impl<T: EntityKindSpecifier> AbstractAddress<T> {
 }
 impl<T: EntityKindSpecifier> AbstractAddress<T> {
     pub fn sample_0() -> Self {
-        Self::new(NetworkID::Mainnet, PublicKeyHash::sample_1())
+        Self::new(NetworkID::Mainnet, PublicKeyHash::sample_0())
     }
     pub fn sample_1() -> Self {
         Self::new(NetworkID::Mainnet, PublicKeyHash::sample_1())
@@ -1588,6 +1588,20 @@ where
 
 pub type MatrixOfFactorInstances = MatrixOfFactors<HierarchicalDeterministicFactorInstance>;
 
+fn sample_for_matrix_of_instances_from_account(account: Account) -> MatrixOfFactorInstances {
+    account.security_state().into_securified().unwrap().matrix
+}
+
+impl HasSampleValues for MatrixOfFactorInstances {
+    fn sample() -> Self {
+        sample_for_matrix_of_instances_from_account(Account::a5())
+    }
+
+    fn sample_other() -> Self {
+        sample_for_matrix_of_instances_from_account(Account::a6())
+    }
+}
+
 impl MatrixOfFactorInstances {
     pub fn fulfilling_matrix_of_factor_sources_with_instances(
         instances: impl IntoIterator<Item = HierarchicalDeterministicFactorInstance>,
@@ -2044,9 +2058,16 @@ impl AccessControllerAddress {
             a.public_key_hash()
         ))
     }
-    // pub fn generate() -> Self {
-    //     Self::new(Uuid::new_v4().to_string())
-    // }
+}
+
+impl HasSampleValues for AccessControllerAddress {
+    fn sample() -> Self {
+        Self::new(AccountAddress::sample())
+    }
+
+    fn sample_other() -> Self {
+        Self::new(AccountAddress::sample_other())
+    }
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, derive_more::Debug)]
@@ -2056,39 +2077,6 @@ pub struct PublicKeyHash([u8; 32]);
 impl PublicKeyHash {
     pub fn new(bytes: [u8; 32]) -> Self {
         Self(bytes)
-    }
-    pub fn repeat(byte: u8) -> Self {
-        Self::new([byte; 32])
-    }
-    pub fn sample_0() -> Self {
-        Self::repeat(0x50)
-    }
-    pub fn sample_1() -> Self {
-        Self::repeat(0x51)
-    }
-    pub fn sample_2() -> Self {
-        Self::repeat(0x52)
-    }
-    pub fn sample_3() -> Self {
-        Self::repeat(0x53)
-    }
-    pub fn sample_4() -> Self {
-        Self::repeat(0x54)
-    }
-    pub fn sample_5() -> Self {
-        Self::repeat(0x55)
-    }
-    pub fn sample_6() -> Self {
-        Self::repeat(0x56)
-    }
-    pub fn sample_7() -> Self {
-        Self::repeat(0x57)
-    }
-    pub fn sample_8() -> Self {
-        Self::repeat(0x58)
-    }
-    pub fn sample_9() -> Self {
-        Self::repeat(0x59)
     }
 }
 impl HasSampleValues for PublicKeyHash {
@@ -2287,6 +2275,26 @@ impl ComponentMetadata {
     }
 }
 
+impl HasSampleValues for ScryptoAccessRule {
+    fn sample() -> Self {
+        MatrixOfFactorInstances::sample().into()
+    }
+
+    fn sample_other() -> Self {
+        MatrixOfFactorInstances::sample_other().into()
+    }
+}
+
+impl HasSampleValues for ComponentMetadata {
+    fn sample() -> Self {
+        Self::new(ScryptoAccessRule::sample())
+    }
+
+    fn sample_other() -> Self {
+        Self::new(ScryptoAccessRule::sample_other())
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct AccessController {
     pub address: AccessControllerAddress,
@@ -2296,5 +2304,58 @@ pub struct AccessController {
 impl AccessController {
     pub fn new(address: AccessControllerAddress, metadata: ComponentMetadata) -> Self {
         Self { address, metadata }
+    }
+}
+
+impl HasSampleValues for AccessController {
+    fn sample() -> Self {
+        Self::new(
+            AccessControllerAddress::sample(),
+            ComponentMetadata::sample(),
+        )
+    }
+
+    fn sample_other() -> Self {
+        Self::new(
+            AccessControllerAddress::sample_other(),
+            ComponentMetadata::sample_other(),
+        )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn sample_component_metadata() {
+        type Sut = ComponentMetadata;
+        assert_eq!(Sut::sample(), Sut::sample());
+        assert_eq!(Sut::sample_other(), Sut::sample_other());
+        assert_ne!(Sut::sample(), Sut::sample_other());
+    }
+
+    #[test]
+    fn sample_access_controller_address() {
+        type Sut = AccessControllerAddress;
+        assert_eq!(Sut::sample(), Sut::sample());
+        assert_eq!(Sut::sample_other(), Sut::sample_other());
+        assert_ne!(Sut::sample(), Sut::sample_other());
+    }
+
+    #[test]
+    fn sample_access_controller() {
+        type Sut = AccessController;
+        assert_eq!(Sut::sample(), Sut::sample());
+        assert_eq!(Sut::sample_other(), Sut::sample_other());
+        assert_ne!(Sut::sample(), Sut::sample_other());
+    }
+
+    #[test]
+    fn sample_scrypto_access_rule() {
+        type Sut = ScryptoAccessRule;
+        assert_eq!(Sut::sample(), Sut::sample());
+        assert_eq!(Sut::sample_other(), Sut::sample_other());
+        assert_ne!(Sut::sample(), Sut::sample_other());
     }
 }
