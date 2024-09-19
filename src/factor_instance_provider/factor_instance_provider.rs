@@ -3,6 +3,7 @@ use std::{ops::Range, sync::RwLock};
 
 use derive_more::derive;
 use rand::seq::index;
+use sha2::digest::crypto_common::Key;
 
 use crate::prelude::*;
 
@@ -153,24 +154,43 @@ impl NextDerivations {
         >,
     ) -> IndexMap<FactorSourceIDFromHash, IndexSet<DerivationPath>> {
         let mut map_paths = IndexMap::<FactorSourceIDFromHash, IndexSet<DerivationPath>>::new();
-        let mut extend_paths = |ranges: IndexMap<FactorSourceIDFromHash, HDPathComponent>| -> () {
-            for (key, value) in ranges.into_iter() {
-                let path = DerivationPath::new(
-                    network_id,
-                    entity_kind,
-                    CAP26KeyKind::TransactionSigning,
-                    value,
-                );
-                if let Some(mut existing) = map_paths.get_mut(&key) {
-                    existing.insert(path);
-                } else {
-                    map_paths.insert(key, IndexSet::just(path));
+        let mut extend_paths =
+            |start_index_of_ranges: IndexMap<FactorSourceIDFromHash, HDPathComponent>,
+             key_space: KeySpace| {
+                for (key, value) in start_index_of_ranges.into_iter() {
+                    let Some(size) = key.kind.derivation_size(
+                        key_space,
+                        CAP26KeyKind::TransactionSigning,
+                        entity_kind,
+                    ) else {
+                        continue;
+                    };
+                    let paths = (value..value.add_n(size as HDPathValue))
+                        .map(|c| {
+                            DerivationPath::new(
+                                network_id,
+                                entity_kind,
+                                CAP26KeyKind::TransactionSigning,
+                                c,
+                            )
+                        })
+                        .collect::<IndexSet<DerivationPath>>();
+                    if let Some(existing) = map_paths.get_mut(&key) {
+                        existing.extend(paths);
+                    } else {
+                        map_paths.insert(key, paths);
+                    }
                 }
-            }
-        };
+            };
 
-        extend_paths(unsecurified_key_space_offsets_by_factor_source);
-        extend_paths(securified_key_space_offsets_by_factor_source);
+        extend_paths(
+            unsecurified_key_space_offsets_by_factor_source,
+            KeySpace::Unsecurified,
+        );
+        extend_paths(
+            securified_key_space_offsets_by_factor_source,
+            KeySpace::Securified,
+        );
 
         map_paths
     }
@@ -186,7 +206,6 @@ impl NextDerivations {
             .map(|(k, v)| {
                 let paths = v
                     .range()
-                    .into_iter()
                     .map(|c| {
                         DerivationPath::new(
                             k.request.network_id,
@@ -214,131 +233,65 @@ impl NextDerivations {
         profile: &Profile,
         unfulfillable_requests: &DerivationRequestsUnfulfillableByCache,
     ) -> IndexMap<DerivationRequestUnfulfillableByCache, NextDerivationRange> {
-        let unfulfillable_requests = unfulfillable_requests.unfulfillable();
-
-        let unfulfillable_requests_because_empty = unfulfillable_requests
-            .iter()
-            .filter(|ur| ur.is_reason_empty())
-            .cloned()
-            .collect::<IndexSet<_>>();
-
-        let unfulfillable_requests_because_last = unfulfillable_requests
-            .iter()
-            .filter(|ur| ur.is_reason_last())
-            .cloned()
-            .collect::<IndexSet<_>>();
-
-        drop(unfulfillable_requests);
-
-        let securified_space_requests_because_empty = unfulfillable_requests_because_empty
-            .iter()
-            .filter(|ur| ur.request.key_space == KeySpace::Securified)
-            .cloned()
-            .collect::<IndexSet<_>>();
-
-        let unsecurified_space_requests_because_empty = unfulfillable_requests_because_empty
-            .iter()
-            .filter(|ur| ur.request.key_space == KeySpace::Unsecurified)
-            .cloned()
-            .collect::<IndexSet<_>>();
-
-        let mut next_derivation_indices =
-            IndexMap::<DerivationRequestUnfulfillableByCache, NextDerivationRange>::new();
-
-        let mut add = |key: DerivationRequestUnfulfillableByCache, start: HDPathComponent| {
-            let request = key.request;
-
-            let Some(derivation_size) = request.derivation_size() else {
-                warn!(
-                    "Skipping request since it has no derivation size: {:?}",
-                    request
-                );
-                return;
-            };
-
-            let range = NextDerivationRange {
-                start_index: start,
-                derivation_size: derivation_size,
-            };
-
-            assert!(
-                !next_derivation_indices.contains_key(&key),
-                "Discrepancy, key already exists, this is a programmer error"
-            );
-            next_derivation_indices.insert(key, range);
-        };
-
-        for unfulfillable_request_because_last in unfulfillable_requests_because_last {
-            // This is VERY EASY
-            let last_index_from_cache_or_profile = match unfulfillable_request_because_last.reason {
-                DerivationRequestUnfulfillableByCacheReason::Empty => {
-                    let last_index_from_profile = unfulfillable_request_because_last
-                        .clone()
-                        .reason
-                        .into_last()
-                        .unwrap();
-
-                    last_index_from_profile
-                }
-                DerivationRequestUnfulfillableByCacheReason::Last(last_from_cache) => {
-                    last_from_cache
-                }
-            };
-
-            let next_index = last_index_from_cache_or_profile.add_one();
-
-            add(unfulfillable_request_because_last, next_index);
-        }
-
-        for securified_space_request in securified_space_requests_because_empty {
-            // This is not as easy, but not hard.
-            let request = securified_space_request.request.clone();
-
-            let last_index: Option<HDPathComponent> = {
-                let all_securified_in_profile = profile.get_securified_entities_of_kind_on_network(
-                    request.entity_kind,
-                    request.network_id,
-                );
-
-                all_securified_in_profile
-                    .into_iter()
-                    .flat_map(|e: SecurifiedEntity| e.highest_derivation_path_index(&request))
-                    .max()
-            };
-
-            let next_index = last_index
-                .map(|l| l.add_one())
-                .unwrap_or(HDPathComponent::securifying_base_index(0));
-
-            add(securified_space_request, next_index);
-        }
-
-        for unsecurified_space_request in unsecurified_space_requests_because_empty {
-            let request = unsecurified_space_request.request;
-
-            let last_index: Option<HDPathComponent> = {
-                let all_unsecurified_in_profile = profile
-                    .get_unsecurified_entities_of_kind_on_network(
-                        request.entity_kind,
-                        request.network_id,
+        unfulfillable_requests
+            .unfulfillable()
+            .into_iter()
+            .filter_map(|unfulfillable_request| {
+                let request = unfulfillable_request.request;
+                let Some(derivation_size) = request.derivation_size() else {
+                    warn!(
+                        "Skipping request since it has no derivation size: {:?}",
+                        request
                     );
+                    return None;
+                };
+                let entity_kind = request.entity_kind;
+                let network_id = request.network_id;
+                let key_space = request.key_space;
 
-                all_unsecurified_in_profile
-                    .into_iter()
-                    .map(|u| u.factor_instance)
-                    .filter(|fi| fi.matches(&request))
-                    .map(|fi| fi.derivation_path().index)
-                    .max()
-            };
+                let (last_index_from_cache_or_profile, add_one) = match unfulfillable_request.reason
+                {
+                    DerivationRequestUnfulfillableByCacheReason::Empty => match key_space {
+                        KeySpace::Securified => profile
+                            .get_securified_entities_of_kind_on_network(entity_kind, network_id)
+                            .into_iter()
+                            .flat_map(|e: SecurifiedEntity| {
+                                e.highest_derivation_path_index(&request)
+                            })
+                            .max()
+                            .map(|i| (i, true))
+                            .unwrap_or((HDPathComponent::securifying_base_index(0), false)),
+                        KeySpace::Unsecurified => profile
+                            .get_unsecurified_entities_of_kind_on_network(entity_kind, network_id)
+                            .into_iter()
+                            .map(|u| u.factor_instance)
+                            .filter(|fi| fi.matches(&request))
+                            .map(|fi| fi.derivation_path().index)
+                            .max()
+                            .map(|i| (i, true))
+                            .unwrap_or((
+                                HDPathComponent::unsecurified_hardening_base_index(0),
+                                false,
+                            )),
+                    },
+                    DerivationRequestUnfulfillableByCacheReason::Last(last_from_cache) => {
+                        (last_from_cache, true)
+                    }
+                };
 
-            let next_index = last_index
-                .map(|l| l.add_one())
-                .unwrap_or(HDPathComponent::unsecurified_hardening_base_index(0));
+                let mut start_index = last_index_from_cache_or_profile;
+                if add_one {
+                    start_index.add_assign_one();
+                }
 
-            add(unsecurified_space_request, next_index);
-        }
+                let range = NextDerivationRange {
+                    start_index,
+                    derivation_size,
+                };
 
-        next_derivation_indices
+                Some((unfulfillable_request, range))
+            })
+            .collect::<IndexMap<DerivationRequestUnfulfillableByCache, NextDerivationRange>>()
     }
 }
 
@@ -415,7 +368,7 @@ impl FactorInstanceProvider {
         derivation_interactors: Arc<dyn KeysDerivationInteractors>,
     ) -> Result<IndexMap<DerivationRequest, HierarchicalDeterministicFactorInstance>> {
         self.derive_new_and_fill_cache(
-            NextDerivations::default(),
+            NextDerivations,
             profile,
             &unfulfillable,
             derivation_interactors,
@@ -504,7 +457,7 @@ mod securify_tests {
             HierarchicalDeterministicFactorInstance::mainnet_tx(
                 CAP26EntityKind::Account,
                 HDPathComponent::unsecurified_hardening_base_index(0),
-                FactorSourceIDFromHash::fs0(),
+                fs_id_at(0),
             ),
         );
         let b = &Account::unsecurified_mainnet(
@@ -512,7 +465,7 @@ mod securify_tests {
             HierarchicalDeterministicFactorInstance::mainnet_tx(
                 CAP26EntityKind::Account,
                 HDPathComponent::unsecurified_hardening_base_index(1),
-                FactorSourceIDFromHash::fs0(),
+                fs_id_at(0),
             ),
         );
 

@@ -29,7 +29,7 @@ impl InMemoryPreDerivedKeysCache {
 
     fn write<T>(
         &self,
-        mut call: impl FnOnce(RwLockWriteGuard<'_, InMemoryKeysCache>) -> Result<T>,
+        call: impl FnOnce(RwLockWriteGuard<'_, InMemoryKeysCache>) -> Result<T>,
     ) -> Result<T> {
         let cached = self
             .cache

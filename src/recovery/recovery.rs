@@ -241,7 +241,7 @@ pub async fn recover_accounts(
     gateway: Arc<dyn GatewayReadonly>,
 ) -> Result<EntityRecoveryOutcome<Account>> {
     recover_entity(
-        NextDerivations::default(),
+        NextDerivations,
         network_id,
         factor_sources,
         key_derivation_interactors,
@@ -257,7 +257,7 @@ pub async fn recover_personas(
     gateway: Arc<dyn GatewayReadonly>,
 ) -> Result<EntityRecoveryOutcome<Persona>> {
     recover_entity(
-        NextDerivations::default(),
+        NextDerivations,
         network_id,
         factor_sources,
         key_derivation_interactors,
@@ -315,7 +315,7 @@ mod tests {
         let entities = setup(gateway.clone()).await;
 
         let recovered = recover_entity::<E>(
-            NextDerivations::default(),
+            NextDerivations,
             network_id,
             all_factors,
             interactors,
@@ -583,9 +583,10 @@ mod tests {
             },
             move |known: IndexSet<Account>, recovered| {
                 assert!(recovered.unrecovered.is_empty());
+                assert_eq!(known.len(), 3);
                 assert_eq!(
-                    known.len(),
-                    recovered.recovered_securified.len() + recovered.recovered_unsecurified.len()
+                    recovered.recovered_securified.len() + recovered.recovered_unsecurified.len(),
+                    3
                 );
             },
         )

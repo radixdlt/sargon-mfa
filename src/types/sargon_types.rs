@@ -561,6 +561,12 @@ impl HDPathComponent {
 
     /// # Panics
     /// Panics if self would overflow within its keyspace.
+    pub fn add_assign_one(&mut self) {
+        *self = self.add_one()
+    }
+
+    /// # Panics
+    /// Panics if self would overflow within its keyspace.
     pub fn add_one(&self) -> Self {
         self.add_n(1)
     }
