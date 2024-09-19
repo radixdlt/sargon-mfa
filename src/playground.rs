@@ -4,88 +4,6 @@ use std::ops::{Deref, Index};
 
 use crate::prelude::*;
 
-enum ScanHookDecision {
-    /// "Probably" since we might not have all the information to be sure, since
-    /// Gateway might not keep track of past FactorInstances, some of the FactorInstances
-    /// in KeySpace::Securified might in fact have been used in the past for some entity.
-    ProbablyIsFree(HierarchicalDeterministicFactorInstance),
-    UnsecurifiedEntityRecovered {
-        unsecurified_entity: AccountOrPersona,
-        factor_instance: HierarchicalDeterministicFactorInstance,
-    },
-    SecurifiedEntityReferencesFactor {
-        entity: SecurifiedEntity,
-        factor_instance: HierarchicalDeterministicFactorInstance,
-    },
-}
-
-enum ScanHookDecisionForGateway {
-    /// "Probably" since we might not have all the information to be sure, since
-    /// Gateway might not keep track of past FactorInstances, some of the FactorInstances
-    /// in KeySpace::Securified might in fact have been used in the past for some entity.
-    ProbablyIsFree(HierarchicalDeterministicFactorInstance),
-    UnsecurifiedEntityRecovered {
-        unsecurified_entity: OnChainEntityUnsecurified,
-        factor_instance: HierarchicalDeterministicFactorInstance,
-    },
-    SecurifiedEntityReferencesFactor {
-        securified_entity: OnChainEntitySecurified,
-        factor_instance: HierarchicalDeterministicFactorInstance,
-    },
-}
-
-type ScanHookSync<'a> = Box<
-    dyn FnOnce(
-            IndexSet<HierarchicalDeterministicFactorInstance>,
-        ) -> IndexMap<HierarchicalDeterministicFactorInstance, ScanHookDecision>
-        + 'a,
->;
-
-type ScanHookGateway<'a> = Box<
-    dyn Fn(
-        IndexSet<HierarchicalDeterministicFactorInstance>,
-    ) -> Pin<
-        Box<
-            dyn Future<
-                    Output = Result<
-                        IndexMap<
-                            HierarchicalDeterministicFactorInstance,
-                            ScanHookDecisionForGateway,
-                        >,
-                    >,
-                > + 'a,
-        >,
-    >,
->;
-
-pub struct FactorSourceDerivations {
-    derivations_per_factor_source: IndexMap<HDFactorSource, HDPathValue>,
-}
-impl FactorSourceDerivations {
-    pub fn single_factor_source(
-        factor_source: HDFactorSource,
-        start_base_index_for_each_key_space: HDPathValue,
-    ) -> Self {
-        Self {
-            derivations_per_factor_source: IndexMap::just((
-                factor_source,
-                start_base_index_for_each_key_space,
-            )),
-        }
-    }
-    pub fn add_factor_source(factor_source: HDFactorSource) -> Self {
-        Self::single_factor_source(factor_source, 0)
-    }
-    pub fn recovery(factor_sources: IndexSet<HDFactorSource>) -> Self {
-        Self {
-            derivations_per_factor_source: factor_sources
-                .into_iter()
-                .map(|factor_source| (factor_source, 0))
-                .collect(),
-        }
-    }
-}
-
 /// "VECI"
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct VirtualEntityCreatingFactorInstance {
@@ -198,8 +116,8 @@ pub struct FactorInstancesAnalysis {
 /// For all unknown FactorInstances => put them in the cache, keyed under the
 /// FactorSourceID and under the DerivationRequest.
 async fn derive_and_analyze_status_of_factor_instances(
-    factor_source_derivations: FactorSourceDerivations,
-    profile_scan_hook: Option<ScanHookSync<'_>>,
+    next_derivations: NextDerivations,
+    profile: Option<&Profile>,
     gateway: Arc<dyn GatewayReadonly>,
 ) -> Result<FactorInstancesAnalysis> {
     todo!()
