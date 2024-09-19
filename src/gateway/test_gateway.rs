@@ -11,13 +11,19 @@ pub struct TestGateway {
     known_hashes: RwLock<HashSet<PublicKeyHash>>,
 }
 
-impl Default for TestGateway {
-    fn default() -> Self {
+impl TestGateway {
+    pub fn new(has_internet_connection: bool) -> Self {
         Self {
-            has_internet_connection: true,
+            has_internet_connection,
             known_hashes: RwLock::new(HashSet::new()),
             entities: RwLock::new(HashMap::new()),
         }
+    }
+}
+
+impl Default for TestGateway {
+    fn default() -> Self {
+        Self::new(true)
     }
 }
 
@@ -137,5 +143,25 @@ impl Gateway for TestGateway {
         );
 
         Ok(())
+    }
+}
+
+mod tests {
+
+    use super::*;
+
+    type Sut = TestGateway;
+
+    #[actix_rt::test]
+    async fn test_has_internet_connection() {
+        let has_internet_connection = true;
+        let sut = Sut::new(has_internet_connection);
+        let does_have_internet = sut.has_internet_connection().await;
+        assert_eq!(does_have_internet, has_internet_connection);
+
+        let has_internet_connection = false;
+        let sut = Sut::new(has_internet_connection);
+        let does_have_internet = sut.has_internet_connection().await;
+        assert_eq!(does_have_internet, has_internet_connection);
     }
 }
