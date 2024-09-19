@@ -86,11 +86,122 @@ impl FactorSourceDerivations {
     }
 }
 
-async fn scan(
+/// "VECI"
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct VirtualEntityCreatingFactorInstance {
+    validated: bool,
+    /// The address of the entity that `factor_instance` has created
+    pub address: AddressOfAccountOrPersona,
+    /// "VECI"
+    pub factor_instance: HierarchicalDeterministicFactorInstance,
+}
+impl VirtualEntityCreatingFactorInstance {
+    pub fn new(
+        address: AddressOfAccountOrPersona,
+        factor_instance: HierarchicalDeterministicFactorInstance,
+    ) -> Self {
+        assert!(
+            AddressOfAccountOrPersona::new(
+                factor_instance.clone(),
+                address.network_id(),
+                address.entity_kind()
+            ) == address,
+            "Discrepancy! Non matching address, this is a programmer error"
+        );
+        Self {
+            validated: true,
+            address,
+            factor_instance,
+        }
+    }
+}
+
+/// A collection of FactorInstances which we matches against entities already
+/// existing in Profile, either the FactorInstances was already in Profile, in which
+/// case it will be put in `skipped_instances_since_already_known`, or it was
+/// not in Profile but we managed to match it against the address of an securified
+/// entity, in which case it will be put in `rediscovered_virtually_creating_instances`.
+///
+/// Any instance which was not matched against Profile will not be in this struct,
+/// i.e. if we rediscovered an Entity that was not in Profile, it will be part of
+/// `FactorInstancesAnalysis` (just like this struct), but in some other field.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct FactorInstancesAnalysisMatchedAgainstProfile {
+    /// Set of FactorInstances which we managed to match against securified
+    /// entities as their Virtual Entity Creating Instance.
+    pub rediscovered_virtually_creating_instances: IndexSet<VirtualEntityCreatingFactorInstance>,
+
+    /// FactorInstances which we skipped since they were already known to Profile.
+    pub skipped_instances_since_already_known: IndexSet<HierarchicalDeterministicFactorInstance>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct FactorInstancesAnalysisMatchedAgainstGateway {
+    /// The On-Chain information about entities referencing a certain public
+    /// key hash merged together with the FactorInstances from which the
+    /// public key hash was created.
+    ///
+    /// N.B. We REALLY would like to be able to represent this field as:
+    /// `IndexMap<HierarchicalDeterministicFactorInstance, OnChainEntityInformation>`
+    /// i.e. a **single** `OnChainEntityInformation` per instance, but it is
+    /// possible that the same key was used on two different entities - something
+    /// the wallet will try hard to avoid - but still possible, thus we must have
+    /// a set here
+    pub info_by_factor_instances:
+        IndexMap<HierarchicalDeterministicFactorInstance, IndexSet<OnChainEntityInformation>>,
+}
+
+/// Analysis of the FactorInstances that were derived recently for a list of
+/// FactorSources, and how they match against the Profile and Gateway.
+///
+/// This analysis was done either for "Recovery" or "Add-FactorSource" and also
+/// by both "NewVirtualEntity" and "SecurifyEntity" if no cache exists.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct FactorInstancesAnalysis {
+    /// Collection of FactorInstances which did not match against Profile or Gateway,
+    /// and are thus probably free. "Probably" since we Gateway might not keep track
+    /// of **past** public key hashes, in which case the FactorInstances might
+    /// in fact have been used by some entity in the past, but since been removed.
+    pub probably_free_instances: ProbablyFreeFactorInstances,
+
+    /// `None` if the analysis was not done against a Profile, i.e. during recovery,
+    /// `Some` if the analysis was done against a Profile and the result of
+    /// any factor instances matched against Profile.
+    pub matched_against_profile: Option<FactorInstancesAnalysisMatchedAgainstProfile>,
+
+    /// `None` if we have not internet connection.
+    /// `Some` if we had an internet connection and successfully managed to scan
+    /// Gateway for the FactorInstances.
+    pub matched_against_gateway: Option<FactorInstancesAnalysisMatchedAgainstGateway>,
+}
+
+/// Used by "Recovery" and "Add-FactorSource" and also by both "NewVirtualEntity"
+/// and "SecurifyEntity" if no cache exists.
+///
+/// Pre-Derives many FactorInstances for the new FactorSource, for many different
+/// "DerivationRequests":
+///     * NetworkID
+///     * EntityKind
+///     * KeyKind
+///     * KeySpace
+/// And for each of those DerivationRequest many indices, we start at "next index",
+/// which is non-trivially calculated.
+///
+/// For each FactorInstances we check if it was already known to either:
+/// * Profile  
+///     - might be the `VECI` (Virtual Entity Creating Instance) of a securified
+///         entity => set the `VECI`
+/// * Gateway
+///     * might have been used in a securified entity in the past => avoid it
+///     * might control a non-recovered unsecurified entity => recover it
+///
+/// For all unknown FactorInstances => put them in the cache, keyed under the
+/// FactorSourceID and under the DerivationRequest.
+async fn derive_and_analyze_status_of_factor_instances(
     factor_source_derivations: FactorSourceDerivations,
     profile_scan_hook: Option<ScanHookSync<'_>>,
     gateway: Arc<dyn GatewayReadonly>,
-) -> Result<(IndexSet<AccountOrPersona>, ProbablyFreeFactorInstances)> {
+) -> Result<FactorInstancesAnalysis> {
     todo!()
 }
 
@@ -108,6 +219,11 @@ impl Profile {
         gateway: Arc<dyn Gateway>,
         cache: Arc<dyn IsPreDerivedKeysCache>,
     ) -> Result<E> {
+        /*
+
+        PSEUDO-CODE only:
+        SHOULD be merged into the FactorInstanceProvider (?)
+
         let entity_kind = E::kind();
         let factor_source_id = factor_source.factor_source_id();
         let request = DerivationRequest::virtual_entity_creating_factor_instance(
@@ -123,14 +239,20 @@ impl Profile {
             //  FILL CACHE! WITH INDEX OFFSETS
             // 🔶 🔶 🔶 🔶 🔶 🔶 🔶 🔶 🔶 🔶 🔶 🔶 🔶 🔶 🔶
         }
+        */
         todo!()
     }
 
+    /// Creates a new Profile with the list of factor sources, and all
+    /// entities that were recovered from the factor sources.
+    ///
+    /// The newly created Profile is returned together with a list of
+    /// "probably free" factor instances which should be put in a cache.
     pub async fn recovery(
         factor_sources: IndexSet<HDFactorSource>,
         gateway: Arc<dyn GatewayReadonly>,
     ) -> Result<(Self, ProbablyFreeFactorInstances)> {
-        let (found_entities, probably_free) = scan(
+        let analysis = derive_and_analyze_status_of_factor_instances(
             FactorSourceDerivations::recovery(factor_sources),
             None,
             gateway,
@@ -139,13 +261,18 @@ impl Profile {
         todo!()
     }
 
+    /// Adds a factor source by deriving many factor instances and analyzing
+    /// them against the Profile and Gateway.
+    ///
+    /// Any newly recovered entities of re-discovered VECIs will be put in profile,
+    /// all "probably free" factor instances should be put in a cache.
     pub async fn add_factor_source(
         &mut self,
         factor_source: HDFactorSource,
         derivation_interactors: Arc<dyn KeysDerivationInteractors>,
         gateway: Arc<dyn GatewayReadonly>,
-    ) -> Result<()> {
-        let (found_entities, probably_free) = scan(
+    ) -> Result<ProbablyFreeFactorInstances> {
+        let analysis = derive_and_analyze_status_of_factor_instances(
             FactorSourceDerivations::add_factor_source(factor_source),
             Some(self.scan_hook()),
             gateway,

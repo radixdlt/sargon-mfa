@@ -1048,6 +1048,28 @@ pub enum AddressOfAccountOrPersona {
     Identity(IdentityAddress),
 }
 impl AddressOfAccountOrPersona {
+    pub fn new(
+        factor_instance: HierarchicalDeterministicFactorInstance,
+        network_id: NetworkID,
+        entity_kind: CAP26EntityKind,
+    ) -> Self {
+        match entity_kind {
+            CAP26EntityKind::Account => Self::Account(AccountAddress::new(
+                network_id,
+                factor_instance.public_key_hash(),
+            )),
+            CAP26EntityKind::Identity => Self::Identity(IdentityAddress::new(
+                network_id,
+                factor_instance.public_key_hash(),
+            )),
+        }
+    }
+    pub fn entity_kind(&self) -> CAP26EntityKind {
+        match self {
+            Self::Account(_) => CAP26EntityKind::Account,
+            Self::Identity(_) => CAP26EntityKind::Identity,
+        }
+    }
     pub fn network_id(&self) -> NetworkID {
         match self {
             Self::Account(a) => a.network_id(),
