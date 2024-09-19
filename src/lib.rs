@@ -7,6 +7,7 @@
 
 mod derivation;
 mod factor_instance_provider;
+mod gateway;
 mod playground;
 mod recovery;
 mod samples;
@@ -18,6 +19,7 @@ mod testing;
 
 pub mod prelude {
     pub use crate::derivation::*;
+    pub use crate::gateway::*;
 
     pub use crate::factor_instance_provider::*;
 
