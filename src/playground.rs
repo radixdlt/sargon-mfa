@@ -209,38 +209,68 @@ impl Profile {
     fn add_all_entities(&mut self, entities: IndexSet<AccountOrPersona>) {
         todo!()
     }
-
-    pub async fn new_unsecurified_entity<E: IsEntity>(
+    async fn new_entity<E: IsEntity + std::fmt::Debug + std::hash::Hash + Eq>(
         &mut self,
-        name: String,
         network_id: NetworkID,
-        factor_source: HDFactorSource,
+        name: impl AsRef<str>,
+        factor_source_id: FactorSourceIDFromHash,
+        factor_instance_provider: &FactorInstanceProvider,
         derivation_interactors: Arc<dyn KeysDerivationInteractors>,
-        gateway: Arc<dyn Gateway>,
-        cache: Arc<dyn IsPreDerivedKeysCache>,
     ) -> Result<E> {
-        /*
+        assert!(self
+            .factor_sources
+            .iter()
+            .map(|f| f.factor_source_id())
+            .contains(&factor_source_id));
 
-        PSEUDO-CODE only:
-        SHOULD be merged into the FactorInstanceProvider (?)
+        let genesis_factor = factor_instance_provider
+            .provide_genesis_factor_for(
+                factor_source_id,
+                E::kind(),
+                network_id,
+                self,
+                derivation_interactors,
+            )
+            .await?;
 
-        let entity_kind = E::kind();
-        let factor_source_id = factor_source.factor_source_id();
-        let request = DerivationRequest::virtual_entity_creating_factor_instance(
-            entity_kind,
-            factor_source_id,
-            network_id,
+        let address = E::Address::by_hashing(network_id, genesis_factor.clone());
+
+        let entity = E::new(
+            name,
+            address,
+            EntitySecurityState::Unsecured(genesis_factor),
         );
-        let can_consume_next_cache = cache.can_consume_next_factor(request).await;
-        if can_consume_next_cache {
-            let instance = cache.consume_next_factor_instance(request).await?;
-        } else {
-            // 🔶 🔶 🔶 🔶 🔶 🔶 🔶 🔶 🔶 🔶 🔶 🔶 🔶 🔶 🔶
-            //  FILL CACHE! WITH INDEX OFFSETS
-            // 🔶 🔶 🔶 🔶 🔶 🔶 🔶 🔶 🔶 🔶 🔶 🔶 🔶 🔶 🔶
-        }
-        */
-        todo!()
+
+        let erased = Into::<AccountOrPersona>::into(entity.clone());
+
+        match erased {
+            AccountOrPersona::AccountEntity(account) => {
+                self.accounts.insert(account.entity_address(), account);
+            }
+            AccountOrPersona::PersonaEntity(persona) => {
+                self.personas.insert(persona.entity_address(), persona);
+            }
+        };
+
+        Ok(entity)
+    }
+
+    pub async fn new_account(
+        &mut self,
+        network_id: NetworkID,
+        name: impl AsRef<str>,
+        factor_source_id: FactorSourceIDFromHash,
+        factor_instance_provider: &FactorInstanceProvider,
+        derivation_interactors: Arc<dyn KeysDerivationInteractors>,
+    ) -> Result<Account> {
+        self.new_entity(
+            network_id,
+            name,
+            factor_source_id,
+            factor_instance_provider,
+            derivation_interactors,
+        )
+        .await
     }
 
     /// Creates a new Profile with the list of factor sources, and all

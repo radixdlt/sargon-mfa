@@ -28,6 +28,7 @@ use crate::prelude::*;
 ///
 /// [doc]: https://radixdlt.atlassian.net/wiki/spaces/AT/pages/3640655873/Yet+Another+Page+about+Derivation+Indices
 pub async fn recover_entity<E: IsEntity + Sync + Hash + Eq>(
+    next_derivations: NextDerivations,
     network_id: NetworkID,
     factor_sources: impl IntoIterator<Item = HDFactorSource>,
     key_derivation_interactors: Arc<dyn KeysDerivationInteractors>,
@@ -38,36 +39,8 @@ pub async fn recover_entity<E: IsEntity + Sync + Hash + Eq>(
     let factor_sources = factor_sources.into_iter().collect::<IndexSet<_>>();
 
     // B. Create a set of derivation paths, both for securified and unsecurified entities
-    let map_paths = {
-        let index_range = 0..DERIVATION_INDEX_BATCH_SIZE;
-        let make_paths =
-            |make_entity_index: fn(HDPathValue) -> HDPathComponent| -> IndexSet<DerivationPath> {
-                index_range
-                    .clone()
-                    .map(make_entity_index)
-                    .map(|i| {
-                        DerivationPath::new(
-                            network_id,
-                            entity_kind,
-                            CAP26KeyKind::TransactionSigning,
-                            i,
-                        )
-                    })
-                    .collect::<IndexSet<_>>()
-            };
-
-        let paths_unsecurified = make_paths(HDPathComponent::unsecurified_hardening_base_index);
-        let paths_securified = make_paths(HDPathComponent::securifying_base_index);
-        let mut all_paths = IndexSet::<DerivationPath>::new();
-        all_paths.extend(paths_unsecurified);
-        all_paths.extend(paths_securified);
-
-        let mut map_paths = IndexMap::<FactorSourceIDFromHash, IndexSet<DerivationPath>>::new();
-        for factor_source in factor_sources.iter() {
-            map_paths.insert(factor_source.factor_source_id(), all_paths.clone());
-        }
-        map_paths
-    };
+    let map_paths =
+        next_derivations.recovery_start(network_id, entity_kind, factor_sources.clone());
 
     let (addresses_per_hash, map_hash_to_factor) = {
         // C. For each factor source we derive PublicKey's at **all paths**
@@ -268,6 +241,7 @@ pub async fn recover_accounts(
     gateway: Arc<dyn GatewayReadonly>,
 ) -> Result<EntityRecoveryOutcome<Account>> {
     recover_entity(
+        NextDerivations::default(),
         network_id,
         factor_sources,
         key_derivation_interactors,
@@ -283,6 +257,7 @@ pub async fn recover_personas(
     gateway: Arc<dyn GatewayReadonly>,
 ) -> Result<EntityRecoveryOutcome<Persona>> {
     recover_entity(
+        NextDerivations::default(),
         network_id,
         factor_sources,
         key_derivation_interactors,
@@ -339,9 +314,15 @@ mod tests {
 
         let entities = setup(gateway.clone()).await;
 
-        let recovered = recover_entity::<E>(network_id, all_factors, interactors, gateway)
-            .await
-            .unwrap();
+        let recovered = recover_entity::<E>(
+            NextDerivations::default(),
+            network_id,
+            all_factors,
+            interactors,
+            gateway,
+        )
+        .await
+        .unwrap();
 
         assert(entities, recovered);
     }

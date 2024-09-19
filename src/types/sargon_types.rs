@@ -110,6 +110,10 @@ pub struct HDFactorSource {
 }
 
 impl HDFactorSource {
+    pub fn is_olympia(&self) -> bool {
+        // TODO add support for Olympia and test!
+        false
+    }
     pub fn factor_source_id(&self) -> FactorSourceIDFromHash {
         self.id
     }
@@ -196,8 +200,48 @@ pub enum FactorSourceKind {
     Device,
 }
 impl FactorSourceKind {
+    pub fn derivation_size(
+        &self,
+        key_space: KeySpace,
+        key_kind: CAP26KeyKind,
+        entity_kind: CAP26EntityKind,
+    ) -> Option<usize> {
+        match (key_kind, key_space, entity_kind) {
+            (CAP26KeyKind::TransactionSigning, KeySpace::Unsecurified, _) => {
+                self.derivation_size_t9n_unsecurified()
+            }
+            (CAP26KeyKind::TransactionSigning, KeySpace::Securified, _) => {
+                self.derivation_size_t9n_securified()
+            }
+            (
+                CAP26KeyKind::AuthenticationSigning,
+                KeySpace::Securified,
+                CAP26EntityKind::Identity,
+            ) => self.derivation_size_rola(),
+            _ => {
+                warn!("Non-sensical derivation request: factor_source_kind: {}, key_space: {}, key_kind: {}, entity_kind: {}", self, key_space, key_kind, entity_kind);
+                None
+            }
+        }
+    }
+
+    /// (KeyKind::AuthenticationSigning)
+    fn derivation_size_rola(&self) -> Option<usize> {
+        match self {
+            Self::Device => Some(1),
+            Self::Ledger
+            | Self::SecurityQuestions
+            | Self::OffDeviceMnemonic
+            | Self::Arculus
+            | Self::Yubikey => {
+                // only Device can be used for ROLA
+                None
+            }
+        }
+    }
+
     /// (KeyKind::TransactionSigning, KeySpace::Unsecurified)
-    pub fn derivation_size_unsecurified(&self) -> Option<usize> {
+    fn derivation_size_t9n_unsecurified(&self) -> Option<usize> {
         match self {
             Self::Device => Some(50), // extra large since fast and most commonly used for unsecurified entities
             Self::Ledger => Some(30),
@@ -208,7 +252,7 @@ impl FactorSourceKind {
         }
     }
     /// (KeyKind::TransactionSigning, KeySpace::Securified)
-    pub fn derivation_size_securified(&self) -> Option<usize> {
+    fn derivation_size_t9n_securified(&self) -> Option<usize> {
         match self {
             Self::Device | Self::SecurityQuestions | Self::OffDeviceMnemonic => Some(30), //
             Self::Ledger | Self::Yubikey => Some(20),                                     // Slow

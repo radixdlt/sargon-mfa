@@ -14,5 +14,5 @@ pub enum NextDerivationPeekOutcome {
     ///
     /// N.B. that if some request would not consume the last factor, it will not
     /// be present in this map.
-    Unfulfillable(UnfulfillableRequests),
+    Unfulfillable(DerivationRequestsUnfulfillableByCache),
 }

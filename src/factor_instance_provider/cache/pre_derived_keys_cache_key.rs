@@ -2,12 +2,12 @@ use crate::prelude::*;
 
 /// Used as a map key in `InMemoryPreDerivedKeysCache`.
 #[derive(Clone, PartialEq, Eq, Hash)]
-pub struct PreDeriveKeysCacheKey {
+pub struct PreDerivedKeysCacheKey {
     pub factor_source_id: FactorSourceIDFromHash,
     pub path_without_index: DerivationPathWithoutIndex,
 }
 
-impl From<HierarchicalDeterministicFactorInstance> for PreDeriveKeysCacheKey {
+impl From<HierarchicalDeterministicFactorInstance> for PreDerivedKeysCacheKey {
     fn from(value: HierarchicalDeterministicFactorInstance) -> Self {
         Self::new(
             value.factor_source_id(),
@@ -15,7 +15,7 @@ impl From<HierarchicalDeterministicFactorInstance> for PreDeriveKeysCacheKey {
         )
     }
 }
-impl PreDeriveKeysCacheKey {
+impl PreDerivedKeysCacheKey {
     pub fn new(
         factor_source_id: FactorSourceIDFromHash,
         path_without_index: DerivationPathWithoutIndex,

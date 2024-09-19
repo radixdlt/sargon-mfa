@@ -4,7 +4,7 @@ use crate::prelude::*;
 /// last factor would be consumed, the value of that last factor is included,
 /// to act as the range.
 #[derive(Clone, PartialEq, Eq, Hash, Debug, EnumAsInner)]
-pub enum UnfulfillableRequestReason {
+pub enum DerivationRequestUnfulfillableByCacheReason {
     /// Users before Radix Wallet 2.0 does not have any cache.
     /// This will be kick of the cumbersome process of analyzing the Profile
     /// and deriving a broad range of keys to find out the "last used" key per

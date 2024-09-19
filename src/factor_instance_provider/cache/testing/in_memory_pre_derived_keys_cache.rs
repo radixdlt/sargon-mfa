@@ -1,80 +1,42 @@
 #![cfg(test)]
 
+use std::{
+    ops::{Deref, DerefMut},
+    sync::{RwLockReadGuard, RwLockWriteGuard},
+};
+
 use crate::prelude::*;
 
-#[derive(Clone, PartialEq, Eq, Hash)]
-struct Tuple {
-    request: DerivationRequest,
-    path: DerivationPathWithoutIndex,
-}
-impl Tuple {
-    #[allow(unused)]
-    fn cache_key(&self) -> PreDeriveKeysCacheKey {
-        PreDeriveKeysCacheKey::new(self.request.factor_source_id, self.path.clone())
-    }
-}
+pub type InMemoryKeysCache =
+    HashMap<PreDerivedKeysCacheKey, IndexSet<HierarchicalDeterministicFactorInstance>>;
 
 /// A simple `IsPreDerivedKeysCache` which uses in-memory cache instead of on
 /// file which the live implementation will use.
 #[derive(Default)]
 pub struct InMemoryPreDerivedKeysCache {
-    cache:
-        RwLock<HashMap<PreDeriveKeysCacheKey, IndexSet<HierarchicalDeterministicFactorInstance>>>,
+    cache: RwLock<InMemoryKeysCache>,
 }
 
 impl InMemoryPreDerivedKeysCache {
-    fn tuples(requests: IndexSet<DerivationRequest>) -> IndexSet<Tuple> {
-        requests
-            .clone()
-            .into_iter()
-            .map(|request| Tuple {
-                request,
-                path: DerivationPathWithoutIndex::from(request),
-            })
-            .collect::<IndexSet<Tuple>>()
-    }
-
-    /// Internal helper for implementing `peek`.
-    /// `peek` will will this and map:
-    /// 1. `Err(e)` -> `NextDerivationPeekOutcome::Failure(e)`
-    /// 1. `Ok(None)` -> `NextDerivationPeekOutcome::Fulfillable`
-    /// 1. `Ok(requests)` -> `NextDerivationPeekOutcome::Unfulfillable(UnfulfillableRequests::new(requests))`
-    async fn try_peek(
-        &self,
-        requests: IndexSet<DerivationRequest>,
-    ) -> Result<Option<UnfulfillableRequests>> {
+    fn read<T>(&self, call: impl FnOnce(RwLockReadGuard<'_, InMemoryKeysCache>) -> T) -> Result<T> {
         let cached = self
             .cache
             .try_read()
-            .map_err(|_| CommonError::KeysCacheReadGuard)?;
+            .map_err(|_| CommonError::KeysCacheWriteGuard)?;
 
-        let request_and_path_tuples = InMemoryPreDerivedKeysCache::tuples(requests.clone());
+        Ok(call(cached))
+    }
 
-        let mut unfulfillable = IndexSet::<UnfulfillableRequest>::new();
-        for tuple in request_and_path_tuples.iter() {
-            let request = tuple.request;
-            let Some(for_key) = cached.get(&tuple.cache_key()) else {
-                unfulfillable.insert(UnfulfillableRequest::empty(request));
-                continue;
-            };
+    fn write<T>(
+        &self,
+        mut call: impl FnOnce(RwLockWriteGuard<'_, InMemoryKeysCache>) -> Result<T>,
+    ) -> Result<T> {
+        let cached = self
+            .cache
+            .try_write()
+            .map_err(|_| CommonError::KeysCacheWriteGuard)?;
 
-            let factors_left = for_key.len();
-            if factors_left == 0 {
-                unfulfillable.insert(UnfulfillableRequest::empty(request));
-            } else if factors_left == 1 {
-                let last_factor = for_key.last().expect("Just checked length.");
-                unfulfillable.insert(UnfulfillableRequest::last(request, last_factor));
-            } else {
-                // all good
-                continue;
-            }
-        }
-
-        if unfulfillable.is_empty() {
-            Ok(None)
-        } else {
-            Ok(Some(UnfulfillableRequests::new(unfulfillable)))
-        }
+        call(cached)
     }
 }
 
@@ -83,75 +45,23 @@ impl IsPreDerivedKeysCache for InMemoryPreDerivedKeysCache {
     async fn insert(
         &self,
         derived_factors_map: IndexMap<
-            PreDeriveKeysCacheKey,
+            PreDerivedKeysCacheKey,
             IndexSet<HierarchicalDeterministicFactorInstance>,
         >,
     ) -> Result<()> {
-        for (key, values) in derived_factors_map.iter() {
-            for value in values {
-                assert_eq!(
-                    value.factor_source_id(),
-                    key.factor_source_id,
-                    "Discrepancy! FactorSourceID mismatch, this is a developer error."
-                );
-            }
-        }
-
-        let mut write_guard = self
-            .cache
-            .try_write()
-            .map_err(|_| CommonError::KeysCacheWriteGuard)?;
-
-        for (key, derived_factors) in derived_factors_map {
-            if let Some(existing_factors) = write_guard.get_mut(&key) {
-                existing_factors.extend(derived_factors);
-            } else {
-                write_guard.insert(key, derived_factors);
-            }
-        }
-        drop(write_guard);
-
-        Ok(())
+        self.write(|mut cache| pre_derived_keys_cache_insert(derived_factors_map, &mut cache))
     }
 
     async fn consume_next_factor_instances(
         &self,
         requests: IndexSet<DerivationRequest>,
     ) -> Result<IndexMap<DerivationRequest, HierarchicalDeterministicFactorInstance>> {
-        let mut cached = self
-            .cache
-            .try_write()
-            .map_err(|_| CommonError::KeysCacheWriteGuard)?;
-
-        let mut instances_read_from_cache =
-            IndexMap::<DerivationRequest, HierarchicalDeterministicFactorInstance>::new();
-
-        let request_and_path_tuples = InMemoryPreDerivedKeysCache::tuples(requests.clone());
-
-        for tuple in request_and_path_tuples {
-            let for_key = cached
-                .get_mut(&tuple.cache_key())
-                .ok_or(CommonError::KeysCacheUnknownKey)?;
-            let read_from_cache = for_key
-                .first()
-                .ok_or(CommonError::KeysCacheEmptyForKey)?
-                .clone();
-            assert!(
-                read_from_cache.matches(&tuple.request),
-                "incorrect implementation"
-            );
-            for_key.shift_remove(&read_from_cache);
-            instances_read_from_cache.insert(tuple.request, read_from_cache);
-        }
-
-        Ok(instances_read_from_cache)
+        self.write(|mut cache| pre_derived_keys_cache_consume(requests, &mut cache))
     }
 
     async fn peek(&self, requests: IndexSet<DerivationRequest>) -> NextDerivationPeekOutcome {
-        let outcome = self.try_peek(requests).await;
-        match outcome {
-            Ok(None) => NextDerivationPeekOutcome::Fulfillable,
-            Ok(Some(unfulfillable)) => NextDerivationPeekOutcome::Unfulfillable(unfulfillable),
+        match self.read(|cache| pre_derived_keys_cache_peek(requests, &cache)) {
+            Ok(o) => o,
             Err(e) => NextDerivationPeekOutcome::Failure(e),
         }
     }

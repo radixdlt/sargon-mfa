@@ -36,6 +36,7 @@ pub mod prelude {
     pub(crate) use itertools::Itertools;
     pub(crate) use std::cell::RefCell;
     pub(crate) use std::future::Future;
+    pub(crate) use std::ops::{Deref, DerefMut};
     pub(crate) use std::pin::Pin;
     pub(crate) use std::time::SystemTime;
     pub(crate) use uuid::Uuid;

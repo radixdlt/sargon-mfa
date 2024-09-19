@@ -58,11 +58,24 @@ impl DerivationRequest {
             network_id,
         )
     }
+
+    pub fn factor_source_kind(&self) -> FactorSourceKind {
+        self.factor_source_id.kind
+    }
+    pub fn derivation_size(&self) -> Option<HDPathValue> {
+        self.factor_source_kind()
+            .derivation_size(self.key_space, self.key_kind, self.entity_kind)
+            .map(|size| size as HDPathValue)
+    }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, derive_more::Display, derive_more::Debug)]
 pub enum KeySpace {
+    #[display("Unsecurified")]
+    #[debug("Unsecurified")]
     Unsecurified,
+    #[display("Securified")]
+    #[debug("Securified")]
     Securified,
 }
 

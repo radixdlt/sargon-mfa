@@ -2,19 +2,22 @@ use crate::prelude::*;
 
 /// A request that cannot be fulfilled, and the reason why.
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
-pub struct UnfulfillableRequest {
+pub struct DerivationRequestUnfulfillableByCache {
     /// The request which cannot be fulfilled.
     pub request: DerivationRequest,
 
     /// The reason why `request` could not be fulfilled.
-    pub reason: UnfulfillableRequestReason,
+    pub reason: DerivationRequestUnfulfillableByCacheReason,
 }
 
-impl UnfulfillableRequest {
+impl DerivationRequestUnfulfillableByCache {
+    pub fn factor_source_id(&self) -> FactorSourceIDFromHash {
+        self.request.factor_source_id
+    }
     pub fn empty(request: DerivationRequest) -> Self {
         Self {
             request,
-            reason: UnfulfillableRequestReason::Empty,
+            reason: DerivationRequestUnfulfillableByCacheReason::Empty,
         }
     }
 
@@ -30,16 +33,24 @@ impl UnfulfillableRequest {
         );
         Self {
             request,
-            reason: UnfulfillableRequestReason::Last(last_factor.derivation_path().index),
+            reason: DerivationRequestUnfulfillableByCacheReason::Last(
+                last_factor.derivation_path().index,
+            ),
         }
     }
 
     pub fn is_reason_empty(&self) -> bool {
-        matches!(self.reason, UnfulfillableRequestReason::Empty)
+        matches!(
+            self.reason,
+            DerivationRequestUnfulfillableByCacheReason::Empty
+        )
     }
 
     pub fn is_reason_last(&self) -> bool {
-        matches!(self.reason, UnfulfillableRequestReason::Last(_))
+        matches!(
+            self.reason,
+            DerivationRequestUnfulfillableByCacheReason::Last(_)
+        )
     }
 }
 

@@ -21,7 +21,10 @@ pub trait IsPreDerivedKeysCache: Sync {
     /// the next key to be consumed.
     async fn insert(
         &self,
-        derived: IndexMap<PreDeriveKeysCacheKey, IndexSet<HierarchicalDeterministicFactorInstance>>,
+        derived: IndexMap<
+            PreDerivedKeysCacheKey,
+            IndexSet<HierarchicalDeterministicFactorInstance>,
+        >,
     ) -> Result<()>;
 
     /// Must be async since might need to derive more keys if we are about
