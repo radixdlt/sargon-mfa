@@ -94,17 +94,15 @@ use crate::prelude::*;
 ///
 ///
 pub async fn derive_and_analyze(input: DeriveAndAnalyzeInput) -> Result<DerivationAndAnalysis> {
-    error!("Using SAMPLE data in 'derive_and_analyze'!!!");
+    let factor_instances = input.load_cached_or_derive_new_instances().await?;
 
-    let mut derived_instances = IndexSet::<HierarchicalDeterministicFactorInstance>::new();
-
-    // input.analyze_factor_instances.
+    let analysis = input.analyze(factor_instances).await?;
 
     // To be fed into cache, NOT done by this function.
     // Might be empty
-    let probably_free_instances = ProbablyFreeFactorInstances::sample();
+    let probably_free_instances = analysis.probably_free_instances;
 
-    let known_taken = KnownTakenInstances::sample();
+    let known_taken = analysis.known_taken;
 
     // Used FactorSources which are not new - might be empty
     let old_factor_sources = input.old_factor_sources();
