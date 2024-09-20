@@ -24,11 +24,13 @@ impl RecoveredUnsecurifiedEntities {
             .map(AccountOrPersona::from)
             .collect()
     }
+}
 
-    pub fn instances(&self) -> IndexSet<HierarchicalDeterministicFactorInstance> {
+impl IsFactorInstanceCollectionBase for RecoveredUnsecurifiedEntities {
+    fn factor_instances(&self) -> IndexSet<HierarchicalDeterministicFactorInstance> {
         self.unsecurified_entities()
             .into_iter()
-            .map(|x| x.veci())
+            .map(|x| x.factor_instance())
             .collect()
     }
 }

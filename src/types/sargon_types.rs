@@ -988,16 +988,23 @@ impl HasSampleValues for Hash {
 #[derive(Clone, Debug, PartialEq, Eq, std::hash::Hash)]
 pub struct SecurifiedEntityControl {
     pub matrix: MatrixOfFactorInstances,
+    /// Virtual Entity Creation (Factor)Instance
+    pub veci: Option<HierarchicalDeterministicFactorInstance>,
     pub access_controller: AccessController,
 }
 impl SecurifiedEntityControl {
     pub fn all_factor_instances(&self) -> IndexSet<HierarchicalDeterministicFactorInstance> {
         self.matrix.all_factors()
     }
-    pub fn new(matrix: MatrixOfFactorInstances, access_controller: AccessController) -> Self {
+    pub fn new(
+        matrix: MatrixOfFactorInstances,
+        access_controller: AccessController,
+        veci: impl Into<Option<HierarchicalDeterministicFactorInstance>>,
+    ) -> Self {
         Self {
             matrix,
             access_controller,
+            veci: veci.into(),
         }
     }
 }
@@ -1007,12 +1014,14 @@ impl HasSampleValues for SecurifiedEntityControl {
         Self::new(
             MatrixOfFactorInstances::sample(),
             AccessController::sample(),
+            HierarchicalDeterministicFactorInstance::sample(),
         )
     }
     fn sample_other() -> Self {
         Self::new(
             MatrixOfFactorInstances::sample_other(),
             AccessController::sample_other(),
+            HierarchicalDeterministicFactorInstance::sample_other(),
         )
     }
 }
@@ -1309,6 +1318,7 @@ pub trait IsEntity: Into<AccountOrPersona> + TryFrom<AccountOrPersona> + Clone {
             EntitySecurityState::Securified(SecurifiedEntityControl::new(
                 matrix,
                 access_controller,
+                None, // TODO add this as a parameter to this ctor
             )),
         )
     }

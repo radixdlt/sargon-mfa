@@ -1,14 +1,12 @@
+use std::vec;
+
 use crate::prelude::*;
 
 /// The HDFactorInstance, address and possibly third party deposit state of some
 /// unsecurified entity.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct UnsecurifiedEntity {
-    /// The address which is verified to match the `veci`
-    address: AddressOfAccountOrPersona,
-
-    /// Virtual Entity Creating (Factor)Instance
-    veci: HierarchicalDeterministicFactorInstance,
+    veci: VirtualEntityCreatingInstance,
 
     /// If we found this UnsecurifiedEntity while scanning OnChain using
     /// Gateway, we might have been able to read out the third party deposit
@@ -17,50 +15,36 @@ pub struct UnsecurifiedEntity {
 }
 
 impl UnsecurifiedEntity {
-    /// # Panics
-    /// Panics if address does not match `veci`
-    pub fn new(
-        address: AddressOfAccountOrPersona,
-        veci: HierarchicalDeterministicFactorInstance,
+    pub fn with_veci(
+        veci: VirtualEntityCreatingInstance,
         third_party_deposit: impl Into<Option<ThirdPartyDepositPreference>>,
     ) -> Self {
-        assert!(
-            address.derived_from_factor_instance(&veci),
-            "Discrepancy, mismatching public keys, this is a programmer error!"
-        );
         Self {
-            address,
             veci,
             third_party_deposit: third_party_deposit.into(),
         }
     }
 
-    fn with_veci_on_network(
-        veci: HierarchicalDeterministicFactorInstance,
-        entity_kind: CAP26EntityKind,
-        network_id: NetworkID,
+    /// # Panics
+    /// Panics if address does not match `factor_instance`
+    pub fn new(
+        address: AddressOfAccountOrPersona,
+        factor_instance: HierarchicalDeterministicFactorInstance,
+        third_party_deposit: impl Into<Option<ThirdPartyDepositPreference>>,
     ) -> Self {
-        let public_key_hash = veci.public_key_hash();
-        let address = match entity_kind {
-            CAP26EntityKind::Account => {
-                AddressOfAccountOrPersona::from(AccountAddress::new(network_id, public_key_hash))
-            }
-            CAP26EntityKind::Identity => {
-                AddressOfAccountOrPersona::from(IdentityAddress::new(network_id, public_key_hash))
-            }
-        };
-        Self {
-            address,
-            veci,
-            third_party_deposit: None,
-        }
+        let veci = VirtualEntityCreatingInstance::new(factor_instance, address);
+        Self::with_veci(veci, third_party_deposit)
     }
 
     pub fn address(&self) -> AddressOfAccountOrPersona {
-        self.address.clone()
+        self.veci.clone().address()
     }
 
-    pub fn veci(&self) -> HierarchicalDeterministicFactorInstance {
+    pub fn factor_instance(&self) -> HierarchicalDeterministicFactorInstance {
+        self.veci.factor_instance()
+    }
+
+    pub fn veci(&self) -> VirtualEntityCreatingInstance {
         self.veci.clone()
     }
 
@@ -73,7 +57,7 @@ impl From<UnsecurifiedEntity> for AccountOrPersona {
     fn from(value: UnsecurifiedEntity) -> Self {
         let address = value.address();
         let name = "Recovered";
-        let security_state = EntitySecurityState::Unsecured(value.veci());
+        let security_state = EntitySecurityState::Unsecured(value.factor_instance());
 
         if let Ok(account_address) = address.clone().into_account() {
             Account::new(name, account_address, security_state).into()
@@ -87,17 +71,15 @@ impl From<UnsecurifiedEntity> for AccountOrPersona {
 
 impl HasSampleValues for UnsecurifiedEntity {
     fn sample() -> Self {
-        Self::with_veci_on_network(
-            HierarchicalDeterministicFactorInstance::sample(),
-            CAP26EntityKind::Account,
-            NetworkID::Mainnet,
+        Self::with_veci(
+            VirtualEntityCreatingInstance::sample(),
+            ThirdPartyDepositPreference::sample(),
         )
     }
     fn sample_other() -> Self {
-        Self::with_veci_on_network(
-            HierarchicalDeterministicFactorInstance::sample_other(),
-            CAP26EntityKind::Identity,
-            NetworkID::Stokenet,
+        Self::with_veci(
+            VirtualEntityCreatingInstance::sample_other(),
+            ThirdPartyDepositPreference::sample_other(),
         )
     }
 }

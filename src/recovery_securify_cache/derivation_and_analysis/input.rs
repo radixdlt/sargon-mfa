@@ -16,10 +16,7 @@ pub struct IntermediaryDerivationAnalysis {
 }
 impl IntermediaryDerivationAnalysis {
     /// # Panics
-    /// Panics if the union all instances from:
-    /// `probably_free_instances`, `recovered_unsecurified_entities`, `recovered_securified_entities`, `unrecovered_securified_entities` are not equal to `all_factor_instances`
-    /// Also panics if any factor_instance in:
-    /// `recovered_unsecurified_entities`, `recovered_securified_entities`, `unrecovered_securified_entities` is found in probably_free_instances
+    /// Panics if the collections of factor instances are not disjoint
     pub fn new(
         all_factor_instances: IndexSet<HierarchicalDeterministicFactorInstance>,
         probably_free_instances: ProbablyFreeFactorInstances,
@@ -27,30 +24,12 @@ impl IntermediaryDerivationAnalysis {
         recovered_securified_entities: RecoveredSecurifiedEntities,
         unrecovered_securified_entities: UnrecoveredSecurifiedEntities,
     ) -> Self {
-        let mut merge = IndexSet::new();
-        merge.extend(recovered_unsecurified_entities.instances());
-        merge.extend(recovered_securified_entities.instances());
-        merge.extend(unrecovered_securified_entities.instances());
-
-        assert!(
-            merge.clone().into_iter().collect::<HashSet<_>>()
-            .intersection(
-                &probably_free_instances.instances().into_iter().collect::<HashSet<_>>()
-            )
-            .collect_vec()
-            .is_empty(),
-            "Discrepancy! Some factor instances in probably_free_instances are found in other collections of non free instances!");
-
-        // Only extend with `probably_free_instances` once we have verified it does not contain any of the instances in the other collections
-        merge.extend(probably_free_instances.instances());
-
-        assert_eq!(
-            merge.into_iter().collect::<HashSet<_>>(),
-            all_factor_instances
-                .clone()
-                .into_iter()
-                .collect::<HashSet<_>>()
-        );
+        assert_are_factor_instance_collections_disjoint(vec![
+            &probably_free_instances,
+            &recovered_unsecurified_entities,
+            &recovered_securified_entities,
+            &unrecovered_securified_entities,
+        ]);
 
         Self {
             all_factor_instances: all_factor_instances.into_iter().collect(),

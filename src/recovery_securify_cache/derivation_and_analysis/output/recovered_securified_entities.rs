@@ -24,8 +24,10 @@ impl RecoveredSecurifiedEntities {
             .map(AccountOrPersona::from)
             .collect()
     }
+}
 
-    pub fn instances(&self) -> IndexSet<HierarchicalDeterministicFactorInstance> {
+impl IsFactorInstanceCollectionBase for RecoveredSecurifiedEntities {
+    fn factor_instances(&self) -> IndexSet<HierarchicalDeterministicFactorInstance> {
         self.securified_entities()
             .into_iter()
             .flat_map(|x| x.securified_entity_control().all_factor_instances())

@@ -20,8 +20,10 @@ impl UnrecoveredSecurifiedEntities {
     pub fn entities(&self) -> IndexSet<UnrecoveredSecurifiedEntity> {
         self.entities.clone().into_iter().collect()
     }
+}
 
-    pub fn instances(&self) -> IndexSet<HierarchicalDeterministicFactorInstance> {
+impl IsFactorInstanceCollectionBase for UnrecoveredSecurifiedEntities {
+    fn factor_instances(&self) -> IndexSet<HierarchicalDeterministicFactorInstance> {
         self.entities()
             .into_iter()
             .flat_map(|x| x.matched_factor_instances())

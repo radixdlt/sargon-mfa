@@ -1,5 +1,46 @@
 use crate::prelude::*;
 
+pub trait IsFactorInstanceCollectionBase {
+    fn factor_instances(&self) -> IndexSet<HierarchicalDeterministicFactorInstance>;
+}
+pub trait IsFactorInstanceCollection:
+    IsFactorInstanceCollectionBase + HasSampleValues + Sized
+{
+    fn new(instances: IndexSet<HierarchicalDeterministicFactorInstance>) -> Self;
+
+    fn merge<T: IsFactorInstanceCollection>(&self, other: T) -> Self {
+        Self::new(
+            self.factor_instances()
+                .union(&other.factor_instances())
+                .cloned()
+                .collect(),
+        )
+    }
+}
+
+pub fn are_factor_instance_collections_disjoint(
+    collections: Vec<&dyn IsFactorInstanceCollectionBase>,
+) -> bool {
+    let mut all_instances = IndexSet::new();
+    for collection in collections {
+        let instances = collection.factor_instances();
+        if !instances.is_disjoint(&all_instances) {
+            return false;
+        }
+        all_instances.extend(instances);
+    }
+    true
+}
+
+pub fn assert_are_factor_instance_collections_disjoint(
+    collections: Vec<&dyn IsFactorInstanceCollectionBase>,
+) {
+    assert!(
+        are_factor_instance_collections_disjoint(collections),
+        "Discrepancy! FactorInstance found in multiple collections, this is a programmer error!"
+    );
+}
+
 /// "Probably" since we might not have all the information to be sure, since
 /// Gateway might not keep track of past FactorInstances, some of the FactorInstances
 /// in KeySpace::Securified might in fact have been used in the past for some entity.
@@ -8,22 +49,16 @@ pub struct ProbablyFreeFactorInstances {
     factor_instances: Vec<HierarchicalDeterministicFactorInstance>,
 }
 
-impl ProbablyFreeFactorInstances {
-    pub fn new(instances: IndexSet<HierarchicalDeterministicFactorInstance>) -> Self {
+impl IsFactorInstanceCollectionBase for ProbablyFreeFactorInstances {
+    fn factor_instances(&self) -> IndexSet<HierarchicalDeterministicFactorInstance> {
+        self.factor_instances.iter().cloned().collect()
+    }
+}
+impl IsFactorInstanceCollection for ProbablyFreeFactorInstances {
+    fn new(instances: IndexSet<HierarchicalDeterministicFactorInstance>) -> Self {
         Self {
             factor_instances: instances.into_iter().collect(),
         }
-    }
-    pub fn merge(&self, other: &Self) -> Self {
-        Self::new(
-            self.instances()
-                .union(&other.instances())
-                .cloned()
-                .collect(),
-        )
-    }
-    pub fn instances(&self) -> IndexSet<HierarchicalDeterministicFactorInstance> {
-        self.factor_instances.iter().cloned().collect()
     }
 }
 

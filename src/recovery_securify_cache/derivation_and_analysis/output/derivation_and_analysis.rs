@@ -33,7 +33,7 @@ pub struct DerivationAndAnalysis {
     /// Securified entities that were not recovered
     pub unrecovered_securified_entities: UnrecoveredSecurifiedEntities,
 
-    virtual_entity_creating_instances: Vec<HierarchicalDeterministicFactorInstance>,
+    pub virtual_entity_creating_instances: VirtualEntityCreatingInstances,
 
     /// Used FactorSources which are not new - might be empty
     old_factor_sources: Vec<HDFactorSource>,
@@ -45,12 +45,14 @@ pub struct DerivationAndAnalysis {
 impl DerivationAndAnalysis {
     /// # Panics
     /// Panics if `old_factor_sources` intersects with `new_factor_sources`
+    ///
+    /// Panics if the collections of factor instances are not disjoint
     pub fn new(
         probably_free_instances: ProbablyFreeFactorInstances,
         recovered_unsecurified_entities: RecoveredUnsecurifiedEntities,
         recovered_securified_entities: RecoveredSecurifiedEntities,
         unrecovered_securified_entities: UnrecoveredSecurifiedEntities,
-        virtual_entity_creating_instances: IndexSet<HierarchicalDeterministicFactorInstance>,
+        virtual_entity_creating_instances: VirtualEntityCreatingInstances,
         old_factor_sources: IndexSet<HDFactorSource>,
         new_factor_sources: IndexSet<HDFactorSource>,
     ) -> Self {
@@ -61,26 +63,22 @@ impl DerivationAndAnalysis {
                 .is_empty(),
             "Discrepancy! FactorSource found in old an new, this is a programmer error!"
         );
+        assert_are_factor_instance_collections_disjoint(vec![
+            &probably_free_instances,
+            &recovered_unsecurified_entities,
+            &recovered_securified_entities,
+            &unrecovered_securified_entities,
+            &virtual_entity_creating_instances,
+        ]);
         Self {
             probably_free_instances,
             recovered_unsecurified_entities,
             recovered_securified_entities,
             unrecovered_securified_entities,
-            virtual_entity_creating_instances: virtual_entity_creating_instances
-                .into_iter()
-                .collect(),
+            virtual_entity_creating_instances,
             old_factor_sources: old_factor_sources.into_iter().collect(),
             new_factor_sources: new_factor_sources.into_iter().collect(),
         }
-    }
-
-    pub fn virtual_entity_creating_instances(
-        &self,
-    ) -> IndexSet<HierarchicalDeterministicFactorInstance> {
-        self.virtual_entity_creating_instances
-            .clone()
-            .into_iter()
-            .collect()
     }
 
     pub fn new_factor_sources(&self) -> IndexSet<HDFactorSource> {
@@ -105,10 +103,7 @@ impl HasSampleValues for DerivationAndAnalysis {
             RecoveredUnsecurifiedEntities::sample(),
             RecoveredSecurifiedEntities::sample(),
             UnrecoveredSecurifiedEntities::sample(),
-            IndexSet::from_iter([
-                HierarchicalDeterministicFactorInstance::sample(),
-                HierarchicalDeterministicFactorInstance::sample_other(),
-            ]),
+            VirtualEntityCreatingInstances::sample(),
             IndexSet::just(HDFactorSource::sample()),
             IndexSet::just(HDFactorSource::sample_other()),
         )
@@ -120,7 +115,7 @@ impl HasSampleValues for DerivationAndAnalysis {
             RecoveredUnsecurifiedEntities::sample_other(),
             RecoveredSecurifiedEntities::sample_other(),
             UnrecoveredSecurifiedEntities::sample_other(),
-            IndexSet::just(HierarchicalDeterministicFactorInstance::sample_other()),
+            VirtualEntityCreatingInstances::sample(),
             IndexSet::just(HDFactorSource::sample_other()),
             IndexSet::just(HDFactorSource::sample()),
         )
