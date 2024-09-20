@@ -8,6 +8,7 @@ pub struct DeriveAndAnalyzeAccountRecoveryScanInput {
     gateway: Arc<dyn Gateway>,
     derivation_interactors: Arc<dyn KeysDerivationInteractors>,
 }
+
 impl DeriveAndAnalyzeAccountRecoveryScanInput {
     pub fn new(
         factor_sources: IndexSet<HDFactorSource>,
@@ -22,33 +23,23 @@ impl DeriveAndAnalyzeAccountRecoveryScanInput {
     }
 }
 impl From<DeriveAndAnalyzeAccountRecoveryScanInput> for DeriveAndAnalyzeInput {
+    #[allow(clippy::diverging_sub_expression)]
     fn from(value: DeriveAndAnalyzeAccountRecoveryScanInput) -> Self {
-        // let next_derivation_entity_index_assigner = NextDerivationEntityIndexAssigner::ars();
+        let initial_derivation_requests = IndexSet::<DerivationRequest>::new();
+        let factor_instances_provider: Arc<dyn IsFactorInstancesProvider> = { unreachable!() };
+        let analyze_factor_instances: Arc<dyn IsIntermediaryDerivationAnalyzer> =
+            { unreachable!() };
 
-        // let analyze_factor_instances = IntermediaryDerivationAnalyzer::ars(value.gateway);
-
-        // Self::new(
-        //     value.factor_sources.clone(),
-        //     value
-        //         .factor_sources
-        //         .into_iter()
-        //         .map(|f| f.factor_source_id())
-        //         .collect(),
-        //     next_derivation_entity_index_assigner,
-        //     analyze_factor_instances,
-        // )
-        todo!()
+        Self::new(
+            value.factor_sources.clone(),
+            value
+                .factor_sources
+                .into_iter()
+                .map(|f| f.factor_source_id())
+                .collect(),
+            initial_derivation_requests,
+            factor_instances_provider,
+            analyze_factor_instances,
+        )
     }
 }
-
-// impl NextDerivationEntityIndexAssigner {
-//     pub fn ars() -> Self {
-//         todo!()
-//     }
-// }
-
-// impl IntermediaryDerivationAnalyzer {
-//     pub fn ars(gateway: Arc<dyn Gateway>) -> Self {
-//         todo!()
-//     }
-// }
