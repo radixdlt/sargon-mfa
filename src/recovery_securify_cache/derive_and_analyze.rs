@@ -98,27 +98,13 @@ pub async fn derive_and_analyze(input: DeriveAndAnalyzeInput) -> Result<Derivati
 
     let mut derived_instances = IndexSet::<HierarchicalDeterministicFactorInstance>::new();
 
+    // input.analyze_factor_instances.
+
     // To be fed into cache, NOT done by this function.
     // Might be empty
     let probably_free_instances = ProbablyFreeFactorInstances::sample();
 
-    // Unsecurified entities that were recovered
-    // Might be empty
-    let recovered_unsecurified_entities = RecoveredUnsecurifiedEntities::sample();
-
-    // Securified entities that were recovered
-    // Might be empty
-    let recovered_securified_entities = RecoveredSecurifiedEntities::sample();
-
-    // Securified entities that were not recovered
-    // Might be empty
-    let unrecovered_securified_entities = UnrecoveredSecurifiedEntities::sample();
-
-    // Instances which are not in `recovered_unsecurified_entities`, but which
-    // have been matched against a securified entity in Profile, as their
-    // creating instance.
-    // Might be empty
-    let virtual_entity_creating_instances = VirtualEntityCreatingInstances::sample();
+    let known_taken = KnownTakenInstances::sample();
 
     // Used FactorSources which are not new - might be empty
     let old_factor_sources = input.old_factor_sources();
@@ -128,10 +114,7 @@ pub async fn derive_and_analyze(input: DeriveAndAnalyzeInput) -> Result<Derivati
 
     Ok(DerivationAndAnalysis::new(
         probably_free_instances,
-        recovered_unsecurified_entities,
-        recovered_securified_entities,
-        unrecovered_securified_entities,
-        virtual_entity_creating_instances,
+        known_taken,
         old_factor_sources,
         new_factor_sources,
     ))

@@ -43,8 +43,9 @@ impl TryFrom<DerivationAndAnalysis> for DerivationAndAnalysisAccountRecoveryScan
     fn try_from(value: DerivationAndAnalysis) -> Result<Self> {
         let factor_sources = value.all_factor_sources();
         let recovered_entities = value
+            .known_taken_instances
             .recovered_unsecurified_entities
-            .merge_with_securified(value.recovered_securified_entities);
+            .merge_with_securified(value.known_taken_instances.recovered_securified_entities);
 
         let recovered_accounts = recovered_entities
             .into_iter()
@@ -54,7 +55,7 @@ impl TryFrom<DerivationAndAnalysis> for DerivationAndAnalysisAccountRecoveryScan
         Ok(Self::new(
             factor_sources,
             recovered_accounts,
-            value.unrecovered_securified_entities,
+            value.known_taken_instances.unrecovered_securified_entities,
             value.probably_free_instances,
         ))
     }

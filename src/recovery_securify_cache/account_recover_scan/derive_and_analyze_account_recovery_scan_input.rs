@@ -23,31 +23,32 @@ impl DeriveAndAnalyzeAccountRecoveryScanInput {
 }
 impl From<DeriveAndAnalyzeAccountRecoveryScanInput> for DeriveAndAnalyzeInput {
     fn from(value: DeriveAndAnalyzeAccountRecoveryScanInput) -> Self {
-        let next_derivation_entity_index_assigner = NextDerivationEntityIndexAssigner::ars();
+        // let next_derivation_entity_index_assigner = NextDerivationEntityIndexAssigner::ars();
 
-        let analyze_factor_instances = IntermediaryDerivationAnalyzer::ars(value.gateway);
+        // let analyze_factor_instances = IntermediaryDerivationAnalyzer::ars(value.gateway);
 
-        Self::new(
-            value.factor_sources.clone(),
-            value
-                .factor_sources
-                .into_iter()
-                .map(|f| f.factor_source_id())
-                .collect(),
-            next_derivation_entity_index_assigner,
-            analyze_factor_instances,
-        )
-    }
-}
-
-impl NextDerivationEntityIndexAssigner {
-    pub fn ars() -> Self {
+        // Self::new(
+        //     value.factor_sources.clone(),
+        //     value
+        //         .factor_sources
+        //         .into_iter()
+        //         .map(|f| f.factor_source_id())
+        //         .collect(),
+        //     next_derivation_entity_index_assigner,
+        //     analyze_factor_instances,
+        // )
         todo!()
     }
 }
 
-impl IntermediaryDerivationAnalyzer {
-    pub fn ars(gateway: Arc<dyn Gateway>) -> Self {
-        todo!()
-    }
-}
+// impl NextDerivationEntityIndexAssigner {
+//     pub fn ars() -> Self {
+//         todo!()
+//     }
+// }
+
+// impl IntermediaryDerivationAnalyzer {
+//     pub fn ars(gateway: Arc<dyn Gateway>) -> Self {
+//         todo!()
+//     }
+// }

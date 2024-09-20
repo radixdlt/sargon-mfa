@@ -8,35 +8,25 @@ pub struct ProfileNextIndexAnalyzer {}
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct IntermediaryDerivationAnalysis {
-    all_factor_instances: Vec<HierarchicalDeterministicFactorInstance>,
     pub probably_free_instances: ProbablyFreeFactorInstances,
-    pub recovered_unsecurified_entities: RecoveredUnsecurifiedEntities,
-    pub recovered_securified_entities: RecoveredSecurifiedEntities,
-    pub unrecovered_securified_entities: UnrecoveredSecurifiedEntities,
+    pub known_taken: KnownTakenInstances,
 }
+
 impl IntermediaryDerivationAnalysis {
     /// # Panics
     /// Panics if the collections of factor instances are not disjoint
     pub fn new(
-        all_factor_instances: IndexSet<HierarchicalDeterministicFactorInstance>,
         probably_free_instances: ProbablyFreeFactorInstances,
-        recovered_unsecurified_entities: RecoveredUnsecurifiedEntities,
-        recovered_securified_entities: RecoveredSecurifiedEntities,
-        unrecovered_securified_entities: UnrecoveredSecurifiedEntities,
+        known_taken: KnownTakenInstances,
     ) -> Self {
         assert_are_factor_instance_collections_disjoint(vec![
             &probably_free_instances,
-            &recovered_unsecurified_entities,
-            &recovered_securified_entities,
-            &unrecovered_securified_entities,
+            &known_taken,
         ]);
 
         Self {
-            all_factor_instances: all_factor_instances.into_iter().collect(),
             probably_free_instances,
-            recovered_unsecurified_entities,
-            recovered_securified_entities,
-            unrecovered_securified_entities,
+            known_taken,
         }
     }
 }
@@ -60,16 +50,19 @@ pub struct DerivationRequest {
 /// But for VECID - Virtual Entity Creating (Factor)Instance Derivation request:
 /// `DerivationRequest { entity_kind: Account, key_space: Unsecurified, key_kind: TransactionSigning, ... }`
 /// we would use "next free" based on cache or profile analysis.
-pub struct NextDerivationEntityIndexAssigner {
-    start_index: Arc<dyn Fn(DerivationRequest) -> HDPathComponent>,
+#[async_trait::async_trait]
+pub trait IsNextDerivationEntityIndexAssigner {
+    async fn start_index(&self, derivation_request: DerivationRequest) -> Result<HDPathComponent>;
 }
 
 /// Check if there is any known entity associated with a given factor instance,
 /// if so, some base info, if not, it is counted as "probably free".
-pub struct IntermediaryDerivationAnalyzer {
-    analuze: Arc<
-        dyn Fn(IndexSet<HierarchicalDeterministicFactorInstance>) -> IntermediaryDerivationAnalysis,
-    >,
+#[async_trait::async_trait]
+pub trait IsIntermediaryDerivationAnalyzer {
+    async fn analyze(
+        &self,
+        factor_instances: IndexSet<HierarchicalDeterministicFactorInstance>,
+    ) -> Result<IntermediaryDerivationAnalysis>;
 }
 
 pub struct DeriveAndAnalyzeInput {
@@ -77,11 +70,11 @@ pub struct DeriveAndAnalyzeInput {
     ids_of_new_factor_sources: IndexSet<FactorSourceIDFromHash>,
 
     /// Which index to start at for the range of indices to derive
-    next_derivation_entity_index_assigner: NextDerivationEntityIndexAssigner,
+    next_derivation_entity_index_assigner: Arc<dyn IsNextDerivationEntityIndexAssigner>,
 
     /// Check if there is any known entity associated with a given factor instance,
     /// if so, some base info, if not, it is counted as "probably free".
-    analyze_factor_instances: IntermediaryDerivationAnalyzer,
+    pub analyze_factor_instances: Arc<dyn IsIntermediaryDerivationAnalyzer>,
 }
 
 impl DeriveAndAnalyzeInput {
@@ -115,8 +108,8 @@ impl DeriveAndAnalyzeInput {
     pub fn new(
         factor_sources: IndexSet<HDFactorSource>,
         ids_of_new_factor_sources: IndexSet<FactorSourceIDFromHash>,
-        next_derivation_entity_index_assigner: NextDerivationEntityIndexAssigner,
-        analyze_factor_instances: IntermediaryDerivationAnalyzer,
+        next_derivation_entity_index_assigner: Arc<dyn IsNextDerivationEntityIndexAssigner>,
+        analyze_factor_instances: Arc<dyn IsIntermediaryDerivationAnalyzer>,
     ) -> Self {
         assert!(
             ids_of_new_factor_sources
