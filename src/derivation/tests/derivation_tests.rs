@@ -31,7 +31,14 @@ mod key_derivation_tests {
         let factor_source = fs_at(0);
         let paths = [0, 1, 2]
             .into_iter()
-            .map(|i| DerivationPath::unsecurified(Mainnet, Account, TransactionSigning, i))
+            .map(|i| {
+                DerivationPath::unsecurified_hardening_base_index(
+                    Mainnet,
+                    Account,
+                    TransactionSigning,
+                    i,
+                )
+            })
             .collect::<IndexSet<_>>();
         let collector = KeysCollector::new(
             HDFactorSource::all(),
@@ -53,7 +60,14 @@ mod key_derivation_tests {
             let factor_source = fs_at(0);
             let paths = [0, 1, 2]
                 .into_iter()
-                .map(|i| DerivationPath::unsecurified(Mainnet, Account, TransactionSigning, i))
+                .map(|i| {
+                    DerivationPath::unsecurified_hardening_base_index(
+                        Mainnet,
+                        Account,
+                        TransactionSigning,
+                        i,
+                    )
+                })
                 .collect::<IndexSet<_>>();
             let collector =
                 KeysCollector::new_test([(factor_source.factor_source_id(), paths.clone())]);
@@ -115,7 +129,14 @@ mod key_derivation_tests {
         async fn multi_keys_multi_factor_sources_multi_paths() {
             let paths = [0, 1, 2]
                 .into_iter()
-                .map(|i| DerivationPath::unsecurified(Mainnet, Account, TransactionSigning, i))
+                .map(|i| {
+                    DerivationPath::unsecurified_hardening_base_index(
+                        Mainnet,
+                        Account,
+                        TransactionSigning,
+                        i,
+                    )
+                })
                 .collect::<IndexSet<_>>();
 
             let factor_sources = HDFactorSource::all();
@@ -154,46 +175,76 @@ mod key_derivation_tests {
         async fn multi_keys_multi_factor_sources_multi_paths_complex() {
             let mut paths = IndexSet::new();
 
-            paths.extend(
-                [0, 1, 2]
-                    .into_iter()
-                    .map(|i| DerivationPath::unsecurified(Mainnet, Account, TransactionSigning, i)),
-            );
-
-            paths.extend(
-                [0, 1, 2].into_iter().map(|i| {
-                    DerivationPath::unsecurified(Stokenet, Account, TransactionSigning, i)
-                }),
-            );
-
-            paths.extend(
-                [0, 1, 2].into_iter().map(|i| {
-                    DerivationPath::unsecurified(Mainnet, Identity, TransactionSigning, i)
-                }),
-            );
-
-            paths.extend(
-                [0, 1, 2].into_iter().map(|i| {
-                    DerivationPath::unsecurified(Stokenet, Identity, TransactionSigning, i)
-                }),
-            );
-
-            paths.extend(
-                [0, 1, 2].into_iter().map(|i| {
-                    DerivationPath::unsecurified(Mainnet, Account, AuthenticationSigning, i)
-                }),
-            );
-
             paths.extend([0, 1, 2].into_iter().map(|i| {
-                DerivationPath::unsecurified(Stokenet, Account, AuthenticationSigning, i)
+                DerivationPath::unsecurified_hardening_base_index(
+                    Mainnet,
+                    Account,
+                    TransactionSigning,
+                    i,
+                )
             }));
 
             paths.extend([0, 1, 2].into_iter().map(|i| {
-                DerivationPath::unsecurified(Mainnet, Identity, AuthenticationSigning, i)
+                DerivationPath::unsecurified_hardening_base_index(
+                    Stokenet,
+                    Account,
+                    TransactionSigning,
+                    i,
+                )
             }));
 
             paths.extend([0, 1, 2].into_iter().map(|i| {
-                DerivationPath::unsecurified(Stokenet, Identity, AuthenticationSigning, i)
+                DerivationPath::unsecurified_hardening_base_index(
+                    Mainnet,
+                    Identity,
+                    TransactionSigning,
+                    i,
+                )
+            }));
+
+            paths.extend([0, 1, 2].into_iter().map(|i| {
+                DerivationPath::unsecurified_hardening_base_index(
+                    Stokenet,
+                    Identity,
+                    TransactionSigning,
+                    i,
+                )
+            }));
+
+            paths.extend([0, 1, 2].into_iter().map(|i| {
+                DerivationPath::unsecurified_hardening_base_index(
+                    Mainnet,
+                    Account,
+                    AuthenticationSigning,
+                    i,
+                )
+            }));
+
+            paths.extend([0, 1, 2].into_iter().map(|i| {
+                DerivationPath::unsecurified_hardening_base_index(
+                    Stokenet,
+                    Account,
+                    AuthenticationSigning,
+                    i,
+                )
+            }));
+
+            paths.extend([0, 1, 2].into_iter().map(|i| {
+                DerivationPath::unsecurified_hardening_base_index(
+                    Mainnet,
+                    Identity,
+                    AuthenticationSigning,
+                    i,
+                )
+            }));
+
+            paths.extend([0, 1, 2].into_iter().map(|i| {
+                DerivationPath::unsecurified_hardening_base_index(
+                    Stokenet,
+                    Identity,
+                    AuthenticationSigning,
+                    i,
+                )
             }));
 
             paths.extend(

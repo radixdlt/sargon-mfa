@@ -515,11 +515,15 @@ impl HDPathComponent {
             )))
         }
     }
+
+    /// Will harden `base_index`
     pub fn unsecurified_hardening_base_index(value: HDPathValue) -> Self {
         Self::Hardened(HDPathComponentHardened::Unsecurified(
             UnsecurifiedIndex::unsecurified_hardening_base_index(value),
         ))
     }
+
+    /// Will harden and add `BIP32_SECURIFIED_HALF` to `base_index`
     /// Provide a value which is not yet hardened nor securified
     pub fn securifying_base_index(base_index: HDPathValue) -> Self {
         Self::Hardened(HDPathComponentHardened::Securified(
@@ -744,17 +748,19 @@ impl DerivationPath {
             index,
         }
     }
-    pub fn unsecurified(
+
+    /// Will harden `base_index`
+    pub fn unsecurified_hardening_base_index(
         network_id: NetworkID,
         entity_kind: CAP26EntityKind,
         key_kind: CAP26KeyKind,
-        index: HDPathValue,
+        base_index: HDPathValue,
     ) -> Self {
         Self::new(
             network_id,
             entity_kind,
             key_kind,
-            HDPathComponent::unsecurified_hardening_base_index(index),
+            HDPathComponent::unsecurified_hardening_base_index(base_index),
         )
     }
     pub fn account_tx(network_id: NetworkID, index: HDPathComponent) -> Self {
