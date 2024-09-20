@@ -4,18 +4,25 @@ use crate::prelude::*;
 /// `derive_and_analyze`
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct RecoveredSecurifiedEntities {
-    entities: Vec<SecurifiedEntity>,
+    securified_entities: Vec<SecurifiedEntity>,
 }
 
 impl RecoveredSecurifiedEntities {
-    pub fn new(entities: IndexSet<SecurifiedEntity>) -> Self {
+    pub fn new(securified_entities: IndexSet<SecurifiedEntity>) -> Self {
         Self {
-            entities: entities.into_iter().collect(),
+            securified_entities: securified_entities.into_iter().collect(),
         }
     }
 
-    pub fn entities(&self) -> IndexSet<SecurifiedEntity> {
-        self.entities.clone().into_iter().collect()
+    pub fn securified_entities(&self) -> IndexSet<SecurifiedEntity> {
+        self.securified_entities.clone().into_iter().collect()
+    }
+
+    pub fn entities(&self) -> IndexSet<AccountOrPersona> {
+        self.securified_entities()
+            .into_iter()
+            .map(AccountOrPersona::from)
+            .collect()
     }
 }
 

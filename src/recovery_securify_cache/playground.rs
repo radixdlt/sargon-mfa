@@ -1,3 +1,5 @@
+#![allow(unused)]
+
 use crate::prelude::*;
 
 /// Derivation of many keys differs between the following operations,
@@ -59,36 +61,9 @@ async fn derive_and_analyze() -> Result<DerivationAndAnalysis> {
     todo!()
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct DerivationAndAnalysisAccountRecoveryScan {}
-
-impl TryFrom<DerivationAndAnalysis> for DerivationAndAnalysisAccountRecoveryScan {
-    type Error = CommonError;
-
-    fn try_from(value: DerivationAndAnalysis) -> Result<Self> {
-        warn!("ignored: {:?}", value);
-        todo!()
-    }
-}
-
 async fn _account_recovery_scan() -> Result<DerivationAndAnalysisAccountRecoveryScan> {
     let analysis = derive_and_analyze().await?;
     DerivationAndAnalysisAccountRecoveryScan::try_from(analysis)
-}
-
-#[derive(Debug)]
-pub struct PreDerivedKeysCache;
-
-#[derive(Debug)]
-pub struct AccountRecoveryScanOutcome {
-    pub cache: PreDerivedKeysCache,
-    pub profile: Profile,
-}
-impl From<DerivationAndAnalysisAccountRecoveryScan> for AccountRecoveryScanOutcome {
-    fn from(value: DerivationAndAnalysisAccountRecoveryScan) -> Self {
-        warn!("ignored: {:?}", value);
-        todo!()
-    }
 }
 
 pub async fn account_recovery_scan() -> Result<AccountRecoveryScanOutcome> {

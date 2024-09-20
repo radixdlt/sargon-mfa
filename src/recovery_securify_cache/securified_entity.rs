@@ -2,7 +2,7 @@ use crate::prelude::*;
 
 /// The `SecurifiedEntityControl`, address and possibly third party deposit state of some
 /// Securified entity.
-#[derive(Clone, Debug, PartialEq, Eq, Hash, Getters)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct SecurifiedEntity {
     /// The address which is verified to match the `veci`
     address: AddressOfAccountOrPersona,
@@ -27,6 +27,18 @@ impl SecurifiedEntity {
             third_party_deposit: third_party_deposit.into(),
         }
     }
+
+    pub fn address(&self) -> AddressOfAccountOrPersona {
+        self.address.clone()
+    }
+
+    pub fn securified_entity_control(&self) -> SecurifiedEntityControl {
+        self.securified_entity_control.clone()
+    }
+
+    pub fn third_party_deposit(&self) -> Option<ThirdPartyDepositPreference> {
+        self.third_party_deposit
+    }
 }
 
 impl HasSampleValues for SecurifiedEntity {
@@ -43,6 +55,22 @@ impl HasSampleValues for SecurifiedEntity {
             SecurifiedEntityControl::sample_other(),
             ThirdPartyDepositPreference::sample_other(),
         )
+    }
+}
+
+impl From<SecurifiedEntity> for AccountOrPersona {
+    fn from(value: SecurifiedEntity) -> Self {
+        let address = value.address();
+        let name = "Recovered";
+        let security_state = EntitySecurityState::Securified(value.securified_entity_control());
+
+        if let Ok(account_address) = address.clone().into_account() {
+            Account::new(name, account_address, security_state).into()
+        } else if let Ok(identity_address) = address.clone().into_identity() {
+            Persona::new(name, identity_address, security_state).into()
+        } else {
+            unreachable!("Either account or persona.")
+        }
     }
 }
 

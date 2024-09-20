@@ -1137,7 +1137,7 @@ impl<T: EntityKindSpecifier> EntityKindSpecifier for AbstractAddress<T> {
 pub type AccountAddress = AbstractAddress<AccountAddressTag>;
 pub type IdentityAddress = AbstractAddress<IdentityAddressTag>;
 
-#[derive(Clone, PartialEq, Eq, std::hash::Hash, derive_more::Display)]
+#[derive(Clone, PartialEq, Eq, std::hash::Hash, derive_more::Display, EnumAsInner)]
 pub enum AddressOfAccountOrPersona {
     Account(AccountAddress),
     Identity(IdentityAddress),

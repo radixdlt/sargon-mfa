@@ -2,7 +2,7 @@ use crate::prelude::*;
 
 /// The HDFactorInstance, address and possibly third party deposit state of some
 /// unsecurified entity.
-#[derive(Clone, Debug, PartialEq, Eq, Hash, Getters)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct UnsecurifiedEntity {
     /// The address which is verified to match the `veci`
     address: AddressOfAccountOrPersona,
@@ -53,6 +53,34 @@ impl UnsecurifiedEntity {
             address,
             veci,
             third_party_deposit: None,
+        }
+    }
+
+    pub fn address(&self) -> AddressOfAccountOrPersona {
+        self.address.clone()
+    }
+
+    pub fn veci(&self) -> HierarchicalDeterministicFactorInstance {
+        self.veci.clone()
+    }
+
+    pub fn third_party_deposit(&self) -> Option<ThirdPartyDepositPreference> {
+        self.third_party_deposit
+    }
+}
+
+impl From<UnsecurifiedEntity> for AccountOrPersona {
+    fn from(value: UnsecurifiedEntity) -> Self {
+        let address = value.address();
+        let name = "Recovered";
+        let security_state = EntitySecurityState::Unsecured(value.veci());
+
+        if let Ok(account_address) = address.clone().into_account() {
+            Account::new(name, account_address, security_state).into()
+        } else if let Ok(identity_address) = address.clone().into_identity() {
+            Persona::new(name, identity_address, security_state).into()
+        } else {
+            unreachable!("Either account or persona.")
         }
     }
 }

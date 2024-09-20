@@ -16,6 +16,10 @@ impl UnrecoveredSecurifiedEntities {
             entities: entities.into_iter().collect(),
         }
     }
+
+    pub fn entities(&self) -> IndexSet<UnrecoveredSecurifiedEntity> {
+        self.entities.clone().into_iter().collect()
+    }
 }
 
 impl HasSampleValues for UnrecoveredSecurifiedEntities {
