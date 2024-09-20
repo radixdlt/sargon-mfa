@@ -78,7 +78,11 @@ impl UncachedFactorInstanceProvider {
     ) -> IndexMap<FactorSourceIDFromHash, IndexSet<DerivationPath>> {
         todo!()
     }
-    async fn derive_instances(
+}
+
+#[async_trait::async_trait]
+impl IsFactorInstancesProvider for UncachedFactorInstanceProvider {
+    async fn provide_instances(
         &self,
         derivation_requests: IndexSet<DerivationRequest>,
     ) -> Result<IndexSet<HierarchicalDeterministicFactorInstance>> {
@@ -90,15 +94,5 @@ impl UncachedFactorInstanceProvider {
         )?;
         let derived = keys_collector.collect_keys().await;
         Ok(derived.all_factors())
-    }
-}
-
-#[async_trait::async_trait]
-impl IsFactorInstancesProvider for UncachedFactorInstanceProvider {
-    async fn provide_instances(
-        &self,
-        derivation_requests: IndexSet<DerivationRequest>,
-    ) -> Result<IndexSet<HierarchicalDeterministicFactorInstance>> {
-        self.derive_instances(derivation_requests).await
     }
 }
