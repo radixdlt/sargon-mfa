@@ -3,12 +3,16 @@ use crate::prelude::*;
 /// "Probably" since we might not have all the information to be sure, since
 /// Gateway might not keep track of past FactorInstances, some of the FactorInstances
 /// in KeySpace::Securified might in fact have been used in the past for some entity.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ProbablyFreeFactorInstances(IndexSet<HierarchicalDeterministicFactorInstance>);
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct ProbablyFreeFactorInstances {
+    factor_instances: Vec<HierarchicalDeterministicFactorInstance>,
+}
 
 impl ProbablyFreeFactorInstances {
     pub fn new(instances: IndexSet<HierarchicalDeterministicFactorInstance>) -> Self {
-        Self(instances)
+        Self {
+            factor_instances: instances.into_iter().collect(),
+        }
     }
 }
 

@@ -109,6 +109,15 @@ pub struct HDFactorSource {
     id: FactorSourceIDFromHash,
 }
 
+impl HasSampleValues for HDFactorSource {
+    fn sample() -> Self {
+        Self::device()
+    }
+    fn sample_other() -> Self {
+        Self::ledger()
+    }
+}
+
 impl HDFactorSource {
     pub fn is_olympia(&self) -> bool {
         // TODO add support for Olympia and test!
@@ -266,6 +275,21 @@ impl HasSampleValues for FactorSourceKind {
     }
     fn sample_other() -> Self {
         FactorSourceKind::Ledger
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, EnumAsInner)]
+pub enum ThirdPartyDepositPreference {
+    DenyAll,
+    AllowAll,
+    AllowKnown,
+}
+impl HasSampleValues for ThirdPartyDepositPreference {
+    fn sample() -> Self {
+        ThirdPartyDepositPreference::DenyAll
+    }
+    fn sample_other() -> Self {
+        ThirdPartyDepositPreference::AllowAll
     }
 }
 
@@ -975,6 +999,21 @@ impl SecurifiedEntityControl {
     }
 }
 
+impl HasSampleValues for SecurifiedEntityControl {
+    fn sample() -> Self {
+        Self::new(
+            MatrixOfFactorInstances::sample(),
+            AccessController::sample(),
+        )
+    }
+    fn sample_other() -> Self {
+        Self::new(
+            MatrixOfFactorInstances::sample_other(),
+            AccessController::sample_other(),
+        )
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, std::hash::Hash, EnumAsInner)]
 pub enum EntitySecurityState {
     Unsecured(HierarchicalDeterministicFactorInstance),
@@ -1104,6 +1143,13 @@ pub enum AddressOfAccountOrPersona {
     Identity(IdentityAddress),
 }
 impl AddressOfAccountOrPersona {
+    pub fn derived_from_factor_instance(
+        &self,
+        factor_instance: &HierarchicalDeterministicFactorInstance,
+    ) -> bool {
+        factor_instance.public_key_hash() == self.public_key_hash()
+    }
+
     pub fn new(
         factor_instance: HierarchicalDeterministicFactorInstance,
         network_id: NetworkID,
@@ -1179,6 +1225,9 @@ pub enum AccountOrPersona {
     PersonaEntity(Persona),
 }
 impl AccountOrPersona {
+    pub fn third_party_deposit_settings(&self) -> ThirdPartyDepositPreference {
+        ThirdPartyDepositPreference::AllowAll // TODO let me stored field...
+    }
     pub fn network_id(&self) -> NetworkID {
         match self {
             AccountOrPersona::AccountEntity(a) => a.network_id(),
@@ -1781,18 +1830,6 @@ pub struct Profile {
     pub personas: HashMap<IdentityAddress, Persona>,
 }
 
-#[derive(Clone, PartialEq, Eq, Debug, Hash)]
-pub struct SecurifiedEntity {
-    pub entity: AccountOrPersona,
-    pub control: SecurifiedEntityControl,
-}
-
-#[derive(Clone, PartialEq, Eq, Debug, Hash)]
-pub struct UnsecurifiedEntity {
-    pub entity: AccountOrPersona,
-    pub factor_instance: HierarchicalDeterministicFactorInstance,
-}
-
 impl Profile {
     pub fn get_entities_erased(&self, entity_kind: CAP26EntityKind) -> IndexSet<AccountOrPersona> {
         match entity_kind {
@@ -1846,7 +1883,7 @@ impl Profile {
                 EntitySecurityState::Securified(control) => control,
                 _ => unreachable!(),
             };
-            SecurifiedEntity { entity: e, control }
+            SecurifiedEntity::new(e.address(), control, e.third_party_deposit_settings())
         })
         .collect()
     }
@@ -1867,10 +1904,11 @@ impl Profile {
                 EntitySecurityState::Unsecured(factor_instance) => factor_instance,
                 _ => unreachable!(),
             };
-            UnsecurifiedEntity {
-                entity: e,
+            UnsecurifiedEntity::new(
+                e.address(),
                 factor_instance,
-            }
+                e.third_party_deposit_settings(),
+            )
         })
         .collect()
     }

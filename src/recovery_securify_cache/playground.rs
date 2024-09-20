@@ -55,30 +55,43 @@ use crate::prelude::*;
 ///     - `VECI` Addition: NO
 ///     - Gateway Required: NO (but beneficial to use it if host is online to
 ///         analyze if FactorInstance are free.)
-pub fn derive_and_analyze() -> DerivationAndAnalysis {
+async fn derive_and_analyze() -> Result<DerivationAndAnalysis> {
     todo!()
 }
 
-/// The outcome of `derive_and_analyze` method. Contains:
-/// * set of "probably free" FactorInstances
-/// * set of created/discovered entities in spaces
-///     - KeySpace::Unsecurified
-///     - KeySpace::Securified
-///         i. Recovered
-///         ii. Unrecovered
-/// * set of discovered new VECIs (and the address of the entity)
-/// * set of involved FactorSource divided into:
-///     - Existing FactorSources
-///     - NewFactorSources
-///
-/// The set of "probably free" FactorInstances will be used to fill
-/// the PreDerivedKeysCache!
-///
-/// All new FactorSources and Entities should be added to Profile -
-/// either existing or new!
-///
-/// All discovered VECI should be added into their matched securified entity
-///
-pub struct DerivationAndAnalysis {
-    pub probably_free_instances: ProbablyFreeFactorInstances,
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct DerivationAndAnalysisAccountRecoveryScan {}
+
+impl TryFrom<DerivationAndAnalysis> for DerivationAndAnalysisAccountRecoveryScan {
+    type Error = CommonError;
+
+    fn try_from(value: DerivationAndAnalysis) -> Result<Self> {
+        warn!("ignored: {:?}", value);
+        todo!()
+    }
+}
+
+async fn _account_recovery_scan() -> Result<DerivationAndAnalysisAccountRecoveryScan> {
+    let analysis = derive_and_analyze().await?;
+    DerivationAndAnalysisAccountRecoveryScan::try_from(analysis)
+}
+
+#[derive(Debug)]
+pub struct PreDerivedKeysCache;
+
+#[derive(Debug)]
+pub struct AccountRecoveryScanOutcome {
+    pub cache: PreDerivedKeysCache,
+    pub profile: Profile,
+}
+impl From<DerivationAndAnalysisAccountRecoveryScan> for AccountRecoveryScanOutcome {
+    fn from(value: DerivationAndAnalysisAccountRecoveryScan) -> Self {
+        warn!("ignored: {:?}", value);
+        todo!()
+    }
+}
+
+pub async fn account_recovery_scan() -> Result<AccountRecoveryScanOutcome> {
+    let analysis = _account_recovery_scan().await?;
+    Ok(AccountRecoveryScanOutcome::from(analysis))
 }
