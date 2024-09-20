@@ -55,4 +55,30 @@ use crate::prelude::*;
 ///     - `VECI` Addition: NO
 ///     - Gateway Required: NO (but beneficial to use it if host is online to
 ///         analyze if FactorInstance are free.)
-pub struct Playground;
+pub fn derive_and_analyze() -> DerivationAndAnalysis {
+    todo!()
+}
+
+/// The outcome of `derive_and_analyze` method. Contains:
+/// * set of "probably free" FactorInstances
+/// * set of created/discovered entities in spaces
+///     - KeySpace::Unsecurified
+///     - KeySpace::Securified
+///         i. Recovered
+///         ii. Unrecovered
+/// * set of discovered new VECIs (and the address of the entity)
+/// * set of involved FactorSource divided into:
+///     - Existing FactorSources
+///     - NewFactorSources
+///
+/// The set of "probably free" FactorInstances will be used to fill
+/// the PreDerivedKeysCache!
+///
+/// All new FactorSources and Entities should be added to Profile -
+/// either existing or new!
+///
+/// All discovered VECI should be added into their matched securified entity
+///
+pub struct DerivationAndAnalysis {
+    pub probably_free_instances: ProbablyFreeFactorInstances,
+}
