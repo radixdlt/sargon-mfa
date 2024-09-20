@@ -7,10 +7,10 @@ pub(crate) struct SignaturesCollectorPreprocessor {
 pub(crate) fn sort_group_factors(
     used_factor_sources: HashSet<HDFactorSource>,
 ) -> IndexSet<FactorSourcesOfKind> {
-    let factors_of_kind = used_factor_sources
+    let factors_of_kind: HashMap<FactorSourceKind, IndexSet<HDFactorSource>> = used_factor_sources
         .into_iter()
         .into_grouping_map_by(|x| x.factor_source_kind())
-        .collect::<IndexSet<HDFactorSource>>();
+        .collect::<IndexSet<_>>();
 
     let mut factors_of_kind = factors_of_kind
         .into_iter()
@@ -51,7 +51,7 @@ impl SignaturesCollectorPreprocessor {
             if let Some(ref mut txids) = factor_to_payloads.get_mut(id) {
                 txids.insert(txid.clone());
             } else {
-                factor_to_payloads.insert(*id, IndexSet::from_iter([txid.clone()]));
+                factor_to_payloads.insert(*id, IndexSet::just(txid.clone()));
             }
 
             assert!(!factor_to_payloads.is_empty());
@@ -72,7 +72,7 @@ impl SignaturesCollectorPreprocessor {
                 let address = entity.address();
                 match entity.security_state() {
                     EntitySecurityState::Securified(sec) => {
-                        let primary_role_matrix = sec;
+                        let primary_role_matrix = sec.matrix;
 
                         let mut add = |factors: Vec<HierarchicalDeterministicFactorInstance>| {
                             factors.into_iter().for_each(|f| {

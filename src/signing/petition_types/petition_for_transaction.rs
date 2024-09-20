@@ -109,8 +109,7 @@ impl PetitionForTransaction {
         &self,
         factor_source_id: &FactorSourceIDFromHash,
     ) -> TransactionSignRequestInput {
-        assert!(!self
-            .should_neglect_factors_due_to_irrelevant(IndexSet::from_iter([*factor_source_id])));
+        assert!(!self.should_neglect_factors_due_to_irrelevant(IndexSet::just(*factor_source_id)));
         assert!(!self.has_tx_failed());
         TransactionSignRequestInput::new(
             self.intent_hash.clone(),
@@ -187,7 +186,7 @@ impl HasSampleValues for PetitionForTransaction {
         let entity = Account::sample_securified();
         Self::new(
             intent_hash.clone(),
-            HashMap::from_iter([(
+            HashMap::just((
                 entity.address(),
                 PetitionForEntity::new(
                     intent_hash.clone(),
@@ -195,7 +194,7 @@ impl HasSampleValues for PetitionForTransaction {
                     PetitionForFactors::sample(),
                     PetitionForFactors::sample_other(),
                 ),
-            )]),
+            )),
         )
     }
 
@@ -204,7 +203,7 @@ impl HasSampleValues for PetitionForTransaction {
         let entity = Persona::sample_unsecurified();
         Self::new(
             intent_hash.clone(),
-            HashMap::from_iter([(
+            HashMap::just((
                 entity.address(),
                 PetitionForEntity::new(
                     intent_hash.clone(),
@@ -212,7 +211,7 @@ impl HasSampleValues for PetitionForTransaction {
                     PetitionForFactors::sample_other(),
                     None,
                 ),
-            )]),
+            )),
         )
     }
 }
@@ -246,7 +245,7 @@ mod tests {
 
         let account = Account::a5();
         let matrix = match account.security_state() {
-            EntitySecurityState::Securified(matrix) => matrix.clone(),
+            EntitySecurityState::Securified(sec) => sec.matrix.clone(),
             EntitySecurityState::Unsecured(_) => panic!(),
         };
         let petition =
@@ -254,7 +253,7 @@ mod tests {
 
         let sut = Sut::new(
             IntentHash::sample(),
-            HashMap::from_iter([(account.address(), petition)]),
+            HashMap::just((account.address(), petition)),
         );
         sut.neglect_factor_source(NeglectedFactor::new(
             NeglectFactorReason::Failure,
@@ -275,7 +274,7 @@ mod tests {
 
         let account = Account::a5();
         let matrix = match account.security_state() {
-            EntitySecurityState::Securified(matrix) => matrix.clone(),
+            EntitySecurityState::Securified(sec) => sec.matrix.clone(),
             EntitySecurityState::Unsecured(_) => panic!(),
         };
         let petition =
@@ -283,7 +282,7 @@ mod tests {
 
         let sut = Sut::new(
             IntentHash::sample(),
-            HashMap::from_iter([(account.address(), petition)]),
+            HashMap::just((account.address(), petition)),
         );
         sut.neglect_factor_source(NeglectedFactor::new(
             NeglectFactorReason::Failure,

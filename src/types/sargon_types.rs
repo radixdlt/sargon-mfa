@@ -1,4 +1,7 @@
+use std::iter::Step;
 use std::marker::PhantomData;
+
+use indexmap::map::Keys;
 
 use crate::prelude::*;
 
@@ -49,7 +52,17 @@ fn take_last_n(str: impl AsRef<str>, n: usize) -> String {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, std::hash::Hash, derive_more::Display, derive_more::Debug)]
+#[derive(
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    std::hash::Hash,
+    derive_more::Display,
+    derive_more::Debug,
+)]
 #[display("{kind}:{}", take_last_n(self.id.to_string(), 2))]
 #[debug("{}", self.to_string())]
 pub struct FactorSourceIDFromHash {
@@ -97,6 +110,10 @@ pub struct HDFactorSource {
 }
 
 impl HDFactorSource {
+    pub fn is_olympia(&self) -> bool {
+        // TODO add support for Olympia and test!
+        false
+    }
     pub fn factor_source_id(&self) -> FactorSourceIDFromHash {
         self.id
     }
@@ -156,6 +173,21 @@ impl<T: std::hash::Hash + Eq> Just<T> for IndexSet<T> {
         Self::from_iter([item])
     }
 }
+impl<T: std::hash::Hash + Eq> Just<T> for HashSet<T> {
+    fn just(item: T) -> Self {
+        Self::from_iter([item])
+    }
+}
+impl<K: std::hash::Hash + Eq, V> Just<(K, V)> for IndexMap<K, V> {
+    fn just(item: (K, V)) -> Self {
+        Self::from_iter([item])
+    }
+}
+impl<K: std::hash::Hash + Eq, V> Just<(K, V)> for HashMap<K, V> {
+    fn just(item: (K, V)) -> Self {
+        Self::from_iter([item])
+    }
+}
 
 #[repr(u32)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, std::hash::Hash, PartialOrd, Ord, strum::Display)]
@@ -167,7 +199,67 @@ pub enum FactorSourceKind {
     OffDeviceMnemonic,
     Device,
 }
+impl FactorSourceKind {
+    pub fn derivation_size(
+        &self,
+        key_space: KeySpace,
+        key_kind: CAP26KeyKind,
+        entity_kind: CAP26EntityKind,
+    ) -> Option<usize> {
+        match (key_kind, key_space, entity_kind) {
+            (CAP26KeyKind::TransactionSigning, KeySpace::Unsecurified, _) => {
+                self.derivation_size_t9n_unsecurified()
+            }
+            (CAP26KeyKind::TransactionSigning, KeySpace::Securified, _) => {
+                self.derivation_size_t9n_securified()
+            }
+            (
+                CAP26KeyKind::AuthenticationSigning,
+                KeySpace::Securified,
+                CAP26EntityKind::Identity,
+            ) => self.derivation_size_rola(),
+            _ => {
+                warn!("Non-sensical derivation request: factor_source_kind: {}, key_space: {}, key_kind: {}, entity_kind: {}", self, key_space, key_kind, entity_kind);
+                None
+            }
+        }
+    }
 
+    /// (KeyKind::AuthenticationSigning)
+    fn derivation_size_rola(&self) -> Option<usize> {
+        match self {
+            Self::Device => Some(1),
+            Self::Ledger
+            | Self::SecurityQuestions
+            | Self::OffDeviceMnemonic
+            | Self::Arculus
+            | Self::Yubikey => {
+                // only Device can be used for ROLA
+                None
+            }
+        }
+    }
+
+    /// (KeyKind::TransactionSigning, KeySpace::Unsecurified)
+    fn derivation_size_t9n_unsecurified(&self) -> Option<usize> {
+        match self {
+            Self::Device => Some(50), // extra large since fast and most commonly used for unsecurified entities
+            Self::Ledger => Some(30),
+            Self::SecurityQuestions | Self::OffDeviceMnemonic | Self::Arculus | Self::Yubikey => {
+                // Virtual Entity creation not supported using these kinds
+                None
+            }
+        }
+    }
+    /// (KeyKind::TransactionSigning, KeySpace::Securified)
+    fn derivation_size_t9n_securified(&self) -> Option<usize> {
+        match self {
+            Self::Device | Self::SecurityQuestions | Self::OffDeviceMnemonic => Some(30), //
+            Self::Ledger | Self::Yubikey => Some(20),                                     // Slow
+            Self::Arculus => Some(10), // Very slow
+        }
+    }
+}
 impl HasSampleValues for FactorSourceKind {
     fn sample() -> Self {
         FactorSourceKind::Device
@@ -182,51 +274,416 @@ pub type HDPathValue = u32;
 #[derive(
     Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, derive_more::Display, derive_more::Debug,
 )]
-#[display("{value}")]
-#[debug("{value}")]
-pub struct HDPathComponent {
-    pub value: HDPathValue,
+#[display("{_0}")]
+#[debug("{_0}")]
+pub struct UnhardenedIndex(u32);
+impl UnhardenedIndex {
+    /// # Panics
+    /// Panics if value is >= BIP32_HARDENED
+    pub fn new(value: u32) -> Self {
+        assert!(value < BIP32_HARDENED);
+        Self(value)
+    }
+    pub fn to_bytes(&self) -> Vec<u8> {
+        self.0.to_be_bytes().to_vec()
+    }
+
+    pub fn add_n(&self, n: HDPathValue) -> Self {
+        let base_index = self.base_index();
+
+        assert!(
+            (base_index as u64 + n as u64) < BIP32_HARDENED as u64,
+            "Index would overflow beyond BIP32_HARDENED if we would add {}.",
+            n
+        );
+
+        Self::new(self.0 + n)
+    }
+
+    pub(crate) fn base_index(&self) -> HDPathValue {
+        self.0
+    }
 }
+
+/// Hardened Unsecurified Index
+#[derive(
+    Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, derive_more::Display, derive_more::Debug,
+)]
+#[display("{}'", self.base_index())]
+#[debug("{}'", self.base_index())]
+pub struct UnsecurifiedIndex(HDPathValue);
+impl UnsecurifiedIndex {
+    /// # Panics
+    /// Panics if value < BIP32_HARDENED || >= BIP32_SECURIFIED_HALF
+    pub fn new(value: HDPathValue) -> Self {
+        assert!(value >= BIP32_HARDENED);
+        assert!(value < (BIP32_HARDENED + BIP32_SECURIFIED_HALF));
+        Self(value)
+    }
+    pub fn unsecurified_hardening_base_index(base_index: HDPathValue) -> Self {
+        Self::new(base_index + BIP32_HARDENED)
+    }
+    pub fn to_bytes(&self) -> Vec<u8> {
+        self.0.to_be_bytes().to_vec()
+    }
+
+    pub fn add_n(&self, n: HDPathValue) -> Self {
+        let base_index = self.base_index();
+        assert!(
+            (base_index as u64 + n as u64) < (BIP32_HARDENED + BIP32_SECURIFIED_HALF) as u64,
+            "Index would overflow beyond BIP32_SECURIFIED_HALF if incremented with {:?}.",
+            n,
+        );
+
+        Self::new(self.0 + n)
+    }
+
+    pub(crate) fn base_index(&self) -> HDPathValue {
+        self.0 - BIP32_HARDENED
+    }
+}
+
+/// Hardened Securified Index
+#[derive(
+    Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, derive_more::Display, derive_more::Debug,
+)]
+#[display("{}^", self.base_index())]
+#[debug("{}^", self.base_index())]
+pub struct SecurifiedIndex(u32);
+impl SecurifiedIndex {
+    /// # Panics
+    /// Panics if value < BIP32_HARDENED + BIP32_SECURIFIED_HALF
+    pub fn new(value: u32) -> Self {
+        assert!(value >= BIP32_HARDENED + BIP32_SECURIFIED_HALF);
+        Self(value)
+    }
+
+    pub fn securifying_base_index(base_index: u32) -> Self {
+        Self::new(base_index + BIP32_HARDENED + BIP32_SECURIFIED_HALF)
+    }
+
+    pub fn to_bytes(&self) -> Vec<u8> {
+        self.0.to_be_bytes().to_vec()
+    }
+
+    pub fn add_n(&self, n: HDPathValue) -> Self {
+        let base_index = self.base_index();
+        assert!(
+            (base_index as u64 + n as u64) < HDPathValue::MAX as u64,
+            "Index would overflow beyond 2^32 if incremented with {:?}.",
+            n,
+        );
+
+        Self::new(self.0 + n)
+    }
+
+    pub(crate) fn base_index(&self) -> HDPathValue {
+        self.0 - BIP32_HARDENED - BIP32_SECURIFIED_HALF
+    }
+}
+
+#[derive(
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Hash,
+    PartialOrd,
+    Ord,
+    EnumAsInner,
+    derive_more::Display,
+    derive_more::Debug,
+)]
+pub enum HDPathComponentHardened {
+    #[display("{_0}")]
+    #[debug("{_0}")]
+    Unsecurified(UnsecurifiedIndex),
+    #[display("{_0}")]
+    #[debug("{_0}")]
+    Securified(SecurifiedIndex),
+}
+
+impl From<UnsecurifiedIndex> for HDPathComponentHardened {
+    fn from(u: UnsecurifiedIndex) -> Self {
+        Self::Unsecurified(u)
+    }
+}
+impl From<SecurifiedIndex> for HDPathComponentHardened {
+    fn from(u: SecurifiedIndex) -> Self {
+        Self::Securified(u)
+    }
+}
+impl HDPathComponentHardened {
+    pub fn to_bytes(&self) -> Vec<u8> {
+        match self {
+            Self::Unsecurified(u) => u.to_bytes(),
+            Self::Securified(s) => s.to_bytes(),
+        }
+    }
+
+    pub fn is_in_key_space(&self, key_space: KeySpace) -> bool {
+        match self {
+            Self::Unsecurified(_) => key_space == KeySpace::Unsecurified,
+            Self::Securified(_) => key_space == KeySpace::Securified,
+        }
+    }
+
+    pub fn add_n(&self, n: HDPathValue) -> Self {
+        match self {
+            Self::Unsecurified(u) => u.add_n(n).into(),
+            Self::Securified(s) => s.add_n(n).into(),
+        }
+    }
+
+    pub(crate) fn base_index(&self) -> HDPathValue {
+        match self {
+            Self::Unsecurified(u) => u.base_index(),
+            Self::Securified(s) => s.base_index(),
+        }
+    }
+}
+
+#[derive(
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Hash,
+    PartialOrd,
+    Ord,
+    EnumAsInner,
+    derive_more::Display,
+    derive_more::Debug,
+)]
+pub enum HDPathComponent {
+    #[display("{_0}")]
+    #[debug("{_0}")]
+    Unhardened(UnhardenedIndex),
+    #[display("{_0}")]
+    #[debug("{_0}")]
+    Hardened(HDPathComponentHardened),
+}
+
+impl From<UnhardenedIndex> for HDPathComponent {
+    fn from(u: UnhardenedIndex) -> Self {
+        Self::Unhardened(u)
+    }
+}
+impl From<HDPathComponentHardened> for HDPathComponent {
+    fn from(u: HDPathComponentHardened) -> Self {
+        Self::Hardened(u)
+    }
+}
+
+impl HDPathComponent {
+    pub fn to_bytes(&self) -> Vec<u8> {
+        match self {
+            Self::Unhardened(u) => u.to_bytes(),
+            Self::Hardened(h) => h.to_bytes(),
+        }
+    }
+}
+
 pub const BIP32_SECURIFIED_HALF: u32 = 0x4000_0000;
 pub(crate) const BIP32_HARDENED: u32 = 0x8000_0000;
 
+impl Step for HDPathComponent {
+    fn steps_between(start: &Self, end: &Self) -> Option<usize> {
+        Some((end.base_index() - start.base_index()) as usize)
+    }
+
+    fn forward_checked(start: Self, count: usize) -> Option<Self> {
+        start.add_n_checked(count as u32)
+    }
+
+    fn backward_checked(_start: Self, _count: usize) -> Option<Self> {
+        unreachable!("not needed, use (N..M) instead of (M..N) when M > N.")
+    }
+}
+
 impl HDPathComponent {
-    pub fn non_hardened(value: HDPathValue) -> Self {
-        assert!(
-            value < BIP32_HARDENED,
-            "Passed value was hardened, expected it to not be."
-        );
-        Self { value }
+    pub fn new_from_base_index(base_index: HDPathValue) -> Self {
+        if base_index < BIP32_HARDENED {
+            Self::Unhardened(UnhardenedIndex::new(base_index))
+        } else if base_index < BIP32_SECURIFIED_HALF {
+            Self::Hardened(HDPathComponentHardened::Unsecurified(
+                UnsecurifiedIndex::new(base_index),
+            ))
+        } else {
+            Self::Hardened(HDPathComponentHardened::Securified(SecurifiedIndex::new(
+                base_index,
+            )))
+        }
     }
-    pub fn securified(value: HDPathValue) -> Self {
-        Self::non_hardened(value + BIP32_SECURIFIED_HALF)
+
+    /// Will harden `base_index`
+    pub fn unsecurified_hardening_base_index(value: HDPathValue) -> Self {
+        Self::Hardened(HDPathComponentHardened::Unsecurified(
+            UnsecurifiedIndex::unsecurified_hardening_base_index(value),
+        ))
     }
-    pub fn to_bytes(&self) -> Vec<u8> {
-        self.value.to_be_bytes().to_vec()
+
+    /// Will harden and add `BIP32_SECURIFIED_HALF` to `base_index`
+    /// Provide a value which is not yet hardened nor securified
+    pub fn securifying_base_index(base_index: HDPathValue) -> Self {
+        Self::Hardened(HDPathComponentHardened::Securified(
+            SecurifiedIndex::securifying_base_index(base_index),
+        ))
+    }
+}
+
+impl HDPathComponent {
+    pub fn key_space(&self) -> KeySpace {
+        if self.is_securified() {
+            KeySpace::Securified
+        } else {
+            KeySpace::Unsecurified
+        }
+    }
+    pub fn is_in_key_space(&self, key_space: KeySpace) -> bool {
+        match self {
+            Self::Unhardened(_) => key_space == KeySpace::Unsecurified,
+            Self::Hardened(h) => h.is_in_key_space(key_space),
+        }
+    }
+
+    /// # Panics
+    /// Panics if self would overflow within its key space.
+    pub fn add_n_checked(&self, n: HDPathValue) -> Option<Self> {
+        use std::panic;
+        panic::catch_unwind(|| self.add_n(n)).ok()
+    }
+
+    /// # Panics
+    /// Panics if self would overflow within its key space.
+    pub fn add_n(&self, n: HDPathValue) -> Self {
+        match self {
+            Self::Hardened(h) => h.add_n(n).into(),
+            Self::Unhardened(u) => u.add_n(n).into(),
+        }
+    }
+
+    /// # Panics
+    /// Panics if self would overflow within its keyspace.
+    pub fn add_assign_one(&mut self) {
+        *self = self.add_one()
+    }
+
+    /// # Panics
+    /// Panics if self would overflow within its keyspace.
+    pub fn add_one(&self) -> Self {
+        self.add_n(1)
+    }
+
+    #[allow(unused)]
+    pub(crate) fn is_securified(&self) -> bool {
+        match self {
+            Self::Hardened(h) => h.is_securified(),
+            Self::Unhardened(_) => false,
+        }
+    }
+
+    pub(crate) fn base_index(&self) -> HDPathValue {
+        match self {
+            Self::Hardened(h) => h.base_index(),
+            Self::Unhardened(u) => u.base_index(),
+        }
+    }
+
+    #[allow(unused)]
+    pub(crate) fn securified_base_index(&self) -> Option<HDPathValue> {
+        match self {
+            Self::Hardened(h) => match h {
+                HDPathComponentHardened::Securified(s) => Some(s.base_index()),
+                _ => None,
+            },
+            Self::Unhardened(_) => None,
+        }
     }
 }
 impl HasSampleValues for HDPathComponent {
     fn sample() -> Self {
-        Self::non_hardened(0)
+        Self::unsecurified_hardening_base_index(0)
     }
     fn sample_other() -> Self {
-        Self::non_hardened(1)
+        Self::securifying_base_index(1)
     }
 }
 
-#[repr(u8)]
+#[cfg(test)]
+mod tests_hdpathcomp {
+
+    use super::*;
+
+    type Sut = HDPathComponent;
+
+    #[test]
+    fn add_one_successful() {
+        let t = |value: Sut, expected_base_index: HDPathValue| {
+            let actual = value.add_one();
+            assert_eq!(actual.base_index(), expected_base_index)
+        };
+        t(Sut::unsecurified_hardening_base_index(0), 1);
+        t(Sut::unsecurified_hardening_base_index(5), 6);
+        t(
+            Sut::new_from_base_index(BIP32_SECURIFIED_HALF - 2),
+            BIP32_SECURIFIED_HALF - 1,
+        );
+
+        t(Sut::securifying_base_index(0), 1);
+        t(Sut::securifying_base_index(5), 6);
+        t(
+            Sut::securifying_base_index(BIP32_SECURIFIED_HALF - 3),
+            BIP32_SECURIFIED_HALF - 2,
+        );
+
+        t(
+            Sut::securifying_base_index(BIP32_SECURIFIED_HALF - 2),
+            BIP32_SECURIFIED_HALF - 1,
+        );
+    }
+
+    #[test]
+    #[should_panic]
+    fn add_one_unsecurified_max_panics() {
+        let sut = Sut::unsecurified_hardening_base_index(BIP32_SECURIFIED_HALF - 1);
+        _ = sut.add_one()
+    }
+
+    #[test]
+    #[should_panic]
+    fn add_one_securified_max_panics() {
+        let sut = Sut::securifying_base_index(BIP32_SECURIFIED_HALF - 1);
+        _ = sut.add_one()
+    }
+
+    #[test]
+    fn index_if_securified() {
+        let i = 5;
+        let sut = Sut::securifying_base_index(i);
+        assert_eq!(sut.base_index(), i);
+        assert_eq!(sut.securified_base_index(), Some(i));
+    }
+}
+
+#[repr(u16)]
 #[derive(Clone, Copy, PartialEq, Eq, Hash, derive_more::Display, derive_more::Debug)]
 pub enum CAP26KeyKind {
+    /// For a key to be used for signing transactions.
+    /// The value is the ascii sum of `"TRANSACTION_SIGNING"`
     #[display("tx")]
     #[debug("tx")]
-    T9n,
+    TransactionSigning = 1460,
 
+    /// For a key to be used for signing authentication..
+    /// The value is the ascii sum of `"AUTHENTICATION_SIGNING"`
     #[display("rola")]
     #[debug("rola")]
-    Rola,
+    AuthenticationSigning = 1678,
 }
+
 impl CAP26KeyKind {
-    fn discriminant(&self) -> u8 {
+    fn discriminant(&self) -> u16 {
         core::intrinsics::discriminant_value(self)
     }
 }
@@ -291,24 +748,26 @@ impl DerivationPath {
             index,
         }
     }
-    pub fn at(
+
+    /// Will harden `base_index`
+    pub fn unsecurified_hardening_base_index(
         network_id: NetworkID,
         entity_kind: CAP26EntityKind,
         key_kind: CAP26KeyKind,
-        index: HDPathValue,
+        base_index: HDPathValue,
     ) -> Self {
         Self::new(
             network_id,
             entity_kind,
             key_kind,
-            HDPathComponent::non_hardened(index),
+            HDPathComponent::unsecurified_hardening_base_index(base_index),
         )
     }
     pub fn account_tx(network_id: NetworkID, index: HDPathComponent) -> Self {
         Self::new(
             network_id,
             CAP26EntityKind::Account,
-            CAP26KeyKind::T9n,
+            CAP26KeyKind::TransactionSigning,
             index,
         )
     }
@@ -317,7 +776,7 @@ impl DerivationPath {
         let mut vec = Vec::new();
         vec.push(self.network_id.discriminant());
         vec.push(self.entity_kind.discriminant());
-        vec.push(self.key_kind.discriminant());
+        vec.extend(self.key_kind.discriminant().to_be_bytes());
         vec.extend(self.index.to_bytes());
         vec
     }
@@ -327,13 +786,20 @@ impl DerivationPath {
 pub struct PublicKey {
     /// this emulates the mnemonic
     factor_source_id: FactorSourceIDFromHash,
+    /// this emulates the node in the HD tree
+    derivation_path: DerivationPath,
 }
 impl PublicKey {
-    pub fn new(factor_source_id: FactorSourceIDFromHash) -> Self {
-        Self { factor_source_id }
+    pub fn new(factor_source_id: FactorSourceIDFromHash, derivation_path: DerivationPath) -> Self {
+        Self {
+            factor_source_id,
+            derivation_path,
+        }
     }
     pub fn to_bytes(&self) -> Vec<u8> {
-        self.factor_source_id.to_bytes()
+        let mut bytes = self.factor_source_id.to_bytes();
+        bytes.extend(self.derivation_path.to_bytes());
+        bytes
     }
 }
 
@@ -357,7 +823,10 @@ impl HierarchicalDeterministicPublicKey {
         derivation_path: DerivationPath,
         factor_source_id: &FactorSourceIDFromHash,
     ) -> Self {
-        Self::new(derivation_path, PublicKey::new(*factor_source_id))
+        Self::new(
+            derivation_path.clone(),
+            PublicKey::new(*factor_source_id, derivation_path),
+        )
     }
 
     pub fn to_bytes(&self) -> Vec<u8> {
@@ -411,9 +880,13 @@ impl HierarchicalDeterministicFactorInstance {
         index: HDPathComponent,
         factor_source_id: FactorSourceIDFromHash,
     ) -> Self {
-        let derivation_path =
-            DerivationPath::new(network_id, entity_kind, CAP26KeyKind::T9n, index);
-        let public_key = PublicKey::new(factor_source_id);
+        let derivation_path = DerivationPath::new(
+            network_id,
+            entity_kind,
+            CAP26KeyKind::TransactionSigning,
+            index,
+        );
+        let public_key = PublicKey::new(factor_source_id, derivation_path.clone());
         let hd_public_key = HierarchicalDeterministicPublicKey::new(derivation_path, public_key);
         Self::new(hd_public_key, factor_source_id)
     }
@@ -431,6 +904,13 @@ impl HierarchicalDeterministicFactorInstance {
         factor_source_id: FactorSourceIDFromHash,
     ) -> Self {
         Self::mainnet_tx(CAP26EntityKind::Account, index, factor_source_id)
+    }
+
+    pub fn mainnet_tx_identity(
+        index: HDPathComponent,
+        factor_source_id: FactorSourceIDFromHash,
+    ) -> Self {
+        Self::mainnet_tx(CAP26EntityKind::Identity, index, factor_source_id)
     }
 
     pub fn to_bytes(&self) -> Vec<u8> {
@@ -467,6 +947,10 @@ impl Hash {
     pub fn sample_third() -> Self {
         Self::new(Uuid::from_bytes([0x11; 16]))
     }
+    pub fn from_bytes(bytes: &[u8]) -> Self {
+        assert_eq!(bytes.len(), 16); // mock
+        Self::new(Uuid::from_slice(bytes).unwrap())
+    }
 }
 impl HasSampleValues for Hash {
     fn sample() -> Self {
@@ -478,14 +962,29 @@ impl HasSampleValues for Hash {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, std::hash::Hash)]
+pub struct SecurifiedEntityControl {
+    pub matrix: MatrixOfFactorInstances,
+    pub access_controller: AccessController,
+}
+impl SecurifiedEntityControl {
+    pub fn new(matrix: MatrixOfFactorInstances, access_controller: AccessController) -> Self {
+        Self {
+            matrix,
+            access_controller,
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, std::hash::Hash, EnumAsInner)]
 pub enum EntitySecurityState {
     Unsecured(HierarchicalDeterministicFactorInstance),
-    Securified(MatrixOfFactorInstances),
+    Securified(SecurifiedEntityControl),
 }
 impl EntitySecurityState {
     pub fn all_factor_instances(&self) -> IndexSet<HierarchicalDeterministicFactorInstance> {
         match self {
-            Self::Securified(matrix) => {
+            Self::Securified(sec) => {
+                let matrix = sec.matrix.clone();
                 let mut set = IndexSet::new();
                 set.extend(matrix.threshold_factors.clone());
                 set.extend(matrix.override_factors.clone());
@@ -496,41 +995,77 @@ impl EntitySecurityState {
     }
 }
 
-impl From<MatrixOfFactorInstances> for EntitySecurityState {
-    fn from(value: MatrixOfFactorInstances) -> Self {
-        Self::Securified(value)
-    }
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, std::hash::Hash, derive_more::Display)]
-#[display("{name}")]
+#[derive(Clone, PartialEq, Eq, std::hash::Hash, derive_more::Display, derive_more::Debug)]
+#[display("{}_{:?}_{:?}", self.kind(), network_id, public_key_hash)]
+#[debug("{}_{:?}_{:?}", self.kind(), network_id, public_key_hash)]
 pub struct AbstractAddress<T: EntityKindSpecifier> {
     phantom: PhantomData<T>,
-    pub name: String,
+    pub network_id: NetworkID,
+    pub public_key_hash: PublicKeyHash,
 }
-impl<T: EntityKindSpecifier> From<String> for AbstractAddress<T> {
-    fn from(value: String) -> Self {
-        Self::new(value)
+impl<T: EntityKindSpecifier> AbstractAddress<T> {
+    fn kind(&self) -> String {
+        T::entity_kind().to_string().to_lowercase()[0..4].to_owned()
+    }
+}
+impl<T: EntityKindSpecifier> IsEntityAddress for AbstractAddress<T> {
+    fn new(network_id: NetworkID, public_key_hash: PublicKeyHash) -> Self {
+        Self {
+            phantom: PhantomData,
+            network_id,
+            public_key_hash,
+        }
+    }
+    fn network_id(&self) -> NetworkID {
+        self.network_id
+    }
+    fn public_key_hash(&self) -> PublicKeyHash {
+        self.public_key_hash.clone()
     }
 }
 impl<T: EntityKindSpecifier> AbstractAddress<T> {
     pub fn entity_kind() -> CAP26EntityKind {
         T::entity_kind()
     }
-
-    pub fn new(name: impl AsRef<str>) -> Self {
-        Self {
-            phantom: PhantomData,
-            name: name.as_ref().to_owned(),
-        }
+}
+impl<T: EntityKindSpecifier> AbstractAddress<T> {
+    pub fn sample_0() -> Self {
+        Self::new(NetworkID::Mainnet, PublicKeyHash::sample_0())
+    }
+    pub fn sample_1() -> Self {
+        Self::new(NetworkID::Mainnet, PublicKeyHash::sample_1())
+    }
+    pub fn sample_2() -> Self {
+        Self::new(NetworkID::Mainnet, PublicKeyHash::sample_2())
+    }
+    pub fn sample_3() -> Self {
+        Self::new(NetworkID::Mainnet, PublicKeyHash::sample_3())
+    }
+    pub fn sample_4() -> Self {
+        Self::new(NetworkID::Mainnet, PublicKeyHash::sample_4())
+    }
+    pub fn sample_5() -> Self {
+        Self::new(NetworkID::Mainnet, PublicKeyHash::sample_5())
+    }
+    pub fn sample_6() -> Self {
+        Self::new(NetworkID::Mainnet, PublicKeyHash::sample_6())
+    }
+    pub fn sample_7() -> Self {
+        Self::new(NetworkID::Mainnet, PublicKeyHash::sample_7())
+    }
+    pub fn sample_8() -> Self {
+        Self::new(NetworkID::Mainnet, PublicKeyHash::sample_8())
+    }
+    pub fn sample_9() -> Self {
+        Self::new(NetworkID::Mainnet, PublicKeyHash::sample_9())
     }
 }
 impl<T: EntityKindSpecifier> HasSampleValues for AbstractAddress<T> {
     fn sample() -> Self {
-        Self::new("Alice")
+        Self::sample_0()
     }
     fn sample_other() -> Self {
-        Self::new("Bob")
+        Self::sample_1()
     }
 }
 
@@ -565,10 +1100,64 @@ pub type IdentityAddress = AbstractAddress<IdentityAddressTag>;
 
 #[derive(Clone, PartialEq, Eq, std::hash::Hash, derive_more::Display)]
 pub enum AddressOfAccountOrPersona {
-    #[display("acco_{_0}")]
     Account(AccountAddress),
-    #[display("ident_{_0}")]
     Identity(IdentityAddress),
+}
+impl AddressOfAccountOrPersona {
+    pub fn new(
+        factor_instance: HierarchicalDeterministicFactorInstance,
+        network_id: NetworkID,
+        entity_kind: CAP26EntityKind,
+    ) -> Self {
+        match entity_kind {
+            CAP26EntityKind::Account => Self::Account(AccountAddress::new(
+                network_id,
+                factor_instance.public_key_hash(),
+            )),
+            CAP26EntityKind::Identity => Self::Identity(IdentityAddress::new(
+                network_id,
+                factor_instance.public_key_hash(),
+            )),
+        }
+    }
+    pub fn entity_kind(&self) -> CAP26EntityKind {
+        match self {
+            Self::Account(_) => CAP26EntityKind::Account,
+            Self::Identity(_) => CAP26EntityKind::Identity,
+        }
+    }
+    pub fn network_id(&self) -> NetworkID {
+        match self {
+            Self::Account(a) => a.network_id(),
+            Self::Identity(i) => i.network_id(),
+        }
+    }
+    pub fn public_key_hash(&self) -> PublicKeyHash {
+        match self {
+            Self::Account(a) => a.public_key_hash(),
+            Self::Identity(i) => i.public_key_hash(),
+        }
+    }
+}
+impl TryFrom<AddressOfAccountOrPersona> for AccountAddress {
+    type Error = CommonError;
+
+    fn try_from(value: AddressOfAccountOrPersona) -> Result<Self> {
+        match value {
+            AddressOfAccountOrPersona::Account(a) => Ok(a),
+            AddressOfAccountOrPersona::Identity(_) => Err(CommonError::AddressConversionError),
+        }
+    }
+}
+impl TryFrom<AddressOfAccountOrPersona> for IdentityAddress {
+    type Error = CommonError;
+
+    fn try_from(value: AddressOfAccountOrPersona) -> Result<Self> {
+        match value {
+            AddressOfAccountOrPersona::Identity(a) => Ok(a),
+            AddressOfAccountOrPersona::Account(_) => Err(CommonError::AddressConversionError),
+        }
+    }
 }
 impl std::fmt::Debug for AddressOfAccountOrPersona {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -589,13 +1178,120 @@ pub enum AccountOrPersona {
     AccountEntity(Account),
     PersonaEntity(Persona),
 }
+impl AccountOrPersona {
+    pub fn network_id(&self) -> NetworkID {
+        match self {
+            AccountOrPersona::AccountEntity(a) => a.network_id(),
+            AccountOrPersona::PersonaEntity(p) => p.network_id(),
+        }
+    }
 
-pub trait IsEntity: Into<AccountOrPersona> + Clone {
-    type Address: Clone + Into<AddressOfAccountOrPersona> + EntityKindSpecifier;
+    pub fn matches_key_space(&self, key_space: KeySpace) -> bool {
+        match key_space {
+            KeySpace::Securified => self.is_securified(),
+            KeySpace::Unsecurified => !self.is_securified(),
+        }
+    }
 
-    fn new(name: impl AsRef<str>, security_state: impl Into<EntitySecurityState>) -> Self;
+    pub fn is_securified(&self) -> bool {
+        self.security_state().is_securified()
+    }
+}
 
+pub trait IsEntityAddress: Sized {
+    fn new(network_id: NetworkID, public_key_hash: PublicKeyHash) -> Self;
+    fn network_id(&self) -> NetworkID;
+    fn public_key_hash(&self) -> PublicKeyHash;
+
+    fn by_hashing(network_id: NetworkID, key: impl Into<PublicKeyHash>) -> Self {
+        Self::new(network_id, key.into())
+    }
+}
+
+pub trait IsEntity: Into<AccountOrPersona> + TryFrom<AccountOrPersona> + Clone {
+    type Address: IsEntityAddress
+        + HasSampleValues
+        + Clone
+        + Into<AddressOfAccountOrPersona>
+        + TryFrom<AddressOfAccountOrPersona>
+        + EntityKindSpecifier
+        + std::hash::Hash
+        + Eq
+        + std::fmt::Debug;
+
+    fn new(
+        name: impl AsRef<str>,
+        address: Self::Address,
+        security_state: impl Into<EntitySecurityState>,
+    ) -> Self;
+
+    fn unsecurified_mainnet(
+        name: impl AsRef<str>,
+        genesis_factor_instance: HierarchicalDeterministicFactorInstance,
+    ) -> Self {
+        let address = Self::Address::new(
+            NetworkID::Mainnet,
+            genesis_factor_instance.public_key_hash(),
+        );
+        Self::new(
+            name,
+            address,
+            EntitySecurityState::Unsecured(genesis_factor_instance),
+        )
+    }
+
+    fn securified_mainnet(
+        name: impl AsRef<str>,
+        address: Self::Address,
+        make_matrix: impl Fn() -> MatrixOfFactorInstances,
+    ) -> Self {
+        let matrix = make_matrix();
+        let access_controller = AccessController::new(
+            AccessControllerAddress::new(address.clone()),
+            ComponentMetadata::new(matrix.clone()),
+        );
+
+        Self::new(
+            name,
+            address,
+            EntitySecurityState::Securified(SecurifiedEntityControl::new(
+                matrix,
+                access_controller,
+            )),
+        )
+    }
+
+    fn network_id(&self) -> NetworkID {
+        match self.security_state() {
+            EntitySecurityState::Securified(sec) => {
+                sec.matrix
+                    .all_factors()
+                    .iter()
+                    .last()
+                    .unwrap()
+                    .public_key
+                    .derivation_path
+                    .network_id
+            }
+            EntitySecurityState::Unsecured(fi) => fi.public_key.derivation_path.network_id,
+        }
+    }
+    fn all_factor_instances(&self) -> HashSet<HierarchicalDeterministicFactorInstance> {
+        self.security_state()
+            .all_factor_instances()
+            .into_iter()
+            .collect()
+    }
+
+    fn is_securified(&self) -> bool {
+        match self.security_state() {
+            EntitySecurityState::Securified(_) => true,
+            EntitySecurityState::Unsecured(_) => false,
+        }
+    }
     fn entity_address(&self) -> Self::Address;
+
+    fn name(&self) -> String;
     fn kind() -> CAP26EntityKind {
         Self::Address::entity_kind()
     }
@@ -611,44 +1307,31 @@ pub trait IsEntity: Into<AccountOrPersona> + Clone {
     fn e5() -> Self;
     fn e6() -> Self;
     fn e7() -> Self;
-
-    fn securified_mainnet(
-        index: HDPathComponent,
-        name: impl AsRef<str>,
-        make_matrix: fn(HDPathComponent) -> MatrixOfFactorInstances,
-    ) -> Self {
-        Self::new(name, make_matrix(index))
-    }
-
-    fn unsecurified_mainnet(
-        index: u32,
-        name: impl AsRef<str>,
-        factor_source_id: FactorSourceIDFromHash,
-    ) -> Self {
-        Self::new(
-            name,
-            EntitySecurityState::Unsecured(HierarchicalDeterministicFactorInstance::mainnet_tx(
-                Self::kind(),
-                HDPathComponent::non_hardened(index),
-                factor_source_id,
-            )),
-        )
-    }
 }
 
 #[derive(Clone, PartialEq, Eq, std::hash::Hash, derive_more::Debug)]
 #[debug("{}", self.address())]
 pub struct AbstractEntity<A: Clone + Into<AddressOfAccountOrPersona> + EntityKindSpecifier> {
     address: A,
+    pub name: String,
     pub security_state: EntitySecurityState,
 }
 pub type Account = AbstractEntity<AccountAddress>;
+
 impl IsEntity for Account {
-    fn new(name: impl AsRef<str>, security_state: impl Into<EntitySecurityState>) -> Self {
+    fn new(
+        name: impl AsRef<str>,
+        address: Self::Address,
+        security_state: impl Into<EntitySecurityState>,
+    ) -> Self {
         Self {
-            address: AccountAddress::from(name.as_ref().to_owned()),
+            name: name.as_ref().to_owned(),
+            address,
             security_state: security_state.into(),
         }
+    }
+    fn name(&self) -> String {
+        self.name.clone()
     }
     type Address = AccountAddress;
     fn security_state(&self) -> EntitySecurityState {
@@ -685,15 +1368,23 @@ impl IsEntity for Account {
 
 pub type Persona = AbstractEntity<IdentityAddress>;
 impl IsEntity for Persona {
-    fn new(name: impl AsRef<str>, security_state: impl Into<EntitySecurityState>) -> Self {
+    fn new(
+        name: impl AsRef<str>,
+        address: IdentityAddress,
+        security_state: impl Into<EntitySecurityState>,
+    ) -> Self {
         Self {
-            address: IdentityAddress::from(name.as_ref().to_owned()),
+            name: name.as_ref().to_owned(),
+            address,
             security_state: security_state.into(),
         }
     }
     type Address = IdentityAddress;
     fn security_state(&self) -> EntitySecurityState {
         self.security_state.clone()
+    }
+    fn name(&self) -> String {
+        self.name.clone()
     }
     fn entity_address(&self) -> Self::Address {
         self.address.clone()
@@ -744,6 +1435,28 @@ impl From<Account> for AccountOrPersona {
     }
 }
 
+impl TryFrom<AccountOrPersona> for Account {
+    type Error = CommonError;
+
+    fn try_from(value: AccountOrPersona) -> Result<Self> {
+        match value {
+            AccountOrPersona::AccountEntity(a) => Ok(a),
+            AccountOrPersona::PersonaEntity(_) => Err(CommonError::EntityConversionError),
+        }
+    }
+}
+
+impl TryFrom<AccountOrPersona> for Persona {
+    type Error = CommonError;
+
+    fn try_from(value: AccountOrPersona) -> Result<Self> {
+        match value {
+            AccountOrPersona::PersonaEntity(p) => Ok(p),
+            AccountOrPersona::AccountEntity(_) => Err(CommonError::EntityConversionError),
+        }
+    }
+}
+
 impl From<Persona> for AccountOrPersona {
     fn from(value: Persona) -> Self {
         Self::PersonaEntity(value)
@@ -780,51 +1493,36 @@ impl HasSampleValues for Persona {
     }
 }
 
-impl<T: Clone + Into<AddressOfAccountOrPersona> + EntityKindSpecifier + From<String>>
-    AbstractEntity<T>
+impl<
+        T: IsEntityAddress
+            + Clone
+            + Into<AddressOfAccountOrPersona>
+            + HasSampleValues
+            + EntityKindSpecifier,
+    > AbstractEntity<T>
+where
+    Self: IsEntity,
 {
     /// mainnet
     pub(crate) fn sample_unsecurified() -> Self {
-        Self::unsecurified_mainnet(0, "Alice", FactorSourceIDFromHash::fs0())
+        <Self as IsEntity>::unsecurified_mainnet(
+            "Sample Unsec",
+            HierarchicalDeterministicFactorInstance::fi0(T::entity_kind()),
+        )
     }
 
     /// mainnet
     pub(crate) fn sample_securified() -> Self {
-        Self::securified_mainnet(6, "Grace", |idx| {
-            MatrixOfFactorInstances::m6(HierarchicalDeterministicFactorInstance::f(
-                Self::entity_kind(),
-                idx,
-            ))
-        })
-    }
-
-    fn new(name: impl AsRef<str>, security_state: impl Into<EntitySecurityState>) -> Self {
-        Self {
-            address: T::from(name.as_ref().to_owned()),
-            security_state: security_state.into(),
-        }
-    }
-
-    pub fn securified_mainnet(
-        index: u32,
-        name: impl AsRef<str>,
-        make_matrix: impl Fn(HDPathComponent) -> MatrixOfFactorInstances,
-    ) -> Self {
-        Self::new(name, make_matrix(HDPathComponent::securified(index)))
-    }
-
-    pub fn unsecurified_mainnet(
-        index: u32,
-        name: impl AsRef<str>,
-        factor_source_id: FactorSourceIDFromHash,
-    ) -> Self {
-        Self::new(
-            name,
-            EntitySecurityState::Unsecured(HierarchicalDeterministicFactorInstance::mainnet_tx(
-                Self::entity_kind(),
-                HDPathComponent::non_hardened(index),
-                factor_source_id,
-            )),
+        <Self as IsEntity>::securified_mainnet(
+            "Grace",
+            <AbstractEntity<T> as IsEntity>::Address::sample_other(),
+            || {
+                let idx = HDPathComponent::securifying_base_index(6);
+                MatrixOfFactorInstances::m6(HierarchicalDeterministicFactorInstance::f(
+                    Self::entity_kind(),
+                    idx,
+                ))
+            },
         )
     }
 }
@@ -882,12 +1580,66 @@ where
         Self::new(factors, threshold, [])
     }
 
+    pub fn all_factors(&self) -> IndexSet<F> {
+        let mut set = IndexSet::new();
+        set.extend(self.threshold_factors.clone());
+        set.extend(self.override_factors.clone());
+        set
+    }
+
     pub fn single_threshold(factor: F) -> Self {
         Self::threshold_only([factor], 1)
     }
 }
 
 pub type MatrixOfFactorInstances = MatrixOfFactors<HierarchicalDeterministicFactorInstance>;
+
+fn sample_for_matrix_of_instances_from_account(account: Account) -> MatrixOfFactorInstances {
+    account.security_state().into_securified().unwrap().matrix
+}
+
+impl HasSampleValues for MatrixOfFactorInstances {
+    fn sample() -> Self {
+        sample_for_matrix_of_instances_from_account(Account::a5())
+    }
+
+    fn sample_other() -> Self {
+        sample_for_matrix_of_instances_from_account(Account::a6())
+    }
+}
+
+impl MatrixOfFactorInstances {
+    pub fn fulfilling_matrix_of_factor_sources_with_instances(
+        instances: impl IntoIterator<Item = HierarchicalDeterministicFactorInstance>,
+        matrix_of_factor_sources: MatrixOfFactorSources,
+    ) -> Result<Self> {
+        let instances = instances.into_iter().collect_vec();
+
+        let get_factors =
+            |required: Vec<HDFactorSource>| -> Result<Vec<HierarchicalDeterministicFactorInstance>> {
+                required
+                    .iter()
+                    .map(|f| {
+                        instances
+                            .iter()
+                            .find(|i| i.factor_source_id() == f.factor_source_id())
+                            .cloned()
+                            .ok_or(CommonError::MissingFactorMappingInstancesIntoMatrix)
+                        })
+                    .collect::<Result<Vec<HierarchicalDeterministicFactorInstance>>>()
+            };
+
+        let threshold_factors = get_factors(matrix_of_factor_sources.threshold_factors)?;
+        let override_factors = get_factors(matrix_of_factor_sources.override_factors)?;
+
+        Ok(Self::new(
+            threshold_factors,
+            matrix_of_factor_sources.threshold,
+            override_factors,
+        ))
+    }
+}
+
 pub type MatrixOfFactorSources = MatrixOfFactors<HDFactorSource>;
 
 /// For unsecurified entities we map single factor -> single threshold factor.
@@ -1022,18 +1774,116 @@ impl ManifestSummary {
     }
 }
 
+#[derive(Clone, PartialEq, Eq, Debug)]
 pub struct Profile {
     pub factor_sources: IndexSet<HDFactorSource>,
     pub accounts: HashMap<AccountAddress, Account>,
     pub personas: HashMap<IdentityAddress, Persona>,
 }
 
+#[derive(Clone, PartialEq, Eq, Debug, Hash)]
+pub struct SecurifiedEntity {
+    pub entity: AccountOrPersona,
+    pub control: SecurifiedEntityControl,
+}
+
+#[derive(Clone, PartialEq, Eq, Debug, Hash)]
+pub struct UnsecurifiedEntity {
+    pub entity: AccountOrPersona,
+    pub factor_instance: HierarchicalDeterministicFactorInstance,
+}
+
 impl Profile {
+    pub fn get_entities_erased(&self, entity_kind: CAP26EntityKind) -> IndexSet<AccountOrPersona> {
+        match entity_kind {
+            CAP26EntityKind::Account => self
+                .accounts
+                .values()
+                .cloned()
+                .map(AccountOrPersona::from)
+                .collect::<IndexSet<_>>(),
+            CAP26EntityKind::Identity => self
+                .personas
+                .values()
+                .cloned()
+                .map(AccountOrPersona::from)
+                .collect::<IndexSet<_>>(),
+        }
+    }
+    pub fn get_entities<E: IsEntity + std::hash::Hash + Eq>(&self) -> IndexSet<E> {
+        self.get_entities_erased(E::kind())
+            .into_iter()
+            .map(|e| E::try_from(e).ok().unwrap())
+            .collect()
+    }
+
+    pub fn get_entities_of_kind_on_network_in_key_space(
+        &self,
+        entity_kind: CAP26EntityKind,
+        network_id: NetworkID,
+        key_space: KeySpace,
+    ) -> IndexSet<AccountOrPersona> {
+        self.get_entities_erased(entity_kind)
+            .into_iter()
+            .filter(|e| e.network_id() == network_id)
+            .filter(|e| e.matches_key_space(key_space))
+            .collect()
+    }
+
+    pub fn get_securified_entities_of_kind_on_network(
+        &self,
+        entity_kind: CAP26EntityKind,
+        network_id: NetworkID,
+    ) -> IndexSet<SecurifiedEntity> {
+        self.get_entities_of_kind_on_network_in_key_space(
+            entity_kind,
+            network_id,
+            KeySpace::Securified,
+        )
+        .into_iter()
+        .map(|e: AccountOrPersona| {
+            let control = match e.security_state() {
+                EntitySecurityState::Securified(control) => control,
+                _ => unreachable!(),
+            };
+            SecurifiedEntity { entity: e, control }
+        })
+        .collect()
+    }
+
+    pub fn get_unsecurified_entities_of_kind_on_network(
+        &self,
+        entity_kind: CAP26EntityKind,
+        network_id: NetworkID,
+    ) -> IndexSet<UnsecurifiedEntity> {
+        self.get_entities_of_kind_on_network_in_key_space(
+            entity_kind,
+            network_id,
+            KeySpace::Unsecurified,
+        )
+        .into_iter()
+        .map(|e: AccountOrPersona| {
+            let factor_instance = match e.security_state() {
+                EntitySecurityState::Unsecured(factor_instance) => factor_instance,
+                _ => unreachable!(),
+            };
+            UnsecurifiedEntity {
+                entity: e,
+                factor_instance,
+            }
+        })
+        .collect()
+    }
+
+    pub fn get_accounts(&self) -> IndexSet<Account> {
+        self.get_entities()
+    }
     pub fn new<'a, 'p>(
-        factor_sources: IndexSet<HDFactorSource>,
+        factor_sources: impl IntoIterator<Item = HDFactorSource>,
         accounts: impl IntoIterator<Item = &'a Account>,
         personas: impl IntoIterator<Item = &'p Persona>,
     ) -> Self {
+        let factor_sources = factor_sources.into_iter().collect::<IndexSet<_>>();
         Self {
             factor_sources,
             accounts: accounts
@@ -1046,24 +1896,64 @@ impl Profile {
                 .collect::<HashMap<_, _>>(),
         }
     }
-    pub fn account_by_address(&self, address: AccountAddress) -> Result<Account> {
-        self.accounts
-            .get(&address)
-            .ok_or(CommonError::UnknownAccount)
-            .cloned()
+    pub fn account_by_address(&self, address: &AccountAddress) -> Result<Account> {
+        self.entity_by_address(address)
+    }
+    pub fn entity_by_address<E: IsEntity + std::hash::Hash + std::cmp::Eq>(
+        &self,
+        address: &E::Address,
+    ) -> Result<E> {
+        self.get_entities::<E>()
+            .into_iter()
+            .find(|e| e.entity_address() == *address)
+            .ok_or(CommonError::UnknownEntity)
+    }
+
+    pub fn update_entity<E: IsEntity>(&mut self, entity: E) {
+        match Into::<AccountOrPersona>::into(entity.clone()) {
+            AccountOrPersona::AccountEntity(a) => {
+                assert!(self.accounts.insert(a.entity_address(), a).is_some());
+            }
+            AccountOrPersona::PersonaEntity(p) => {
+                assert!(self.personas.insert(p.entity_address(), p).is_some());
+            }
+        }
     }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, std::hash::Hash)]
-pub struct Signature(String);
-impl HasSampleValues for Signature {
-    fn sample() -> Self {
-        Self("deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef".to_owned())
-    }
-    fn sample_other() -> Self {
-        Self("fadecafefadecafefadecafefadecafefadecafefadecafefadecafefadecafefadecafefadecafefadecafefadecafefadecafefadecafefadecafefadecafe".to_owned())
+pub struct Signature([u8; 64]);
+impl Signature {
+    pub fn new_with_hex(s: impl AsRef<str>) -> Result<Self> {
+        hex::decode(s.as_ref())
+            .map_err(|_| CommonError::StringNotHex)
+            .and_then(|b| b.try_into().map_err(|_| CommonError::BytesLengthError))
+            .map(Self)
     }
 }
+impl HasSampleValues for Signature {
+    fn sample() -> Self {
+        Self::new_with_hex("deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef").unwrap()
+    }
+    fn sample_other() -> Self {
+        Self::new_with_hex("fadecafefadecafefadecafefadecafefadecafefadecafefadecafefadecafefadecafefadecafefadecafefadecafefadecafefadecafefadecafefadecafe").unwrap()
+    }
+}
+
+#[cfg(test)]
+mod signature_tests {
+    use super::*;
+
+    type Sut = Signature;
+
+    #[test]
+    fn eq() {
+        assert_eq!(Sut::sample(), Sut::sample());
+        assert_eq!(Sut::sample_other(), Sut::sample_other());
+        assert_ne!(Sut::sample(), Sut::sample_other());
+    }
+}
+
 impl Signature {
     /// Emulates the signing of `intent_hash` with `factor_instance` - in a
     /// deterministic manner.
@@ -1076,8 +1966,9 @@ impl Signature {
         let intent_hash_bytes = intent_hash.hash().to_bytes();
         let factor_instance_bytes = factor_instance.to_bytes();
         let input_bytes = [intent_hash_bytes, factor_instance_bytes].concat();
-        let hash = sha256::digest(input_bytes);
-        Self(hash)
+        let mut hasher = sha2::Sha512::new();
+        hasher.update(input_bytes);
+        Self(hasher.finalize().into())
     }
 
     /// Emulates signing using `input`.
@@ -1096,9 +1987,6 @@ pub enum CommonError {
     #[error("Unknown factor source")]
     UnknownFactorSource,
 
-    #[error("Failed")]
-    Failure,
-
     #[error("Invalid factor source kind")]
     InvalidFactorSourceKind,
 
@@ -1110,4 +1998,370 @@ pub enum CommonError {
 
     #[error("Unknown persona")]
     UnknownPersona,
+
+    #[error("Unknown entity")]
+    UnknownEntity,
+
+    #[error("Failed To Acquire ReadGuard of KeysCache")]
+    KeysCacheReadGuard,
+
+    #[error("Failed To Acquire WriteGuard of KeysCache")]
+    KeysCacheWriteGuard,
+
+    #[error("KeysCache does not contain any references for key")]
+    KeysCacheUnknownKey,
+
+    #[error("KeysCache empty list for key")]
+    KeysCacheEmptyForKey,
+
+    #[error("FactorInstanceProvider failed to create genesis factor")]
+    InstanceProviderFailedToCreateGenesisFactor,
+
+    #[error("Address conversion error")]
+    AddressConversionError,
+
+    #[error("Entity conversion error")]
+    EntityConversionError,
+
+    #[error("String not hex")]
+    StringNotHex,
+
+    #[error("Bytes length error")]
+    BytesLengthError,
+
+    #[error("Missing a FactorInstance while mapping FactorInstances and MatrixOfFactorSources into MatrixOfFactorInstances")]
+    MissingFactorMappingInstancesIntoMatrix,
+
+    #[error("Matrix From ScryptoAccessRule Not Protected")]
+    MatrixFromRulesNotProtected,
+
+    #[error("Matrix From ScryptoAccessRule Not AnyOf")]
+    MatrixFromRulesNotAnyOf,
+
+    #[error("Matrix From ScryptoAccessRule Expected Two Any")]
+    MatrixFromRulesExpectedTwoAny,
+
+    #[error("Matrix From ScryptoAccessRule Not ProofRule")]
+    MatrixFromRulesNotProofRule,
+
+    #[error("Matrix From ScryptoAccessRule Not CountOf")]
+    MatrixFromRulesNotCountOf,
+
+    #[error("Matrix From ScryptoAccessRule ResourceOrNonFungible not PublicKeyHash")]
+    MatrixFromRulesResourceOrNonFungibleNotKeyHash,
+
+    #[error("TestDerivationInteractor hardcoded failure")]
+    HardcodedFailureTestDerivationInteractor,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct AccessControllerAddress(pub String);
+impl AccessControllerAddress {
+    pub fn new<A: IsEntityAddress>(a: A) -> Self {
+        Self(format!(
+            "access_controller_{:?}_{:?}",
+            a.network_id(),
+            a.public_key_hash()
+        ))
+    }
+}
+
+impl HasSampleValues for AccessControllerAddress {
+    fn sample() -> Self {
+        Self::new(AccountAddress::sample())
+    }
+
+    fn sample_other() -> Self {
+        Self::new(AccountAddress::sample_other())
+    }
+}
+
+#[derive(Clone, PartialEq, Eq, Hash, derive_more::Debug)]
+#[debug("{}", hex::encode(&self.0[28..32]))]
+pub struct PublicKeyHash([u8; 32]);
+
+impl PublicKeyHash {
+    pub fn new(bytes: [u8; 32]) -> Self {
+        Self(bytes)
+    }
+}
+impl HasSampleValues for PublicKeyHash {
+    fn sample() -> Self {
+        Self::sample_0()
+    }
+    fn sample_other() -> Self {
+        Self::sample_1()
+    }
+}
+
+impl PublicKey {
+    pub fn hash(&self) -> PublicKeyHash {
+        let mut hasher = Sha256::new();
+        hasher.update(self.to_bytes());
+        let digest = hasher.finalize().into();
+        PublicKeyHash(digest)
+    }
+}
+
+impl HierarchicalDeterministicPublicKey {
+    pub fn hash(&self) -> PublicKeyHash {
+        self.public_key.hash()
+    }
+}
+impl HierarchicalDeterministicFactorInstance {
+    pub fn public_key_hash(&self) -> PublicKeyHash {
+        self.public_key.hash()
+    }
+}
+impl From<PublicKey> for PublicKeyHash {
+    fn from(value: PublicKey) -> Self {
+        value.hash()
+    }
+}
+impl From<HierarchicalDeterministicPublicKey> for PublicKeyHash {
+    fn from(value: HierarchicalDeterministicPublicKey) -> Self {
+        value.hash()
+    }
+}
+impl From<HierarchicalDeterministicFactorInstance> for PublicKeyHash {
+    fn from(value: HierarchicalDeterministicFactorInstance) -> Self {
+        value.public_key_hash()
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash, EnumAsInner)]
+pub enum ScryptoResourceOrNonFungible {
+    PublicKeyHash(PublicKeyHash),
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash, EnumAsInner)]
+pub enum ScryptoProofRule {
+    AnyOf(Vec<ScryptoResourceOrNonFungible>),
+    CountOf(usize, Vec<ScryptoResourceOrNonFungible>),
+    // AllOf
+    // Require
+    // AmountOf
+}
+impl ScryptoProofRule {
+    pub fn any_of(values: Vec<ScryptoResourceOrNonFungible>) -> Self {
+        Self::AnyOf(values)
+    }
+    pub fn count_of(count: usize, values: Vec<ScryptoResourceOrNonFungible>) -> Self {
+        Self::CountOf(count, values)
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash, EnumAsInner)]
+pub enum ScryptoAccessRuleNode {
+    ProofRule(ScryptoProofRule),
+    AnyOf(Vec<ScryptoAccessRuleNode>),
+    AllOf(Vec<ScryptoAccessRuleNode>),
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash, EnumAsInner)]
+pub enum ScryptoAccessRule {
+    Protected(ScryptoAccessRuleNode),
+    // AllowAll
+    // DenyAll
+}
+impl ScryptoAccessRule {
+    pub fn protected(rule: ScryptoAccessRuleNode) -> Self {
+        Self::Protected(rule)
+    }
+    pub fn with_threshold(
+        count: usize,
+        threshold_factors: impl IntoIterator<Item = impl Into<PublicKeyHash>>,
+        override_factors: impl IntoIterator<Item = impl Into<PublicKeyHash>>,
+    ) -> Self {
+        Self::protected(ScryptoAccessRuleNode::AnyOf(vec![
+            ScryptoAccessRuleNode::ProofRule(ScryptoProofRule::CountOf(
+                count,
+                threshold_factors
+                    .into_iter()
+                    .map(Into::into)
+                    .map(ScryptoResourceOrNonFungible::PublicKeyHash)
+                    .collect_vec(),
+            )),
+            ScryptoAccessRuleNode::ProofRule(ScryptoProofRule::AnyOf(
+                override_factors
+                    .into_iter()
+                    .map(Into::into)
+                    .map(ScryptoResourceOrNonFungible::PublicKeyHash)
+                    .collect_vec(),
+            )),
+        ]))
+    }
+}
+
+pub type MatrixOfKeyHashes = MatrixOfFactors<PublicKeyHash>;
+impl From<MatrixOfFactorInstances> for ScryptoAccessRule {
+    fn from(value: MatrixOfFactorInstances) -> Self {
+        Self::with_threshold(
+            value.threshold as usize,
+            value.threshold_factors,
+            value.override_factors,
+        )
+    }
+}
+impl From<MatrixOfKeyHashes> for ScryptoAccessRule {
+    fn from(value: MatrixOfKeyHashes) -> Self {
+        Self::with_threshold(
+            value.threshold as usize,
+            value.threshold_factors,
+            value.override_factors,
+        )
+    }
+}
+impl TryFrom<ScryptoAccessRule> for MatrixOfKeyHashes {
+    type Error = CommonError;
+
+    fn try_from(value: ScryptoAccessRule) -> Result<Self> {
+        let protected = value
+            .into_protected()
+            .map_err(|_| CommonError::MatrixFromRulesNotProtected)?;
+        let root_any_of = protected
+            .into_any_of()
+            .map_err(|_| CommonError::MatrixFromRulesNotAnyOf)?;
+        if root_any_of.len() != 2 {
+            return Err(CommonError::MatrixFromRulesExpectedTwoAny);
+        }
+        let rule_0 = root_any_of[0]
+            .clone()
+            .into_proof_rule()
+            .map_err(|_| CommonError::MatrixFromRulesNotProofRule)?;
+
+        let rule_1 = root_any_of[1]
+            .clone()
+            .into_proof_rule()
+            .map_err(|_| CommonError::MatrixFromRulesNotProofRule)?;
+
+        let threshold_rule = rule_0
+            .into_count_of()
+            .map_err(|_| CommonError::MatrixFromRulesNotCountOf)?;
+        let override_rule = rule_1
+            .into_any_of()
+            .map_err(|_| CommonError::MatrixFromRulesNotAnyOf)?;
+
+        let threshold = threshold_rule.0;
+        let threshold_hashes = threshold_rule
+            .1
+            .into_iter()
+            .map(|r| {
+                r.into_public_key_hash()
+                    .map_err(|_| CommonError::MatrixFromRulesResourceOrNonFungibleNotKeyHash)
+            })
+            .collect::<Result<Vec<PublicKeyHash>>>()?;
+
+        let override_hashes = override_rule
+            .into_iter()
+            .map(|r| {
+                r.into_public_key_hash()
+                    .map_err(|_| CommonError::MatrixFromRulesResourceOrNonFungibleNotKeyHash)
+            })
+            .collect::<Result<Vec<PublicKeyHash>>>()?;
+
+        Ok(Self::new(
+            threshold_hashes,
+            threshold as u8,
+            override_hashes,
+        ))
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct ComponentMetadata {
+    pub scrypto_access_rules: ScryptoAccessRule,
+}
+
+impl ComponentMetadata {
+    pub fn new(scrypto_access_rules: impl Into<ScryptoAccessRule>) -> Self {
+        Self {
+            scrypto_access_rules: scrypto_access_rules.into(),
+        }
+    }
+}
+
+impl HasSampleValues for ScryptoAccessRule {
+    fn sample() -> Self {
+        MatrixOfFactorInstances::sample().into()
+    }
+
+    fn sample_other() -> Self {
+        MatrixOfFactorInstances::sample_other().into()
+    }
+}
+
+impl HasSampleValues for ComponentMetadata {
+    fn sample() -> Self {
+        Self::new(ScryptoAccessRule::sample())
+    }
+
+    fn sample_other() -> Self {
+        Self::new(ScryptoAccessRule::sample_other())
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct AccessController {
+    pub address: AccessControllerAddress,
+    pub metadata: ComponentMetadata,
+}
+
+impl AccessController {
+    pub fn new(address: AccessControllerAddress, metadata: ComponentMetadata) -> Self {
+        Self { address, metadata }
+    }
+}
+
+impl HasSampleValues for AccessController {
+    fn sample() -> Self {
+        Self::new(
+            AccessControllerAddress::sample(),
+            ComponentMetadata::sample(),
+        )
+    }
+
+    fn sample_other() -> Self {
+        Self::new(
+            AccessControllerAddress::sample_other(),
+            ComponentMetadata::sample_other(),
+        )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn sample_component_metadata() {
+        type Sut = ComponentMetadata;
+        assert_eq!(Sut::sample(), Sut::sample());
+        assert_eq!(Sut::sample_other(), Sut::sample_other());
+        assert_ne!(Sut::sample(), Sut::sample_other());
+    }
+
+    #[test]
+    fn sample_access_controller_address() {
+        type Sut = AccessControllerAddress;
+        assert_eq!(Sut::sample(), Sut::sample());
+        assert_eq!(Sut::sample_other(), Sut::sample_other());
+        assert_ne!(Sut::sample(), Sut::sample_other());
+    }
+
+    #[test]
+    fn sample_access_controller() {
+        type Sut = AccessController;
+        assert_eq!(Sut::sample(), Sut::sample());
+        assert_eq!(Sut::sample_other(), Sut::sample_other());
+        assert_ne!(Sut::sample(), Sut::sample_other());
+    }
+
+    #[test]
+    fn sample_scrypto_access_rule() {
+        type Sut = ScryptoAccessRule;
+        assert_eq!(Sut::sample(), Sut::sample());
+        assert_eq!(Sut::sample_other(), Sut::sample_other());
+        assert_ne!(Sut::sample(), Sut::sample_other());
+    }
 }

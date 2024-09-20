@@ -163,6 +163,42 @@ impl HierarchicalDeterministicFactorInstance {
     }
 }
 
+impl PublicKeyHash {
+    pub fn repeat(byte: u8) -> Self {
+        Self::new([byte; 32])
+    }
+    pub fn sample_0() -> Self {
+        Self::repeat(0x50)
+    }
+    pub fn sample_1() -> Self {
+        Self::repeat(0x51)
+    }
+    pub fn sample_2() -> Self {
+        Self::repeat(0x52)
+    }
+    pub fn sample_3() -> Self {
+        Self::repeat(0x53)
+    }
+    pub fn sample_4() -> Self {
+        Self::repeat(0x54)
+    }
+    pub fn sample_5() -> Self {
+        Self::repeat(0x55)
+    }
+    pub fn sample_6() -> Self {
+        Self::repeat(0x56)
+    }
+    pub fn sample_7() -> Self {
+        Self::repeat(0x57)
+    }
+    pub fn sample_8() -> Self {
+        Self::repeat(0x58)
+    }
+    pub fn sample_9() -> Self {
+        Self::repeat(0x59)
+    }
+}
+
 impl MatrixOfFactorInstances {
     /// Securified { Single Threshold only }
     pub(crate) fn m2<F>(fi: F) -> Self
@@ -232,20 +268,78 @@ impl MatrixOfFactorInstances {
     }
 }
 
+impl HierarchicalDeterministicFactorInstance {
+    /// 0 | unsecurified | device
+    pub fn fi0(entity_kind: CAP26EntityKind) -> Self {
+        Self::mainnet_tx(
+            entity_kind,
+            HDPathComponent::unsecurified_hardening_base_index(0),
+            FactorSourceIDFromHash::fs0(),
+        )
+    }
+
+    /// Account: 0 | unsecurified | device
+    pub fn fia0() -> Self {
+        Self::fi0(CAP26EntityKind::Account)
+    }
+    /// Identity: 0 | unsecurified | device
+    pub fn fii0() -> Self {
+        Self::fi0(CAP26EntityKind::Identity)
+    }
+
+    /// 1 | unsecurified | ledger
+    pub fn fi1(entity_kind: CAP26EntityKind) -> Self {
+        Self::mainnet_tx(
+            entity_kind,
+            HDPathComponent::unsecurified_hardening_base_index(1),
+            FactorSourceIDFromHash::fs1(),
+        )
+    }
+
+    /// Account: 1 | unsecurified | ledger
+    pub fn fia1() -> Self {
+        Self::fi1(CAP26EntityKind::Account)
+    }
+    /// Identity: 1 | unsecurified | ledger
+    pub fn fii1() -> Self {
+        Self::fi1(CAP26EntityKind::Identity)
+    }
+
+    /// 8 | Unsecurified { Device } (fs10)
+    pub fn fi10(entity_kind: CAP26EntityKind) -> Self {
+        Self::mainnet_tx(
+            entity_kind,
+            HDPathComponent::unsecurified_hardening_base_index(8),
+            FactorSourceIDFromHash::fs10(),
+        )
+    }
+
+    /// Account: 8 | Unsecurified { Device } (fs10)
+    pub fn fia10() -> Self {
+        Self::fi10(CAP26EntityKind::Account)
+    }
+
+    /// Identity: 8 | Unsecurified { Device } (fs10)
+    pub fn fii10() -> Self {
+        Self::fi10(CAP26EntityKind::Identity)
+    }
+}
+
 impl Account {
     /// Alice | 0 | Unsecurified { Device }
     pub(crate) fn a0() -> Self {
-        Self::unsecurified_mainnet(0, "Alice", FactorSourceIDFromHash::fs0())
+        Self::unsecurified_mainnet("Alice", HierarchicalDeterministicFactorInstance::fia0())
     }
 
     /// Bob | 1 | Unsecurified { Ledger }
     pub(crate) fn a1() -> Self {
-        Self::unsecurified_mainnet(1, "Bob", FactorSourceIDFromHash::fs1())
+        Self::unsecurified_mainnet("Bob", HierarchicalDeterministicFactorInstance::fia1())
     }
 
     /// Carla | 2 | Securified { Single Threshold only }
     pub(crate) fn a2() -> Self {
-        Self::securified_mainnet(2, "Carla", |idx| {
+        Self::securified_mainnet("Carla", AccountAddress::sample_2(), || {
+            let idx = HDPathComponent::securifying_base_index(2);
             MatrixOfFactorInstances::m2(HierarchicalDeterministicFactorInstance::f(
                 Self::entity_kind(),
                 idx,
@@ -255,7 +349,8 @@ impl Account {
 
     /// David | 3 | Securified { Single Override only }
     pub(crate) fn a3() -> Self {
-        Self::securified_mainnet(3, "David", |idx| {
+        Self::securified_mainnet("David", AccountAddress::sample_3(), || {
+            let idx = HDPathComponent::securifying_base_index(3);
             MatrixOfFactorInstances::m3(HierarchicalDeterministicFactorInstance::f(
                 Self::entity_kind(),
                 idx,
@@ -265,7 +360,8 @@ impl Account {
 
     /// Emily | 4 | Securified { Threshold factors only #3 }
     pub(crate) fn a4() -> Self {
-        Self::securified_mainnet(4, "Emily", |idx| {
+        Self::securified_mainnet("Emily", AccountAddress::sample_4(), || {
+            let idx = HDPathComponent::securifying_base_index(4);
             MatrixOfFactorInstances::m4(HierarchicalDeterministicFactorInstance::f(
                 Self::entity_kind(),
                 idx,
@@ -275,7 +371,8 @@ impl Account {
 
     /// Frank | 5 | Securified { Override factors only #2 }
     pub(crate) fn a5() -> Self {
-        Self::securified_mainnet(5, "Frank", |idx| {
+        Self::securified_mainnet("Frank", AccountAddress::sample_5(), || {
+            let idx = HDPathComponent::securifying_base_index(5);
             MatrixOfFactorInstances::m5(HierarchicalDeterministicFactorInstance::f(
                 Self::entity_kind(),
                 idx,
@@ -285,7 +382,8 @@ impl Account {
 
     /// Grace | 6 | Securified { Threshold #3 and Override factors #2  }
     pub(crate) fn a6() -> Self {
-        Self::securified_mainnet(6, "Grace", |idx| {
+        Self::securified_mainnet("Grace", AccountAddress::sample_6(), || {
+            let idx = HDPathComponent::securifying_base_index(6);
             MatrixOfFactorInstances::m6(HierarchicalDeterministicFactorInstance::f(
                 Self::entity_kind(),
                 idx,
@@ -295,7 +393,8 @@ impl Account {
 
     /// Ida | 7 | Securified { Threshold only # 5/5 }
     pub(crate) fn a7() -> Self {
-        Self::securified_mainnet(7, "Ida", |idx| {
+        Self::securified_mainnet("Ida", AccountAddress::sample_7(), || {
+            let idx = HDPathComponent::securifying_base_index(7);
             MatrixOfFactorInstances::m7(HierarchicalDeterministicFactorInstance::f(
                 Self::entity_kind(),
                 idx,
@@ -305,12 +404,13 @@ impl Account {
 
     /// Jenny | 8 | Unsecurified { Device } (fs10)
     pub(crate) fn a8() -> Self {
-        Self::unsecurified_mainnet(8, "Jenny", FactorSourceIDFromHash::fs10())
+        Self::unsecurified_mainnet("Jenny", HierarchicalDeterministicFactorInstance::fia10())
     }
 
     /// Klara | 9 |  Securified { Threshold 1/1 and Override factors #1  }
     pub(crate) fn a9() -> Self {
-        Self::securified_mainnet(9, "Klara", |idx| {
+        Self::securified_mainnet("Klara", AccountAddress::sample_9(), || {
+            let idx = HDPathComponent::securifying_base_index(9);
             MatrixOfFactorInstances::m8(HierarchicalDeterministicFactorInstance::f(
                 Self::entity_kind(),
                 idx,
@@ -322,17 +422,18 @@ impl Account {
 impl Persona {
     /// Satoshi | 0 | Unsecurified { Device }
     pub(crate) fn p0() -> Self {
-        Self::unsecurified_mainnet(0, "Satoshi", FactorSourceIDFromHash::fs0())
+        Self::unsecurified_mainnet("Satoshi", HierarchicalDeterministicFactorInstance::fii0())
     }
 
     /// Batman | 1 | Unsecurified { Ledger }
     pub(crate) fn p1() -> Self {
-        Self::unsecurified_mainnet(1, "Batman", FactorSourceIDFromHash::fs1())
+        Self::unsecurified_mainnet("Batman", HierarchicalDeterministicFactorInstance::fii1())
     }
 
     /// Ziggy | 2 | Securified { Single Threshold only }
     pub(crate) fn p2() -> Self {
-        Self::securified_mainnet(2, "Ziggy", |idx| {
+        Self::securified_mainnet("Ziggy", IdentityAddress::sample_2(), || {
+            let idx = HDPathComponent::securifying_base_index(2);
             MatrixOfFactorInstances::m2(HierarchicalDeterministicFactorInstance::f(
                 Self::entity_kind(),
                 idx,
@@ -342,7 +443,8 @@ impl Persona {
 
     /// Superman | 3 | Securified { Single Override only }
     pub(crate) fn p3() -> Self {
-        Self::securified_mainnet(3, "Superman", |idx| {
+        Self::securified_mainnet("Superman", IdentityAddress::sample_3(), || {
+            let idx = HDPathComponent::securifying_base_index(3);
             MatrixOfFactorInstances::m3(HierarchicalDeterministicFactorInstance::f(
                 Self::entity_kind(),
                 idx,
@@ -352,7 +454,8 @@ impl Persona {
 
     /// Banksy | 4 | Securified { Threshold factors only #3 }
     pub(crate) fn p4() -> Self {
-        Self::securified_mainnet(4, "Banksy", |idx| {
+        Self::securified_mainnet("Banksy", IdentityAddress::sample_4(), || {
+            let idx = HDPathComponent::securifying_base_index(4);
             MatrixOfFactorInstances::m4(HierarchicalDeterministicFactorInstance::f(
                 Self::entity_kind(),
                 idx,
@@ -362,7 +465,8 @@ impl Persona {
 
     /// Voltaire | 5 | Securified { Override factors only #2 }
     pub(crate) fn p5() -> Self {
-        Self::securified_mainnet(5, "Voltaire", |idx| {
+        Self::securified_mainnet("Voltaire", IdentityAddress::sample_5(), || {
+            let idx = HDPathComponent::securifying_base_index(5);
             MatrixOfFactorInstances::m5(HierarchicalDeterministicFactorInstance::f(
                 Self::entity_kind(),
                 idx,
@@ -372,7 +476,8 @@ impl Persona {
 
     /// Kasparov | 6 | Securified { Threshold #3 and Override factors #2  }
     pub(crate) fn p6() -> Self {
-        Self::securified_mainnet(6, "Kasparov", |idx| {
+        Self::securified_mainnet("Kasparov", IdentityAddress::sample_6(), || {
+            let idx = HDPathComponent::securifying_base_index(6);
             MatrixOfFactorInstances::m6(HierarchicalDeterministicFactorInstance::f(
                 Self::entity_kind(),
                 idx,
@@ -382,7 +487,8 @@ impl Persona {
 
     /// Pelé | 7 | Securified { Threshold only # 5/5 }
     pub(crate) fn p7() -> Self {
-        Self::securified_mainnet(7, "Pelé", |idx| {
+        Self::securified_mainnet("Pelé", IdentityAddress::sample_7(), || {
+            let idx = HDPathComponent::securifying_base_index(7);
             MatrixOfFactorInstances::m7(HierarchicalDeterministicFactorInstance::f(
                 Self::entity_kind(),
                 idx,

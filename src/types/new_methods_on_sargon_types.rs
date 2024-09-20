@@ -31,6 +31,23 @@ impl TransactionIntent {
     }
 }
 
+#[derive(Clone, Copy, PartialEq, Eq, Hash, derive_more::Display, derive_more::Debug)]
+pub enum KeySpace {
+    #[display("Unsecurified")]
+    #[debug("Unsecurified")]
+    Unsecurified,
+    #[display("Securified")]
+    #[debug("Securified")]
+    Securified,
+}
+
+#[cfg(test)]
+impl Profile {
+    pub fn accounts<'a>(accounts: impl IntoIterator<Item = &'a Account>) -> Self {
+        Self::new([], accounts, [])
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -38,12 +55,12 @@ mod tests {
     #[test]
     fn account_address() {
         let account = AccountOrPersona::from(Account::sample());
-        assert_eq!(account.address().to_string(), "acco_Alice")
+        assert_eq!(account.address().to_string(), "acco_0_12f3a9fc")
     }
 
     #[test]
     fn persona_address() {
         let persona = AccountOrPersona::from(Persona::sample());
-        assert_eq!(persona.address().to_string(), "ident_Alice")
+        assert_eq!(persona.address().to_string(), "iden_0_2b0a4c3f")
     }
 }

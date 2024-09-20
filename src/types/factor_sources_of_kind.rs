@@ -71,7 +71,7 @@ mod tests {
 
     #[test]
     fn valid_one() {
-        let sources = IndexSet::<HDFactorSource>::from_iter([HDFactorSource::device()]);
+        let sources = IndexSet::<HDFactorSource>::just(HDFactorSource::device());
         let sut = Sut::new(FactorSourceKind::Device, sources.clone()).unwrap();
         assert_eq!(sut.factor_sources(), sources);
     }

@@ -372,18 +372,18 @@ mod tests {
                     vec![
                         (
                             FactorSourceKind::Ledger,
-                            IndexSet::from_iter([InvalidTransactionIfNeglected::new(
+                            IndexSet::just(InvalidTransactionIfNeglected::new(
                                 tx0.clone().intent_hash,
                                 [a7.address()]
-                            )])
+                            ))
                         ),
                         // Important that we do NOT display any mentioning of `tx0` here again!
                         (
                             FactorSourceKind::Device,
-                            IndexSet::from_iter([InvalidTransactionIfNeglected::new(
+                            IndexSet::just(InvalidTransactionIfNeglected::new(
                                 tx1.clone().intent_hash,
                                 [a0.address()]
-                            )])
+                            ))
                         ),
                     ]
                 );
@@ -391,7 +391,7 @@ mod tests {
                 assert!(!outcome.successful());
                 assert_eq!(
                     outcome.ids_of_neglected_factor_sources_failed(),
-                    IndexSet::<FactorSourceIDFromHash>::from_iter([FactorSourceIDFromHash::fs2()])
+                    IndexSet::<FactorSourceIDFromHash>::just(FactorSourceIDFromHash::fs2())
                 );
                 assert_eq!(
                     outcome.ids_of_neglected_factor_sources_irrelevant(),
@@ -437,8 +437,8 @@ mod tests {
                     vec![DerivationPath::new(
                         NetworkID::Mainnet,
                         CAP26EntityKind::Account,
-                        CAP26KeyKind::T9n,
-                        HDPathComponent::non_hardened(0)
+                        CAP26KeyKind::TransactionSigning,
+                        HDPathComponent::unsecurified_hardening_base_index(0)
                     )]
                 )
             }
@@ -508,8 +508,22 @@ mod tests {
             #[actix_rt::test]
             async fn prudent_user_single_tx_two_accounts_same_factor_source() {
                 let collector = SignaturesCollector::test_prudent([TXToSign::new([
-                    Account::unsecurified_mainnet(0, "A0", FactorSourceIDFromHash::fs0()),
-                    Account::unsecurified_mainnet(1, "A1", FactorSourceIDFromHash::fs0()),
+                    Account::unsecurified_mainnet(
+                        "A0",
+                        HierarchicalDeterministicFactorInstance::mainnet_tx(
+                            CAP26EntityKind::Account,
+                            HDPathComponent::unsecurified_hardening_base_index(0),
+                            FactorSourceIDFromHash::fs0(),
+                        ),
+                    ),
+                    Account::unsecurified_mainnet(
+                        "A1",
+                        HierarchicalDeterministicFactorInstance::mainnet_tx(
+                            CAP26EntityKind::Account,
+                            HDPathComponent::unsecurified_hardening_base_index(1),
+                            FactorSourceIDFromHash::fs0(),
+                        ),
+                    ),
                 ])]);
 
                 let outcome = collector.collect_signatures().await;
@@ -524,11 +538,11 @@ mod tests {
                     [
                         DerivationPath::account_tx(
                             NetworkID::Mainnet,
-                            HDPathComponent::non_hardened(0)
+                            HDPathComponent::unsecurified_hardening_base_index(0)
                         ),
                         DerivationPath::account_tx(
                             NetworkID::Mainnet,
-                            HDPathComponent::non_hardened(1)
+                            HDPathComponent::unsecurified_hardening_base_index(1)
                         ),
                     ]
                     .into_iter()
@@ -765,20 +779,17 @@ mod tests {
                 E: IsEntity,
             >() {
                 let collector = SignaturesCollector::test_lazy_sign_minimum_no_failures([
-                    TXToSign::new([E::securified_mainnet(
-                        HDPathComponent::securified(0),
-                        "all override",
-                        |idx| {
-                            MatrixOfFactorInstances::override_only(
-                                HDFactorSource::all().into_iter().map(|f| {
-                                    HierarchicalDeterministicFactorInstance::mainnet_tx_account(
-                                        idx,
-                                        f.factor_source_id(),
-                                    )
-                                }),
-                            )
-                        },
-                    )]),
+                    TXToSign::new([E::securified_mainnet("Alice", E::Address::sample(), || {
+                        let idx = HDPathComponent::securifying_base_index(0);
+                        MatrixOfFactorInstances::override_only(
+                            HDFactorSource::all().into_iter().map(|f| {
+                                HierarchicalDeterministicFactorInstance::mainnet_tx_account(
+                                    idx,
+                                    f.factor_source_id(),
+                                )
+                            }),
+                        )
+                    })]),
                 ]);
                 let outcome = collector.collect_signatures().await;
                 assert!(outcome.successful());
@@ -800,7 +811,7 @@ mod tests {
             }
 
             async fn fail_get_neglected_e0<E: IsEntity>() {
-                let failing = IndexSet::<_>::from_iter([FactorSourceIDFromHash::fs0()]);
+                let failing = IndexSet::<_>::just(FactorSourceIDFromHash::fs0());
                 let collector = SignaturesCollector::test_prudent_with_failures(
                     [TXToSign::new([E::e0()])],
                     SimulatedFailures::with_simulated_failures(failing.clone()),
@@ -950,7 +961,7 @@ mod tests {
                 assert!(outcome.successful());
                 assert_eq!(
                     outcome.ids_of_neglected_factor_sources(),
-                    IndexSet::<_>::from_iter([FactorSourceIDFromHash::fs3()])
+                    IndexSet::<_>::just(FactorSourceIDFromHash::fs3())
                 );
             }
 

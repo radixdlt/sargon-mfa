@@ -1,18 +1,21 @@
 {
-  "cSpell.words": [
-    "Caprese",
-    "FACTORINSTANCE",
-    "FACTORSOURCE",
-    "interactor",
-    "Interactors",
-    "Keyrings",
-    "preprocess",
-    "Quartier",
-    "Rémy",
-    "substate",
-    "txid",
-    "txids",
-    "unsecurified",
-    "Yubikey"
-  ]
+	"cSpell.words": [
+		"Banksy",
+		"Fulfillable",
+		"interactor",
+		"Interactors",
+		"Keyrings",
+		"preprocess",
+		"scrypto",
+		"securifies",
+		"securify",
+		"securifying",
+		"substate",
+		"txid",
+		"txids",
+		"unrecovered",
+		"unsecurified",
+		"VECI",
+		"Yubikey"
+	]
 }

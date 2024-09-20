@@ -74,10 +74,10 @@ mod tests {
     fn panics_if_wrong_factor_source_kind() {
         Sut::new(
             FactorSourceKind::Arculus,
-            IndexMap::from_iter([(
+            IndexMap::just((
                 FactorSourceIDFromHash::sample(),
                 MonoFactorSignRequestInput::sample(),
-            )]),
+            )),
             IndexSet::new(),
         );
     }

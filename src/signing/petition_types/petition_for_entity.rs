@@ -305,8 +305,8 @@ impl PetitionForEntity {
     fn from_entity(entity: impl Into<AccountOrPersona>, intent_hash: IntentHash) -> Self {
         let entity = entity.into();
         match entity.security_state() {
-            EntitySecurityState::Securified(matrix) => {
-                Self::new_securified(intent_hash, entity.address(), matrix)
+            EntitySecurityState::Securified(sec) => {
+                Self::new_securified(intent_hash, entity.address(), sec.matrix)
             }
             EntitySecurityState::Unsecured(factor) => {
                 Self::new_unsecurified(intent_hash, entity.address(), factor)
@@ -340,7 +340,7 @@ mod tests {
         let matrix =
             MatrixOfFactorInstances::override_only([d0.clone(), d1.clone()].into_iter().map(|f| {
                 HierarchicalDeterministicFactorInstance::mainnet_tx_account(
-                    HDPathComponent::securified(0),
+                    HDPathComponent::securifying_base_index(0),
                     f.factor_source_id(),
                 )
             }));
@@ -367,15 +367,15 @@ mod tests {
         let matrix =
             MatrixOfFactorInstances::override_only([d0.clone(), d1.clone()].into_iter().map(|f| {
                 HierarchicalDeterministicFactorInstance::mainnet_tx_account(
-                    HDPathComponent::securified(0),
+                    HDPathComponent::securifying_base_index(0),
                     f.factor_source_id(),
                 )
             }));
         let entity = AddressOfAccountOrPersona::Account(AccountAddress::sample());
         let tx = IntentHash::sample_third();
         let sut = Sut::new_securified(tx.clone(), entity.clone(), matrix);
-        let invalid = sut
-            .invalid_transaction_if_neglected_factors(IndexSet::from_iter([d0.factor_source_id()]));
+        let invalid =
+            sut.invalid_transaction_if_neglected_factors(IndexSet::just(d0.factor_source_id()));
         assert!(invalid.is_none());
     }
 
@@ -389,7 +389,7 @@ mod tests {
         let matrix = MatrixOfFactorInstances::threshold_only(
             [d0.clone(), d1.clone()].into_iter().map(|f| {
                 HierarchicalDeterministicFactorInstance::mainnet_tx_account(
-                    HDPathComponent::securified(0),
+                    HDPathComponent::securifying_base_index(0),
                     f.factor_source_id(),
                 )
             }),
@@ -418,7 +418,7 @@ mod tests {
         let matrix = MatrixOfFactorInstances::threshold_only(
             [d0.clone(), d1.clone()].into_iter().map(|f| {
                 HierarchicalDeterministicFactorInstance::mainnet_tx_account(
-                    HDPathComponent::securified(0),
+                    HDPathComponent::securifying_base_index(0),
                     f.factor_source_id(),
                 )
             }),
@@ -430,7 +430,7 @@ mod tests {
         let sut = Sut::new_securified(tx.clone(), entity.clone(), matrix);
 
         let invalid = sut
-            .invalid_transaction_if_neglected_factors(IndexSet::from_iter([d1.factor_source_id()]))
+            .invalid_transaction_if_neglected_factors(IndexSet::just(d1.factor_source_id()))
             .unwrap();
 
         assert_eq!(invalid, entity);
@@ -446,7 +446,7 @@ mod tests {
         let matrix = MatrixOfFactorInstances::threshold_only(
             [d0.clone(), d1.clone()].into_iter().map(|f| {
                 HierarchicalDeterministicFactorInstance::mainnet_tx_account(
-                    HDPathComponent::securified(0),
+                    HDPathComponent::securifying_base_index(0),
                     f.factor_source_id(),
                 )
             }),
@@ -457,8 +457,8 @@ mod tests {
         let tx = IntentHash::sample_third();
         let sut = Sut::new_securified(tx.clone(), entity.clone(), matrix);
 
-        let invalid = sut
-            .invalid_transaction_if_neglected_factors(IndexSet::from_iter([d1.factor_source_id()]));
+        let invalid =
+            sut.invalid_transaction_if_neglected_factors(IndexSet::just(d1.factor_source_id()));
 
         assert!(invalid.is_none());
     }
@@ -489,7 +489,8 @@ mod tests {
     #[test]
     #[should_panic(expected = "A factor MUST NOT be present in both threshold AND override list.")]
     fn factor_should_not_be_used_in_both_lists() {
-        Account::securified_mainnet(0, "Jane Doe", |idx| {
+        Account::securified_mainnet("Alice", AccountAddress::sample(), || {
+            let idx = HDPathComponent::securifying_base_index(0);
             let fi = HierarchicalDeterministicFactorInstance::f(CAP26EntityKind::Account, idx);
             MatrixOfFactorInstances::new(
                 [FactorSourceIDFromHash::fs0()].map(&fi),
@@ -503,7 +504,8 @@ mod tests {
     #[should_panic]
     fn cannot_add_same_signature_twice() {
         let intent_hash = IntentHash::sample();
-        let entity = Account::securified_mainnet(0, "Jane Doe", |idx| {
+        let entity = Account::securified_mainnet("Alice", AccountAddress::sample(), || {
+            let idx = HDPathComponent::securifying_base_index(0);
             let fi = HierarchicalDeterministicFactorInstance::f(CAP26EntityKind::Account, idx);
             MatrixOfFactorInstances::new(
                 [FactorSourceIDFromHash::fs0()].map(&fi),
@@ -517,7 +519,7 @@ mod tests {
             OwnedFactorInstance::new(
                 entity.address(),
                 HierarchicalDeterministicFactorInstance::mainnet_tx_account(
-                    HDPathComponent::non_hardened(0),
+                    HDPathComponent::unsecurified_hardening_base_index(0),
                     FactorSourceIDFromHash::fs0(),
                 ),
             ),
@@ -537,7 +539,7 @@ mod tests {
                 OwnedFactorInstance::new(
                     sut.entity.clone(),
                     HierarchicalDeterministicFactorInstance::mainnet_tx_account(
-                        HDPathComponent::securified(6),
+                        HDPathComponent::securifying_base_index(6),
                         FactorSourceIDFromHash::fs1(),
                     ),
                 ),
@@ -547,7 +549,7 @@ mod tests {
             assert!(sut
                 // Already signed with override factor `FactorSourceIDFromHash::fs1()`. Thus
                 // can skip
-                .invalid_transaction_if_neglected_factors(IndexSet::from_iter([f]))
+                .invalid_transaction_if_neglected_factors(IndexSet::just(f))
                 .is_none())
         };
         can_skip(FactorSourceIDFromHash::fs0());

@@ -12,15 +12,15 @@ mod key_derivation_tests {
     async fn failure_unknown_factor() {
         let res = KeysCollector::new(
             IndexSet::new(),
-            IndexMap::from_iter([(
+            IndexMap::just((
                 FactorSourceIDFromHash::fs0(),
-                IndexSet::from_iter([DerivationPath::new(
+                IndexSet::just(DerivationPath::new(
                     Mainnet,
                     Account,
-                    T9n,
-                    HDPathComponent::securified(0),
-                )]),
-            )]),
+                    TransactionSigning,
+                    HDPathComponent::securifying_base_index(0),
+                )),
+            )),
             Arc::new(TestDerivationInteractors::default()),
         );
         assert!(matches!(res, Err(CommonError::UnknownFactorSource)));
@@ -31,7 +31,14 @@ mod key_derivation_tests {
         let factor_source = fs_at(0);
         let paths = [0, 1, 2]
             .into_iter()
-            .map(|i| DerivationPath::at(Mainnet, Account, T9n, i))
+            .map(|i| {
+                DerivationPath::unsecurified_hardening_base_index(
+                    Mainnet,
+                    Account,
+                    TransactionSigning,
+                    i,
+                )
+            })
             .collect::<IndexSet<_>>();
         let collector = KeysCollector::new(
             HDFactorSource::all(),
@@ -53,7 +60,14 @@ mod key_derivation_tests {
             let factor_source = fs_at(0);
             let paths = [0, 1, 2]
                 .into_iter()
-                .map(|i| DerivationPath::at(Mainnet, Account, T9n, i))
+                .map(|i| {
+                    DerivationPath::unsecurified_hardening_base_index(
+                        Mainnet,
+                        Account,
+                        TransactionSigning,
+                        i,
+                    )
+                })
                 .collect::<IndexSet<_>>();
             let collector =
                 KeysCollector::new_test([(factor_source.factor_source_id(), paths.clone())]);
@@ -75,8 +89,11 @@ mod key_derivation_tests {
 
         #[actix_rt::test]
         async fn multi_keys_multi_factor_sources_single_index_per() {
-            let path = DerivationPath::account_tx(Mainnet, HDPathComponent::non_hardened(0));
-            let paths = IndexSet::from_iter([path]);
+            let path = DerivationPath::account_tx(
+                Mainnet,
+                HDPathComponent::unsecurified_hardening_base_index(0),
+            );
+            let paths = IndexSet::just(path);
             let factor_sources = HDFactorSource::all();
 
             let collector = KeysCollector::new_test(
@@ -112,7 +129,14 @@ mod key_derivation_tests {
         async fn multi_keys_multi_factor_sources_multi_paths() {
             let paths = [0, 1, 2]
                 .into_iter()
-                .map(|i| DerivationPath::at(Mainnet, Account, T9n, i))
+                .map(|i| {
+                    DerivationPath::unsecurified_hardening_base_index(
+                        Mainnet,
+                        Account,
+                        TransactionSigning,
+                        i,
+                    )
+                })
                 .collect::<IndexSet<_>>();
 
             let factor_sources = HDFactorSource::all();
@@ -151,52 +175,90 @@ mod key_derivation_tests {
         async fn multi_keys_multi_factor_sources_multi_paths_complex() {
             let mut paths = IndexSet::new();
 
-            paths.extend(
-                [0, 1, 2]
-                    .into_iter()
-                    .map(|i| DerivationPath::at(Mainnet, Account, T9n, i)),
-            );
+            paths.extend([0, 1, 2].into_iter().map(|i| {
+                DerivationPath::unsecurified_hardening_base_index(
+                    Mainnet,
+                    Account,
+                    TransactionSigning,
+                    i,
+                )
+            }));
+
+            paths.extend([0, 1, 2].into_iter().map(|i| {
+                DerivationPath::unsecurified_hardening_base_index(
+                    Stokenet,
+                    Account,
+                    TransactionSigning,
+                    i,
+                )
+            }));
+
+            paths.extend([0, 1, 2].into_iter().map(|i| {
+                DerivationPath::unsecurified_hardening_base_index(
+                    Mainnet,
+                    Identity,
+                    TransactionSigning,
+                    i,
+                )
+            }));
+
+            paths.extend([0, 1, 2].into_iter().map(|i| {
+                DerivationPath::unsecurified_hardening_base_index(
+                    Stokenet,
+                    Identity,
+                    TransactionSigning,
+                    i,
+                )
+            }));
+
+            paths.extend([0, 1, 2].into_iter().map(|i| {
+                DerivationPath::unsecurified_hardening_base_index(
+                    Mainnet,
+                    Account,
+                    AuthenticationSigning,
+                    i,
+                )
+            }));
+
+            paths.extend([0, 1, 2].into_iter().map(|i| {
+                DerivationPath::unsecurified_hardening_base_index(
+                    Stokenet,
+                    Account,
+                    AuthenticationSigning,
+                    i,
+                )
+            }));
+
+            paths.extend([0, 1, 2].into_iter().map(|i| {
+                DerivationPath::unsecurified_hardening_base_index(
+                    Mainnet,
+                    Identity,
+                    AuthenticationSigning,
+                    i,
+                )
+            }));
+
+            paths.extend([0, 1, 2].into_iter().map(|i| {
+                DerivationPath::unsecurified_hardening_base_index(
+                    Stokenet,
+                    Identity,
+                    AuthenticationSigning,
+                    i,
+                )
+            }));
 
             paths.extend(
-                [0, 1, 2]
-                    .into_iter()
-                    .map(|i| DerivationPath::at(Stokenet, Account, T9n, i)),
-            );
-
-            paths.extend(
-                [0, 1, 2]
-                    .into_iter()
-                    .map(|i| DerivationPath::at(Mainnet, Identity, T9n, i)),
-            );
-
-            paths.extend(
-                [0, 1, 2]
-                    .into_iter()
-                    .map(|i| DerivationPath::at(Stokenet, Identity, T9n, i)),
-            );
-
-            paths.extend(
-                [0, 1, 2]
-                    .into_iter()
-                    .map(|i| DerivationPath::at(Mainnet, Account, Rola, i)),
-            );
-
-            paths.extend(
-                [0, 1, 2]
-                    .into_iter()
-                    .map(|i| DerivationPath::at(Stokenet, Account, Rola, i)),
-            );
-
-            paths.extend(
-                [0, 1, 2]
-                    .into_iter()
-                    .map(|i| DerivationPath::at(Mainnet, Identity, Rola, i)),
-            );
-
-            paths.extend(
-                [0, 1, 2]
-                    .into_iter()
-                    .map(|i| DerivationPath::at(Stokenet, Identity, Rola, i)),
+                [
+                    0,
+                    1,
+                    2,
+                    BIP32_SECURIFIED_HALF,
+                    BIP32_SECURIFIED_HALF + 1,
+                    BIP32_SECURIFIED_HALF + 2,
+                ]
+                .into_iter()
+                .map(HDPathComponent::new_from_base_index)
+                .map(|p| DerivationPath::new(Mainnet, Account, TransactionSigning, p)),
             );
 
             paths.extend(
@@ -209,7 +271,8 @@ mod key_derivation_tests {
                     BIP32_SECURIFIED_HALF + 2,
                 ]
                 .into_iter()
-                .map(|i| DerivationPath::at(Mainnet, Account, T9n, i)),
+                .map(HDPathComponent::new_from_base_index)
+                .map(|p| DerivationPath::new(Stokenet, Account, TransactionSigning, p)),
             );
 
             paths.extend(
@@ -222,7 +285,8 @@ mod key_derivation_tests {
                     BIP32_SECURIFIED_HALF + 2,
                 ]
                 .into_iter()
-                .map(|i| DerivationPath::at(Stokenet, Account, T9n, i)),
+                .map(HDPathComponent::new_from_base_index)
+                .map(|p| DerivationPath::new(Mainnet, Identity, TransactionSigning, p)),
             );
 
             paths.extend(
@@ -235,7 +299,8 @@ mod key_derivation_tests {
                     BIP32_SECURIFIED_HALF + 2,
                 ]
                 .into_iter()
-                .map(|i| DerivationPath::at(Mainnet, Identity, T9n, i)),
+                .map(HDPathComponent::new_from_base_index)
+                .map(|p| DerivationPath::new(Stokenet, Identity, TransactionSigning, p)),
             );
 
             paths.extend(
@@ -248,7 +313,8 @@ mod key_derivation_tests {
                     BIP32_SECURIFIED_HALF + 2,
                 ]
                 .into_iter()
-                .map(|i| DerivationPath::at(Stokenet, Identity, T9n, i)),
+                .map(HDPathComponent::new_from_base_index)
+                .map(|p| DerivationPath::new(Mainnet, Account, AuthenticationSigning, p)),
             );
 
             paths.extend(
@@ -261,7 +327,8 @@ mod key_derivation_tests {
                     BIP32_SECURIFIED_HALF + 2,
                 ]
                 .into_iter()
-                .map(|i| DerivationPath::at(Mainnet, Account, Rola, i)),
+                .map(HDPathComponent::new_from_base_index)
+                .map(|p| DerivationPath::new(Stokenet, Account, AuthenticationSigning, p)),
             );
 
             paths.extend(
@@ -274,7 +341,8 @@ mod key_derivation_tests {
                     BIP32_SECURIFIED_HALF + 2,
                 ]
                 .into_iter()
-                .map(|i| DerivationPath::at(Stokenet, Account, Rola, i)),
+                .map(HDPathComponent::new_from_base_index)
+                .map(|p| DerivationPath::new(Mainnet, Identity, AuthenticationSigning, p)),
             );
 
             paths.extend(
@@ -287,20 +355,8 @@ mod key_derivation_tests {
                     BIP32_SECURIFIED_HALF + 2,
                 ]
                 .into_iter()
-                .map(|i| DerivationPath::at(Mainnet, Identity, Rola, i)),
-            );
-
-            paths.extend(
-                [
-                    0,
-                    1,
-                    2,
-                    BIP32_SECURIFIED_HALF,
-                    BIP32_SECURIFIED_HALF + 1,
-                    BIP32_SECURIFIED_HALF + 2,
-                ]
-                .into_iter()
-                .map(|i| DerivationPath::at(Stokenet, Identity, Rola, i)),
+                .map(HDPathComponent::new_from_base_index)
+                .map(|p| DerivationPath::new(Stokenet, Identity, AuthenticationSigning, p)),
             );
 
             let factor_sources = HDFactorSource::all();
@@ -383,7 +439,7 @@ mod key_derivation_tests {
                     entity_kind,
                     key_kind,
                     Expected {
-                        index: HDPathComponent::non_hardened(BIP32_SECURIFIED_HALF),
+                        index: HDPathComponent::securifying_base_index(0),
                     },
                 )
                 .await
@@ -400,7 +456,7 @@ mod key_derivation_tests {
 
                 #[actix_rt::test]
                 async fn single_first_account_mainnet_t9n() {
-                    each_factor(Mainnet, T9n).await
+                    each_factor(Mainnet, TransactionSigning).await
                 }
             }
         }
@@ -421,7 +477,7 @@ mod key_derivation_tests {
                     entity_kind,
                     key_kind,
                     Expected {
-                        index: HDPathComponent::non_hardened(0),
+                        index: HDPathComponent::unsecurified_hardening_base_index(0),
                     },
                 )
                 .await
@@ -438,22 +494,22 @@ mod key_derivation_tests {
 
                 #[actix_rt::test]
                 async fn single_first_account_mainnet_t9n() {
-                    each_factor(Mainnet, T9n).await
+                    each_factor(Mainnet, TransactionSigning).await
                 }
 
                 #[actix_rt::test]
                 async fn single_first_account_stokenet_t9n() {
-                    each_factor(Mainnet, T9n).await
+                    each_factor(Mainnet, TransactionSigning).await
                 }
 
                 #[actix_rt::test]
                 async fn single_first_account_mainnet_rola() {
-                    each_factor(Mainnet, Rola).await
+                    each_factor(Mainnet, AuthenticationSigning).await
                 }
 
                 #[actix_rt::test]
                 async fn single_first_account_stokenet_rola() {
-                    each_factor(Stokenet, Rola).await
+                    each_factor(Stokenet, AuthenticationSigning).await
                 }
             }
 
@@ -468,22 +524,22 @@ mod key_derivation_tests {
 
                 #[actix_rt::test]
                 async fn single_first_persona_mainnet_t9n() {
-                    each_factor(Mainnet, T9n).await
+                    each_factor(Mainnet, TransactionSigning).await
                 }
 
                 #[actix_rt::test]
                 async fn single_first_persona_stokenet_t9n() {
-                    each_factor(Mainnet, T9n).await
+                    each_factor(Mainnet, TransactionSigning).await
                 }
 
                 #[actix_rt::test]
                 async fn single_first_persona_mainnet_rola() {
-                    each_factor(Mainnet, Rola).await
+                    each_factor(Mainnet, AuthenticationSigning).await
                 }
 
                 #[actix_rt::test]
                 async fn single_first_persona_stokenet_rola() {
-                    each_factor(Stokenet, Rola).await
+                    each_factor(Stokenet, AuthenticationSigning).await
                 }
             }
         }

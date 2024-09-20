@@ -47,7 +47,7 @@ mod tests {
         Sut::new(
             true,
             IntentHash::sample(),
-            IndexSet::from_iter([HDSignature::sample_other()]),
+            IndexSet::just(HDSignature::sample_other()),
             IndexSet::new(),
         );
     }

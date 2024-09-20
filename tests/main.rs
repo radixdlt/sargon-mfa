@@ -37,7 +37,7 @@ mod integration_test_derivation {
             request: MonoFactorKeyDerivationRequest,
         ) -> Result<KeyDerivationResponse> {
             let factor_source_id = request.clone().factor_source_id;
-            Ok(KeyDerivationResponse::new(IndexMap::from_iter([(
+            Ok(KeyDerivationResponse::new(IndexMap::just((
                 factor_source_id,
                 request
                     .derivation_paths
@@ -47,7 +47,7 @@ mod integration_test_derivation {
                         HierarchicalDeterministicFactorInstance::mocked_with(p, &factor_source_id)
                     })
                     .collect(),
-            )])))
+            ))))
         }
     }
 
@@ -73,36 +73,42 @@ mod integration_test_derivation {
             (
                 f0.factor_source_id(),
                 IndexSet::<_>::from_iter([
-                    DerivationPath::account_tx(NetworkID::Mainnet, HDPathComponent::securified(0)),
-                    DerivationPath::account_tx(NetworkID::Mainnet, HDPathComponent::securified(1)),
+                    DerivationPath::account_tx(
+                        NetworkID::Mainnet,
+                        HDPathComponent::securifying_base_index(0),
+                    ),
+                    DerivationPath::account_tx(
+                        NetworkID::Mainnet,
+                        HDPathComponent::securifying_base_index(1),
+                    ),
                     DerivationPath::account_tx(
                         NetworkID::Stokenet,
-                        HDPathComponent::non_hardened(2),
+                        HDPathComponent::unsecurified_hardening_base_index(2),
                     ),
                 ]),
             ),
             (
                 f1.factor_source_id(),
-                IndexSet::<_>::from_iter([DerivationPath::account_tx(
+                IndexSet::<_>::just(DerivationPath::account_tx(
                     NetworkID::Stokenet,
-                    HDPathComponent::non_hardened(3),
-                )]),
+                    HDPathComponent::unsecurified_hardening_base_index(3),
+                )),
             ),
             (
                 f2.factor_source_id(),
-                IndexSet::<_>::from_iter([DerivationPath::account_tx(
+                IndexSet::<_>::just(DerivationPath::account_tx(
                     NetworkID::Mainnet,
-                    HDPathComponent::non_hardened(4),
-                )]),
+                    HDPathComponent::unsecurified_hardening_base_index(4),
+                )),
             ),
             (
                 f3.factor_source_id(),
-                IndexSet::<_>::from_iter([DerivationPath::new(
+                IndexSet::<_>::just(DerivationPath::new(
                     NetworkID::Mainnet,
                     CAP26EntityKind::Identity,
-                    CAP26KeyKind::Rola,
-                    HDPathComponent::securified(5),
-                )]),
+                    CAP26KeyKind::AuthenticationSigning,
+                    HDPathComponent::securifying_base_index(5),
+                )),
             ),
         ]);
 
@@ -182,7 +188,7 @@ mod integration_test_signing {
             if request.invalid_transactions_if_neglected.is_empty() {
                 return SignWithFactorsOutcome::Neglected(NeglectedFactors::new(
                     NeglectFactorReason::UserExplicitlySkipped,
-                    IndexSet::from_iter([request.input.factor_source_id]),
+                    IndexSet::just(request.input.factor_source_id),
                 ));
             }
             let signatures = request
@@ -223,7 +229,8 @@ mod integration_test_signing {
         let f3 = HDFactorSource::arculus();
         let f4 = HDFactorSource::off_device();
 
-        let alice = Account::securified_mainnet(0, "Alice", |i| {
+        let alice = Account::securified_mainnet("Alice", AccountAddress::sample(), || {
+            let i = HDPathComponent::securifying_base_index(0);
             MatrixOfFactorInstances::threshold_only(
                 [
                     FI::mainnet_tx_account(i, f0.factor_source_id()), // SKIPPED
@@ -234,14 +241,16 @@ mod integration_test_signing {
             )
         });
 
-        let bob = Account::securified_mainnet(1, "Bob", |i| {
+        let bob = Account::securified_mainnet("Bob", AccountAddress::sample_2(), || {
+            let i = HDPathComponent::securifying_base_index(1);
             MatrixOfFactorInstances::override_only([FI::mainnet_tx_account(
                 i,
                 f3.factor_source_id(),
             )])
         });
 
-        let carol = Account::securified_mainnet(2, "Carol", |i| {
+        let carol = Account::securified_mainnet("Carol", AccountAddress::sample_3(), || {
+            let i = HDPathComponent::securifying_base_index(2);
             MatrixOfFactorInstances::new(
                 [FI::mainnet_tx_account(i, f2.factor_source_id())],
                 1,
@@ -249,7 +258,13 @@ mod integration_test_signing {
             )
         });
 
-        let satoshi = Persona::unsecurified_mainnet(1337, "Satoshi", f4.factor_source_id());
+        let satoshi = Persona::unsecurified_mainnet(
+            "Satoshi",
+            HierarchicalDeterministicFactorInstance::mainnet_tx_identity(
+                HDPathComponent::unsecurified_hardening_base_index(0),
+                f4.factor_source_id(),
+            ),
+        );
 
         let tx0 = TransactionIntent::new([alice.entity_address()], []);
         let tx1 = TransactionIntent::new(
@@ -265,7 +280,7 @@ mod integration_test_signing {
         let transactions = [tx0, tx1, tx2];
 
         let profile = Profile::new(
-            IndexSet::from_iter([f0.clone(), f1, f2, f3, f4]),
+            [f0.clone(), f1, f2, f3, f4],
             [&alice, &bob, &carol],
             [&satoshi],
         );
@@ -284,7 +299,7 @@ mod integration_test_signing {
         assert_eq!(outcome.signatures_of_successful_transactions().len(), 10);
         assert_eq!(
             outcome.ids_of_neglected_factor_sources(),
-            IndexSet::<FactorSourceIDFromHash>::from_iter([f0.factor_source_id()])
+            IndexSet::<FactorSourceIDFromHash>::just(f0.factor_source_id())
         );
     }
 }

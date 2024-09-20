@@ -9,8 +9,8 @@ pub(crate) struct StatelessDummyIndices;
 impl StatelessDummyIndices {
     pub(crate) fn next_derivation_index_for(&self, key_space: KeySpace) -> HDPathComponent {
         match key_space {
-            KeySpace::Securified => HDPathComponent::non_hardened(BIP32_SECURIFIED_HALF),
-            KeySpace::Unsecurified => HDPathComponent::non_hardened(0),
+            KeySpace::Securified => HDPathComponent::securifying_base_index(0),
+            KeySpace::Unsecurified => HDPathComponent::unsecurified_hardening_base_index(0),
         }
     }
 
@@ -24,10 +24,4 @@ impl StatelessDummyIndices {
         let index = self.next_derivation_index_for(key_space);
         DerivationPath::new(network_id, entity_kind, key_kind, index)
     }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub(crate) enum KeySpace {
-    Unsecurified,
-    Securified,
 }
