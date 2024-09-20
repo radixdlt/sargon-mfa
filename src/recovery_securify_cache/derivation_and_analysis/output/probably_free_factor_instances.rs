@@ -14,6 +14,17 @@ impl ProbablyFreeFactorInstances {
             factor_instances: instances.into_iter().collect(),
         }
     }
+    pub fn merge(&self, other: &Self) -> Self {
+        Self::new(
+            self.instances()
+                .union(&other.instances())
+                .cloned()
+                .collect(),
+        )
+    }
+    pub fn instances(&self) -> IndexSet<HierarchicalDeterministicFactorInstance> {
+        self.factor_instances.iter().cloned().collect()
+    }
 }
 
 impl HasSampleValues for ProbablyFreeFactorInstances {

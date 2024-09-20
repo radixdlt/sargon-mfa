@@ -67,6 +67,7 @@ use crate::prelude::*;
 ///         analyze if FactorInstance are free.)
 pub async fn derive_and_analyze(input: DeriveAndAnalyzeInput) -> Result<DerivationAndAnalysis> {
     error!("Using SAMPLE data in 'derive_and_analyze'!!!");
+    let mut derived_instances = IndexSet::<HierarchicalDeterministicFactorInstance>::new();
 
     // To be fed into cache, NOT done by this function.
     let probably_free_instances = ProbablyFreeFactorInstances::sample();

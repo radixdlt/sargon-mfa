@@ -991,6 +991,9 @@ pub struct SecurifiedEntityControl {
     pub access_controller: AccessController,
 }
 impl SecurifiedEntityControl {
+    pub fn all_factor_instances(&self) -> IndexSet<HierarchicalDeterministicFactorInstance> {
+        self.matrix.all_factors()
+    }
     pub fn new(matrix: MatrixOfFactorInstances, access_controller: AccessController) -> Self {
         Self {
             matrix,
