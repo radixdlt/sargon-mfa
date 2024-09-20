@@ -99,21 +99,16 @@ pub async fn derive_and_analyze(input: DeriveAndAnalyzeInput) -> Result<Derivati
     let analysis = input.analyze(factor_instances).await?;
 
     // To be fed into cache, NOT done by this function.
-    // Might be empty
     let probably_free_instances = analysis.probably_free_instances;
 
+    // Recovered Securified or Unsecurified entities, unrecovered Securified
+    // Entities and virtual entity creating instances.
     let known_taken = analysis.known_taken;
-
-    // Used FactorSources which are not new - might be empty
-    let old_factor_sources = input.old_factor_sources();
-
-    /// Used FactorSource which are new - might be empty
-    let new_factor_sources = input.new_factor_sources();
 
     Ok(DerivationAndAnalysis::new(
         probably_free_instances,
         known_taken,
-        old_factor_sources,
-        new_factor_sources,
+        input.old_factor_sources(),
+        input.new_factor_sources(),
     ))
 }
