@@ -66,5 +66,36 @@ use crate::prelude::*;
 ///     - Gateway Required: NO (but beneficial to use it if host is online to
 ///         analyze if FactorInstance are free.)
 pub async fn derive_and_analyze(input: DeriveAndAnalyzeInput) -> Result<DerivationAndAnalysis> {
-    todo!()
+    error!("Using SAMPLE data in 'derive_and_analyze'!!!");
+
+    // To be fed into cache, NOT done by this function.
+    let probably_free_instances = ProbablyFreeFactorInstances::sample();
+
+    // Unsecurified entities that were recovered
+    let recovered_unsecurified_entities = RecoveredUnsecurifiedEntities::sample();
+
+    // Securified entities that were recovered
+    let recovered_securified_entities = RecoveredSecurifiedEntities::sample();
+
+    // Securified entities that were not recovered
+    let unrecovered_securified_entities = UnrecoveredSecurifiedEntities::sample();
+
+    let virtual_entity_creating_instances =
+        IndexSet::<HierarchicalDeterministicFactorInstance>::new();
+
+    // Used FactorSources which are not new - might be empty
+    let old_factor_sources = input.old_factor_sources();
+
+    /// Used FactorSource which are new - might be empty
+    let new_factor_sources = input.new_factor_sources();
+
+    Ok(DerivationAndAnalysis::new(
+        probably_free_instances,
+        recovered_unsecurified_entities,
+        recovered_securified_entities,
+        unrecovered_securified_entities,
+        virtual_entity_creating_instances,
+        old_factor_sources,
+        new_factor_sources,
+    ))
 }

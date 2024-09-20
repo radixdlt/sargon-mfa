@@ -17,6 +17,31 @@ pub struct DeriveAndAnalyzeInput {
 }
 
 impl DeriveAndAnalyzeInput {
+    pub fn all_factor_sources(&self) -> IndexSet<HDFactorSource> {
+        self.factor_sources.clone().into_iter().collect()
+    }
+    pub fn new_factor_sources(&self) -> IndexSet<HDFactorSource> {
+        self.all_factor_sources()
+            .into_iter()
+            .filter(|f| {
+                !self
+                    .ids_of_new_factor_sources
+                    .contains(&f.factor_source_id())
+            })
+            .collect()
+    }
+    pub fn old_factor_sources(&self) -> IndexSet<HDFactorSource> {
+        self.all_factor_sources()
+            .into_iter()
+            .filter(|f| {
+                self.ids_of_new_factor_sources
+                    .contains(&f.factor_source_id())
+            })
+            .collect()
+    }
+}
+
+impl DeriveAndAnalyzeInput {
     /// # Panics
     /// Panics if some IDs of `ids_of_new_factor_sources` are not found in `factor_sources`
     pub fn new(
