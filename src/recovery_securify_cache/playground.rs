@@ -23,6 +23,8 @@ use crate::prelude::*;
 ///
 /// * [FSA] FactorSource Addition
 ///     CHARACTERISTICS:
+///     - Derivation Indices Range Start: `0`
+///     - Derivation Indices Range Size: Many, different for each factor source kind and key kind
 ///     - Cache Available: NO, not for this FactorSource
 ///     - Profile Available: YES
 ///     - FactorSource Addition: `Single`
@@ -33,6 +35,8 @@ use crate::prelude::*;
 /// * [ARS] Account Recovery Scan - like `FSA` but for many FactorSources and
 ///     with Gateway Required.
 ///     CHARACTERISTICS:
+///     - Derivation Indices Range Start: `0`
+///     - Derivation Indices Range Size: Many, different for each factor source kind and key kind
 ///     - Cache Available: NO
 ///     - Profile Available: NO
 ///     - FactorSource Addition: `Many`
@@ -41,6 +45,8 @@ use crate::prelude::*;
 ///     - Gateway Required: YES
 /// * [VECID] VECI Derivation
 ///     CHARACTERISTICS:
+///     - Derivation Indices Range Start: Next Free According to Cache if available, else Profile analysis
+///     - Derivation Indices Range Size: Single (OR Many if Cache needs to be filled)
 ///     - Cache Available: YES - if not deleted or inaccessible
 ///     - Profile Available: YES
 ///     - FactorSource Addition: NO
@@ -48,8 +54,10 @@ use crate::prelude::*;
 ///     - `VECI` Addition: NO
 ///     - Gateway Required: NO (but beneficial to use it if host is online to
 ///         analyze if FactorInstance are free.)
-/// * [MOFID] MatrixOfFactor Instances Derivation
+/// * [MOFID] MatrixOfFactor Instances Derivation (Securifying Entities)
 ///     CHARACTERISTICS:
+///     - Derivation Indices Range Start: Next Free According to Cache if available, else Profile analysis
+///     - Derivation Indices Range Size: Single PER FactorSource (OR Many if Cache needs to be filled)
 ///     - Cache Available: YES - if not deleted or inaccessible
 ///     - Profile Available: YES
 ///     - FactorSource Addition: NO
