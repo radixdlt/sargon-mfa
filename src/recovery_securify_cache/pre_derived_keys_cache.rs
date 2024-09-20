@@ -1,7 +1,5 @@
 use crate::prelude::*;
 
-use super::probably_free_factor_instances;
-
 #[derive(Debug)]
 pub struct PreDerivedKeysCache;
 

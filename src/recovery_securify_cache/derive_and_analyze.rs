@@ -65,16 +65,6 @@ use crate::prelude::*;
 ///     - `VECI` Addition: NO
 ///     - Gateway Required: NO (but beneficial to use it if host is online to
 ///         analyze if FactorInstance are free.)
-async fn derive_and_analyze() -> Result<DerivationAndAnalysis> {
+pub async fn derive_and_analyze(input: DeriveAndAnalyzeInput) -> Result<DerivationAndAnalysis> {
     todo!()
-}
-
-async fn _account_recovery_scan() -> Result<DerivationAndAnalysisAccountRecoveryScan> {
-    let analysis = derive_and_analyze().await?;
-    DerivationAndAnalysisAccountRecoveryScan::try_from(analysis)
-}
-
-pub async fn account_recovery_scan() -> Result<AccountRecoveryScanOutcome> {
-    let analysis = _account_recovery_scan().await?;
-    Ok(AccountRecoveryScanOutcome::from(analysis))
 }
