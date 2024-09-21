@@ -2,7 +2,7 @@ use crate::prelude::*;
 
 /// Unsecurified Entities that were discovered and recovered part of
 /// `derive_and_analyze`
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Default, Clone, PartialEq, Eq, Hash)]
 pub struct RecoveredUnsecurifiedEntities {
     unsecurified_entities: Vec<UnsecurifiedEntity>,
 }
@@ -23,6 +23,15 @@ impl RecoveredUnsecurifiedEntities {
             .into_iter()
             .map(AccountOrPersona::from)
             .collect()
+    }
+
+    pub fn merge(self, other: Self) -> Self {
+        Self::new(
+            self.unsecurified_entities()
+                .union(&other.unsecurified_entities())
+                .cloned()
+                .collect(),
+        )
     }
 }
 

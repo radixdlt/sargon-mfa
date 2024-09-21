@@ -74,7 +74,7 @@ impl HasSampleValues for VirtualEntityCreatingInstance {
 /// Those entities should NOT be put in the field:
 /// `recovered_unsecurified_entities: RecoveredUnsecurifiedEntities` inside the
 /// `DerivationAndAnalysis`, since those instances are known to be VECIs.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Default, Clone, PartialEq, Eq, Hash)]
 pub struct VirtualEntityCreatingInstances {
     vecis: Vec<VirtualEntityCreatingInstance>,
 }
@@ -88,6 +88,10 @@ impl VirtualEntityCreatingInstances {
 
     pub fn vecis(&self) -> IndexSet<VirtualEntityCreatingInstance> {
         self.vecis.iter().cloned().collect()
+    }
+
+    pub fn merge(self, other: Self) -> Self {
+        Self::new(self.vecis().union(&other.vecis()).cloned().collect())
     }
 }
 

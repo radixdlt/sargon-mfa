@@ -94,9 +94,18 @@ use crate::prelude::*;
 ///
 ///
 pub async fn derive_and_analyze(input: DeriveAndAnalyzeInput) -> Result<DerivationAndAnalysis> {
-    let factor_instances = input.load_cached_or_derive_new_instances().await?;
+    let mut analysis = IntermediaryDerivationAnalysis::default();
 
-    let analysis = input.analyze(factor_instances).await?;
+    loop {
+        let factor_instances = input.load_cached_or_derive_new_instances().await?;
+
+        let next_analysis = input.analyze(factor_instances).await?;
+        analysis = analysis.merge(next_analysis);
+        let is_done = input.is_derivation_done(&analysis).await?;
+        if is_done {
+            break;
+        }
+    }
 
     // To be fed into cache, NOT done by this function.
     let probably_free_instances = analysis.probably_free_instances;

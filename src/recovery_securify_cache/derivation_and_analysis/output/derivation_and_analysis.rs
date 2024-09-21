@@ -1,13 +1,17 @@
 use crate::prelude::*;
 
+#[derive(Clone, Default, Debug, PartialEq, Eq, Hash)]
+pub struct HiddenConstructor;
+
 /// A collection of collections of FactorInstances, all collections are disjoint,
 /// i.e. no FactorInstance is present in more than one collection.
 ///
 /// All FactorInstances are known to be not free, i.e. they are taken, meaning
 /// they are already used by some Securified or Unsecurified entity, which we
 /// know by having matched them against Profile or Gateway or both.
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Default, Debug, PartialEq, Eq, Hash)]
 pub struct KnownTakenInstances {
+    hiding_ctor: HiddenConstructor,
     /// Unsecurified entities that were recovered
     pub recovered_unsecurified_entities: RecoveredUnsecurifiedEntities,
 
@@ -66,11 +70,25 @@ impl KnownTakenInstances {
             &virtual_entity_creating_instances,
         ]);
         Self {
+            hiding_ctor: HiddenConstructor,
             recovered_unsecurified_entities,
             recovered_securified_entities,
             unrecovered_securified_entities,
             virtual_entity_creating_instances,
         }
+    }
+
+    pub fn merge(self, other: Self) -> Self {
+        Self::new(
+            self.recovered_unsecurified_entities
+                .merge(other.recovered_unsecurified_entities),
+            self.recovered_securified_entities
+                .merge(other.recovered_securified_entities),
+            self.unrecovered_securified_entities
+                .merge(other.unrecovered_securified_entities),
+            self.virtual_entity_creating_instances
+                .merge(other.virtual_entity_creating_instances),
+        )
     }
 }
 

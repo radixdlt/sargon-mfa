@@ -44,7 +44,7 @@ pub fn assert_are_factor_instance_collections_disjoint(
 /// "Probably" since we might not have all the information to be sure, since
 /// Gateway might not keep track of past FactorInstances, some of the FactorInstances
 /// in KeySpace::Securified might in fact have been used in the past for some entity.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Default, Clone, PartialEq, Eq, Hash)]
 pub struct ProbablyFreeFactorInstances {
     factor_instances: Vec<HierarchicalDeterministicFactorInstance>,
 }

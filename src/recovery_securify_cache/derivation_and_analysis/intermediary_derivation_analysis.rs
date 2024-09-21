@@ -1,6 +1,6 @@
 use crate::prelude::*;
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Default, Clone, PartialEq, Eq, Hash)]
 pub struct IntermediaryDerivationAnalysis {
     pub probably_free_instances: ProbablyFreeFactorInstances,
     pub known_taken: KnownTakenInstances,
@@ -22,5 +22,13 @@ impl IntermediaryDerivationAnalysis {
             probably_free_instances,
             known_taken,
         }
+    }
+
+    pub fn merge(self, other: IntermediaryDerivationAnalysis) -> Self {
+        Self::new(
+            self.probably_free_instances
+                .merge(other.probably_free_instances),
+            self.known_taken.merge(other.known_taken),
+        )
     }
 }

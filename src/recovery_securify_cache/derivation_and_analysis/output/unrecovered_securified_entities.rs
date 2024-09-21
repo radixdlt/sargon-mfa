@@ -5,7 +5,7 @@ use crate::prelude::*;
 /// Securified Entities that were discovered and recovered part of
 /// `derive_and_analyze` that we did not successfully recover due to
 /// not enough matched FactorInstances.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Default, Clone, PartialEq, Eq, Hash)]
 pub struct UnrecoveredSecurifiedEntities {
     entities: Vec<UnrecoveredSecurifiedEntity>,
 }
@@ -19,6 +19,10 @@ impl UnrecoveredSecurifiedEntities {
 
     pub fn entities(&self) -> IndexSet<UnrecoveredSecurifiedEntity> {
         self.entities.clone().into_iter().collect()
+    }
+
+    pub fn merge(self, other: Self) -> Self {
+        Self::new(self.entities().union(&other.entities()).cloned().collect())
     }
 }
 

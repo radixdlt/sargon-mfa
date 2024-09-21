@@ -49,6 +49,7 @@ impl From<DeriveAndAnalyzeAccountRecoveryScanInput> for DeriveAndAnalyzeInput {
         let factor_instances_provider: Arc<dyn IsFactorInstancesProvider> = { unreachable!() };
         let analyze_factor_instances: Arc<dyn IsIntermediaryDerivationAnalyzer> =
             { unreachable!() };
+        let is_done: Arc<dyn IsDerivationDoneQuery> = { unreachable!() };
 
         Self::new(
             value.factor_sources.clone(),
@@ -60,6 +61,7 @@ impl From<DeriveAndAnalyzeAccountRecoveryScanInput> for DeriveAndAnalyzeInput {
             initial_derivation_requests,
             factor_instances_provider,
             analyze_factor_instances,
+            is_done,
         )
     }
 }

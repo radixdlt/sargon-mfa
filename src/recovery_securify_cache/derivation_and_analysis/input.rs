@@ -2,6 +2,11 @@
 
 use crate::prelude::*;
 
+#[async_trait::async_trait]
+pub trait IsDerivationDoneQuery: Sync + Send {
+    async fn is_derivation_done(&self, analysis: &IntermediaryDerivationAnalysis) -> Result<bool>;
+}
+
 pub struct DeriveAndAnalyzeInput {
     factor_sources: IndexSet<HDFactorSource>,
     ids_of_new_factor_sources: IndexSet<FactorSourceIDFromHash>,
@@ -13,6 +18,7 @@ pub struct DeriveAndAnalyzeInput {
     /// Check if there is any known entity associated with a given factor instance,
     /// if so, some base info, if not, it is counted as "probably free".
     pub analyze_factor_instances: Arc<dyn IsIntermediaryDerivationAnalyzer>,
+    pub is_done: Arc<dyn IsDerivationDoneQuery>,
 }
 
 impl DeriveAndAnalyzeInput {
@@ -24,6 +30,7 @@ impl DeriveAndAnalyzeInput {
         initial_derivation_requests: IndexSet<DerivationRequest>,
         factor_instances_provider: Arc<dyn IsFactorInstancesProvider>,
         analyze_factor_instances: Arc<dyn IsIntermediaryDerivationAnalyzer>,
+        is_done: Arc<dyn IsDerivationDoneQuery>,
     ) -> Self {
         assert!(
             ids_of_new_factor_sources
@@ -38,6 +45,7 @@ impl DeriveAndAnalyzeInput {
             next_requests: initial_derivation_requests,
             factor_instances_provider,
             analyze_factor_instances,
+            is_done,
         }
     }
 }
@@ -51,6 +59,13 @@ impl IsIntermediaryDerivationAnalyzer for DeriveAndAnalyzeInput {
         self.analyze_factor_instances
             .analyze(factor_instances)
             .await
+    }
+}
+
+#[async_trait::async_trait]
+impl IsDerivationDoneQuery for DeriveAndAnalyzeInput {
+    async fn is_derivation_done(&self, analysis: &IntermediaryDerivationAnalysis) -> Result<bool> {
+        self.is_done.is_derivation_done(analysis).await
     }
 }
 
