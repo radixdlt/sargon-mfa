@@ -99,7 +99,7 @@ pub async fn derive_and_analyze(input: DeriveAndAnalyzeInput) -> Result<Derivati
     loop {
         let factor_instances = input.load_cached_or_derive_new_instances().await?;
 
-        let next_analysis = input.analyze(factor_instances).await?;
+        let next_analysis = input.analyze(&factor_instances).await?;
         analysis = analysis.merge(next_analysis);
         let is_done = input.is_derivation_done(&analysis).await?;
         if is_done {

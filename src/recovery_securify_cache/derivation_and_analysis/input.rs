@@ -54,7 +54,7 @@ impl DeriveAndAnalyzeInput {
 impl IsIntermediaryDerivationAnalyzer for DeriveAndAnalyzeInput {
     async fn analyze(
         &self,
-        factor_instances: FactorInstances,
+        factor_instances: &FactorInstances,
     ) -> Result<IntermediaryDerivationAnalysis> {
         self.analyze_factor_instances
             .analyze(factor_instances)

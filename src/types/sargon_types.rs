@@ -2103,6 +2103,9 @@ pub enum CommonError {
 
     #[error("TestDerivationInteractor hardcoded failure")]
     HardcodedFailureTestDerivationInteractor,
+
+    #[error("FactorInstances does not satisfy derivation requests")]
+    FactorInstancesDoesNotSatisfyDerivationRequests,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]

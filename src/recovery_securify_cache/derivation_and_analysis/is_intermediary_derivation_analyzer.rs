@@ -6,6 +6,6 @@ use crate::prelude::*;
 pub trait IsIntermediaryDerivationAnalyzer: Sync + Send {
     async fn analyze(
         &self,
-        factor_instances: FactorInstances,
+        factor_instances: &FactorInstances,
     ) -> Result<IntermediaryDerivationAnalysis>;
 }

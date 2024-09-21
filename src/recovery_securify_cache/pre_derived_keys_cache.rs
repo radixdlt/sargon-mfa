@@ -19,6 +19,15 @@ pub struct DerivationRequests {
     requests: Vec<DerivationRequest>,
 }
 
+impl DerivationRequests {
+    pub fn next(&self) -> Self {
+        todo!("figure this out");
+    }
+    pub fn derivation_paths(&self) -> IndexMap<FactorSourceIDFromHash, IndexSet<DerivationPath>> {
+        todo!("figure this out");
+    }
+}
+
 impl FromIterator<DerivationRequest> for DerivationRequests {
     fn from_iter<I: IntoIterator<Item = DerivationRequest>>(iter: I) -> Self {
         Self::new(iter.into_iter().collect())
@@ -111,7 +120,7 @@ impl CacheOutcome {
 }
 
 impl PreDerivedKeysCache {
-    pub async fn load(&self, _requests: &DerivationRequests) -> Result<CacheOutcome> {
-        todo!()
+    pub async fn load(&self, requests: &DerivationRequests) -> Result<CacheOutcome> {
+        Ok(CacheOutcome::empty(requests))
     }
 }

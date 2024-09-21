@@ -12,6 +12,16 @@ impl From<IndexSet<HierarchicalDeterministicFactorInstance>> for FactorInstances
     }
 }
 
+impl FactorInstances {
+    pub fn filter_satisfying(&self, derivation_requests: &DerivationRequests) -> Result<Self> {
+        if self.satisfies_all_requests(derivation_requests) {
+            Ok(self.clone())
+        } else {
+            Err(CommonError::FactorInstancesDoesNotSatisfyDerivationRequests)
+        }
+    }
+}
+
 impl IntoIterator for FactorInstances {
     type Item = HierarchicalDeterministicFactorInstance;
     type IntoIter = <IndexSet<HierarchicalDeterministicFactorInstance> as IntoIterator>::IntoIter;
