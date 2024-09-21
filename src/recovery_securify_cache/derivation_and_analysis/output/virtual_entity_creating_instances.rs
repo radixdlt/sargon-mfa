@@ -79,6 +79,21 @@ pub struct VirtualEntityCreatingInstances {
     vecis: Vec<VirtualEntityCreatingInstance>,
 }
 
+impl FromIterator<VirtualEntityCreatingInstance> for VirtualEntityCreatingInstances {
+    fn from_iter<I: IntoIterator<Item = VirtualEntityCreatingInstance>>(iter: I) -> Self {
+        Self::new(iter.into_iter().collect())
+    }
+}
+
+impl IntoIterator for VirtualEntityCreatingInstances {
+    type Item = VirtualEntityCreatingInstance;
+    type IntoIter = <IndexSet<VirtualEntityCreatingInstance> as IntoIterator>::IntoIter;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.vecis().into_iter()
+    }
+}
+
 impl VirtualEntityCreatingInstances {
     pub fn new(vecis: IndexSet<VirtualEntityCreatingInstance>) -> Self {
         Self {

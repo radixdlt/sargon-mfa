@@ -120,7 +120,7 @@ mod integration_test_derivation {
         .unwrap();
 
         let outcome = collector.collect_keys().await;
-        let factors = outcome.all_factors();
+        let factors = outcome.all_factors().factor_instances();
         assert_eq!(
             factors.len(),
             paths

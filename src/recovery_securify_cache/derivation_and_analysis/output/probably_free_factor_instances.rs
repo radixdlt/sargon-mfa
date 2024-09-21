@@ -1,8 +1,50 @@
 use crate::prelude::*;
 
+impl HierarchicalDeterministicFactorInstance {
+    fn satisfies(&self, request: &DerivationRequest) -> bool {
+        self.derivation_path().satisfies(request)
+            && request.factor_source_id == self.factor_source_id
+    }
+}
+
+impl DerivationPath {
+    #[allow(clippy::nonminimal_bool)]
+    fn satisfies(&self, request: &DerivationRequest) -> bool {
+        request.entity_kind == self.entity_kind
+            && request.network_id == self.network_id
+            && request.entity_kind == self.entity_kind
+            && request.key_kind == self.key_kind
+            && request.key_space == self.index.key_space()
+    }
+}
+
+impl DerivationRequests {
+    pub fn fully_satisfied_by(&self, instances: &dyn IsFactorInstanceCollectionBase) -> bool {
+        instances.satisfies_all_requests(self)
+    }
+    pub fn partially_satisfied_by(&self, instances: &dyn IsFactorInstanceCollectionBase) -> bool {
+        instances.satisfies_some_requests(self)
+    }
+}
+
 pub trait IsFactorInstanceCollectionBase {
     fn factor_instances(&self) -> IndexSet<HierarchicalDeterministicFactorInstance>;
+    fn satisfies_all_requests(&self, requests: &DerivationRequests) -> bool {
+        requests.requests().iter().all(|request| {
+            self.factor_instances()
+                .iter()
+                .any(|instance| instance.satisfies(request))
+        })
+    }
+    fn satisfies_some_requests(&self, requests: &DerivationRequests) -> bool {
+        requests.requests().iter().any(|request| {
+            self.factor_instances()
+                .iter()
+                .any(|instance| instance.satisfies(request))
+        })
+    }
 }
+
 pub trait IsFactorInstanceCollection:
     IsFactorInstanceCollectionBase + HasSampleValues + Sized
 {
@@ -47,6 +89,21 @@ pub fn assert_are_factor_instance_collections_disjoint(
 #[derive(Debug, Default, Clone, PartialEq, Eq, Hash)]
 pub struct ProbablyFreeFactorInstances {
     factor_instances: Vec<HierarchicalDeterministicFactorInstance>,
+}
+
+impl FromIterator<HierarchicalDeterministicFactorInstance> for ProbablyFreeFactorInstances {
+    fn from_iter<I: IntoIterator<Item = HierarchicalDeterministicFactorInstance>>(iter: I) -> Self {
+        Self::new(iter.into_iter().collect())
+    }
+}
+
+impl IntoIterator for ProbablyFreeFactorInstances {
+    type Item = HierarchicalDeterministicFactorInstance;
+    type IntoIter = <IndexSet<HierarchicalDeterministicFactorInstance> as IntoIterator>::IntoIter;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.factor_instances().into_iter()
+    }
 }
 
 impl IsFactorInstanceCollectionBase for ProbablyFreeFactorInstances {

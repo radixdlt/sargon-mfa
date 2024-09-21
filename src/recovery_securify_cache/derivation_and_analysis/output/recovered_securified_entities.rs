@@ -7,6 +7,21 @@ pub struct RecoveredSecurifiedEntities {
     securified_entities: Vec<SecurifiedEntity>,
 }
 
+impl FromIterator<SecurifiedEntity> for RecoveredSecurifiedEntities {
+    fn from_iter<I: IntoIterator<Item = SecurifiedEntity>>(iter: I) -> Self {
+        Self::new(iter.into_iter().collect())
+    }
+}
+
+impl IntoIterator for RecoveredSecurifiedEntities {
+    type Item = SecurifiedEntity;
+    type IntoIter = <IndexSet<SecurifiedEntity> as IntoIterator>::IntoIter;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.securified_entities().into_iter()
+    }
+}
+
 impl RecoveredSecurifiedEntities {
     pub fn new(securified_entities: IndexSet<SecurifiedEntity>) -> Self {
         Self {

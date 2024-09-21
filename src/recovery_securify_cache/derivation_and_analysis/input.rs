@@ -11,7 +11,7 @@ pub struct DeriveAndAnalyzeInput {
     factor_sources: IndexSet<HDFactorSource>,
     ids_of_new_factor_sources: IndexSet<FactorSourceIDFromHash>,
 
-    next_requests: IndexSet<DerivationRequest>,
+    next_requests: DerivationRequests,
 
     factor_instances_provider: Arc<dyn IsFactorInstancesProvider>,
 
@@ -27,7 +27,7 @@ impl DeriveAndAnalyzeInput {
     pub fn new(
         factor_sources: IndexSet<HDFactorSource>,
         ids_of_new_factor_sources: IndexSet<FactorSourceIDFromHash>,
-        initial_derivation_requests: IndexSet<DerivationRequest>,
+        initial_derivation_requests: DerivationRequests,
         factor_instances_provider: Arc<dyn IsFactorInstancesProvider>,
         analyze_factor_instances: Arc<dyn IsIntermediaryDerivationAnalyzer>,
         is_done: Arc<dyn IsDerivationDoneQuery>,
@@ -54,7 +54,7 @@ impl DeriveAndAnalyzeInput {
 impl IsIntermediaryDerivationAnalyzer for DeriveAndAnalyzeInput {
     async fn analyze(
         &self,
-        factor_instances: IndexSet<HierarchicalDeterministicFactorInstance>,
+        factor_instances: FactorInstances,
     ) -> Result<IntermediaryDerivationAnalysis> {
         self.analyze_factor_instances
             .analyze(factor_instances)
@@ -70,13 +70,11 @@ impl IsDerivationDoneQuery for DeriveAndAnalyzeInput {
 }
 
 impl DeriveAndAnalyzeInput {
-    fn next_requests(&self) -> IndexSet<DerivationRequest> {
+    fn next_requests(&self) -> DerivationRequests {
         self.next_requests.clone()
     }
 
-    pub async fn load_cached_or_derive_new_instances(
-        &self,
-    ) -> Result<IndexSet<HierarchicalDeterministicFactorInstance>> {
+    pub async fn load_cached_or_derive_new_instances(&self) -> Result<FactorInstances> {
         let factor_sources = self.all_factor_sources();
         let requests = self.next_requests();
         let factor_instances = self

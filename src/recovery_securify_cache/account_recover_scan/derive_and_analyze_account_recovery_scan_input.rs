@@ -1,25 +1,142 @@
 #![allow(unused)]
 #![allow(unused_variables)]
 
-use crate::prelude::*;
+use crate::{gateway, prelude::*};
 
+/// Use by OARS (Onboarding Account Recovery Scan) and MARS
+/// (Manual Account Recovery Scan).
 pub struct DeriveAndAnalyzeAccountRecoveryScanInput {
     factor_sources: IndexSet<HDFactorSource>,
     gateway: Arc<dyn Gateway>,
+
+    /// Empty for OARS, **maybe** not empty for MARS
+    cache: PreDerivedKeysCache,
+    /// Empty for OARS, **guaranteed** not empty for MARS
+    profile: ProfileAnalyzer,
+
     derivation_interactors: Arc<dyn KeysDerivationInteractors>,
+    is_done_query: Arc<dyn IsDerivationDoneQuery>,
 }
 
 impl DeriveAndAnalyzeAccountRecoveryScanInput {
-    pub fn new(
+    fn new(
         factor_sources: IndexSet<HDFactorSource>,
         gateway: Arc<dyn Gateway>,
+        cache: impl Into<Option<PreDerivedKeysCache>>,
+        profile: impl Into<Option<ProfileAnalyzer>>,
         derivation_interactors: Arc<dyn KeysDerivationInteractors>,
+        is_done_query: Arc<dyn IsDerivationDoneQuery>,
     ) -> Self {
         Self {
             factor_sources,
             gateway,
+            cache: cache.into().unwrap_or_default(),
+            profile: profile.into().unwrap_or_default(),
             derivation_interactors,
+            is_done_query,
         }
+    }
+
+    /// OARS
+    pub fn onboarding_account_recovery_scan(
+        factor_sources: IndexSet<HDFactorSource>,
+        gateway: Arc<dyn Gateway>,
+        derivation_interactors: Arc<dyn KeysDerivationInteractors>,
+        is_done_query: Arc<dyn IsDerivationDoneQuery>,
+    ) -> Self {
+        Self::new(
+            factor_sources,
+            gateway,
+            None,
+            None,
+            derivation_interactors,
+            is_done_query,
+        )
+    }
+
+    /// MARS
+    pub fn manual_account_recovery_scan(
+        factor_sources: IndexSet<HDFactorSource>,
+        gateway: Arc<dyn Gateway>,
+        cache: impl Into<Option<PreDerivedKeysCache>>,
+        profile: ProfileAnalyzer,
+        derivation_interactors: Arc<dyn KeysDerivationInteractors>,
+        is_done_query: Arc<dyn IsDerivationDoneQuery>,
+    ) -> Self {
+        Self::new(
+            factor_sources,
+            gateway,
+            cache,
+            profile,
+            derivation_interactors,
+            is_done_query,
+        )
+    }
+}
+
+#[derive(Debug, Default)]
+pub struct ProfileAnalyzer;
+
+pub struct FactorInstancesProviderImpl {
+    cache: PreDerivedKeysCache,
+    gateway: Option<Arc<dyn Gateway>>,
+    profile: ProfileAnalyzer,
+}
+impl FactorInstancesProviderImpl {
+    /// # Panics
+    /// Panics if all arguments are `None`.
+    fn new(
+        cache: impl Into<Option<PreDerivedKeysCache>>,
+        gateway: impl Into<Option<Arc<dyn Gateway>>>,
+        profile: impl Into<Option<ProfileAnalyzer>>,
+    ) -> Self {
+        let cache = cache.into();
+        let gateway = gateway.into();
+        let profile = profile.into();
+        assert!(
+            !(cache.is_none() && gateway.is_none() && profile.is_none()),
+            "All arguments are None"
+        );
+        Self {
+            cache: cache.unwrap_or_default(),
+            gateway,
+            profile: profile.unwrap_or_default(),
+        }
+    }
+
+    /// OARS
+    pub fn onboarding_account_recovery_scan(gateway: Arc<dyn Gateway>) -> Self {
+        Self::new(None, gateway, None)
+    }
+
+    /// MARS
+    pub fn manual_account_recovery_scan(
+        cache: impl Into<Option<PreDerivedKeysCache>>,
+        gateway: Arc<dyn Gateway>,
+        profile: ProfileAnalyzer,
+    ) -> Self {
+        Self::new(cache, gateway, profile)
+    }
+}
+
+#[async_trait::async_trait]
+impl IsFactorInstancesProvider for FactorInstancesProviderImpl {
+    async fn provide_instances(
+        &self,
+        derivation_requests: DerivationRequests,
+    ) -> Result<FactorInstances> {
+        let cache_outcome = self.cache.load(&derivation_requests).await?;
+        todo!();
+    }
+}
+
+#[async_trait::async_trait]
+impl IsIntermediaryDerivationAnalyzer for FactorInstancesProviderImpl {
+    async fn analyze(
+        &self,
+        factor_instances: FactorInstances,
+    ) -> Result<IntermediaryDerivationAnalysis> {
+        todo!()
     }
 }
 
@@ -44,12 +161,13 @@ impl From<DeriveAndAnalyzeAccountRecoveryScanInput> for DeriveAndAnalyzeInput {
                     .into_iter()
                     .map(move |u| u.derivation_request_with_factor_source_id(factor_source_id))
             })
-            .collect::<IndexSet<_>>();
+            .collect::<DerivationRequests>();
 
-        let factor_instances_provider: Arc<dyn IsFactorInstancesProvider> = { unreachable!() };
-        let analyze_factor_instances: Arc<dyn IsIntermediaryDerivationAnalyzer> =
-            { unreachable!() };
-        let is_done: Arc<dyn IsDerivationDoneQuery> = { unreachable!() };
+        let analyzing_factor_instance_provider = Arc::new(FactorInstancesProviderImpl::new(
+            value.cache,
+            value.gateway,
+            value.profile,
+        ));
 
         Self::new(
             value.factor_sources.clone(),
@@ -59,9 +177,9 @@ impl From<DeriveAndAnalyzeAccountRecoveryScanInput> for DeriveAndAnalyzeInput {
                 .map(|f| f.factor_source_id())
                 .collect(),
             initial_derivation_requests,
-            factor_instances_provider,
-            analyze_factor_instances,
-            is_done,
+            analyzing_factor_instance_provider.clone(),
+            analyzing_factor_instance_provider.clone(),
+            value.is_done_query,
         )
     }
 }
@@ -76,7 +194,7 @@ pub struct UncachedFactorInstanceProvider {
 impl UncachedFactorInstanceProvider {
     fn derivation_paths_for_requests(
         &self,
-        derivation_requests: IndexSet<DerivationRequest>,
+        derivation_requests: DerivationRequests,
     ) -> IndexMap<FactorSourceIDFromHash, IndexSet<DerivationPath>> {
         todo!()
     }
@@ -86,8 +204,8 @@ impl UncachedFactorInstanceProvider {
 impl IsFactorInstancesProvider for UncachedFactorInstanceProvider {
     async fn provide_instances(
         &self,
-        derivation_requests: IndexSet<DerivationRequest>,
-    ) -> Result<IndexSet<HierarchicalDeterministicFactorInstance>> {
+        derivation_requests: DerivationRequests,
+    ) -> Result<FactorInstances> {
         let derivation_paths = self.derivation_paths_for_requests(derivation_requests);
         let keys_collector = KeysCollector::new(
             self.factor_sources.clone(),
