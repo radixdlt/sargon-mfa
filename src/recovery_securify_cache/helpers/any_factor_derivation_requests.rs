@@ -1,5 +1,6 @@
 use crate::prelude::*;
 
+/// A set of `AnyFactorDerivationRequest`.
 #[derive(Default, Clone, Debug, PartialEq, Eq)]
 pub struct AnyFactorDerivationRequests(IndexSet<AnyFactorDerivationRequest>);
 

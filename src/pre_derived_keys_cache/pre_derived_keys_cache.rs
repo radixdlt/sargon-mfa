@@ -27,8 +27,8 @@ impl HierarchicalDeterministicFactorInstance {
             self.factor_source_id,
             self.derivation_path().network_id,
             self.derivation_path().entity_kind,
-            self.key_space(),
             self.derivation_path().key_kind,
+            self.key_space(),
         )
     }
 }

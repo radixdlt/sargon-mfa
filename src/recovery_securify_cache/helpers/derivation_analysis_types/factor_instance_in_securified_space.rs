@@ -1,5 +1,7 @@
 use crate::prelude::*;
 
+/// A HierarchicalDeterministicFactorInstance which index is verified to
+/// be in `KeySpace::Securified`
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct FactorInstanceInSecurifiedSpace {
     factor_instance: HierarchicalDeterministicFactorInstance,
