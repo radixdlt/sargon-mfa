@@ -53,6 +53,19 @@ impl UnsecurifiedEntity {
     }
 }
 
+impl From<UnsecurifiedEntity> for Account {
+    fn from(value: UnsecurifiedEntity) -> Self {
+        let address = value.address();
+        let name = "Recovered";
+        let security_state = EntitySecurityState::Unsecured(value.factor_instance());
+
+        if let Ok(account_address) = address.clone().into_account() {
+            Account::new(name, account_address, security_state)
+        } else {
+            panic!("Not an AccountAddress")
+        }
+    }
+}
 impl From<UnsecurifiedEntity> for AccountOrPersona {
     fn from(value: UnsecurifiedEntity) -> Self {
         let address = value.address();

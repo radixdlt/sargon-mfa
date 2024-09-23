@@ -3,6 +3,8 @@ use crate::prelude::*;
 #[derive(Debug, Default, Clone, PartialEq, Eq, Hash)]
 pub struct IntermediaryDerivationAnalysis {
     pub probably_free_instances: ProbablyFreeFactorInstances,
+
+    // OR `DerivedFactorInstances` ??
     pub known_taken: KnownTakenInstances,
 }
 

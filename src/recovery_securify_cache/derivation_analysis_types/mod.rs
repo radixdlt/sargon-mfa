@@ -1,4 +1,8 @@
 mod derivation_and_analysis;
+mod derived_factor_instances;
+mod factor_instance_in_securified_space;
+mod factor_instance_in_unsecurified_space;
+mod final_derivations_and_analysis;
 mod probably_free_factor_instances;
 mod recovered_securified_entities;
 mod recovered_unsecurified_entities;
@@ -9,6 +13,10 @@ mod unsecurified_entity;
 mod virtual_entity_creating_instances;
 
 pub use derivation_and_analysis::*;
+pub use derived_factor_instances::*;
+pub use factor_instance_in_securified_space::*;
+pub use factor_instance_in_unsecurified_space::*;
+pub use final_derivations_and_analysis::*;
 pub use probably_free_factor_instances::*;
 pub use recovered_securified_entities::*;
 pub use recovered_unsecurified_entities::*;

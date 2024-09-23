@@ -278,12 +278,14 @@ impl HasSampleValues for FactorSourceKind {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, EnumAsInner)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, EnumAsInner, Default)]
 pub enum ThirdPartyDepositPreference {
     DenyAll,
+    #[default]
     AllowAll,
     AllowKnown,
 }
+
 impl HasSampleValues for ThirdPartyDepositPreference {
     fn sample() -> Self {
         ThirdPartyDepositPreference::DenyAll
@@ -864,6 +866,11 @@ pub struct HierarchicalDeterministicFactorInstance {
     pub factor_source_id: FactorSourceIDFromHash,
     pub public_key: HierarchicalDeterministicPublicKey,
 }
+impl HierarchicalDeterministicFactorInstance {
+    pub fn key_space(&self) -> KeySpace {
+        self.public_key.derivation_path.index.key_space()
+    }
+}
 
 impl HierarchicalDeterministicFactorInstance {
     #[allow(unused)]
@@ -944,11 +951,14 @@ impl HierarchicalDeterministicFactorInstance {
 
 impl HasSampleValues for HierarchicalDeterministicFactorInstance {
     fn sample() -> Self {
-        Self::mainnet_tx_account(HDPathComponent::sample(), FactorSourceIDFromHash::sample())
+        Self::mainnet_tx_account(
+            HDPathComponent::unsecurified_hardening_base_index(0),
+            FactorSourceIDFromHash::sample(),
+        )
     }
     fn sample_other() -> Self {
         Self::mainnet_tx_account(
-            HDPathComponent::sample_other(),
+            HDPathComponent::unsecurified_hardening_base_index(1),
             FactorSourceIDFromHash::sample_other(),
         )
     }
@@ -1146,6 +1156,34 @@ impl<T: EntityKindSpecifier> EntityKindSpecifier for AbstractAddress<T> {
     }
 }
 
+#[derive(Default, Clone, Debug, PartialEq, Eq, Hash)]
+pub struct FactorSources(Vec<HDFactorSource>);
+impl FactorSources {
+    pub fn factor_sources(&self) -> IndexSet<HDFactorSource> {
+        self.0.clone().into_iter().collect()
+    }
+    pub fn just(factor_source: HDFactorSource) -> Self {
+        Self(vec![factor_source])
+    }
+    pub fn insert(&mut self, factor_source: HDFactorSource) {
+        assert!(!self.0.iter().any(|f| f == &factor_source));
+        self.0.push(factor_source);
+    }
+}
+impl FromIterator<HDFactorSource> for FactorSources {
+    fn from_iter<I: IntoIterator<Item = HDFactorSource>>(iter: I) -> Self {
+        Self(iter.into_iter().collect())
+    }
+}
+impl IntoIterator for FactorSources {
+    type Item = HDFactorSource;
+    type IntoIter = <IndexSet<Self::Item> as IntoIterator>::IntoIter;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.factor_sources().into_iter()
+    }
+}
+
 pub type AccountAddress = AbstractAddress<AccountAddressTag>;
 pub type IdentityAddress = AbstractAddress<IdentityAddressTag>;
 
@@ -1238,7 +1276,7 @@ pub enum AccountOrPersona {
 }
 impl AccountOrPersona {
     pub fn third_party_deposit_settings(&self) -> ThirdPartyDepositPreference {
-        ThirdPartyDepositPreference::AllowAll // TODO let me stored field...
+        ThirdPartyDepositPreference::default() // TODO let me stored field...
     }
     pub fn network_id(&self) -> NetworkID {
         match self {
@@ -1379,6 +1417,32 @@ pub struct AbstractEntity<A: Clone + Into<AddressOfAccountOrPersona> + EntityKin
     pub security_state: EntitySecurityState,
 }
 pub type Account = AbstractEntity<AccountAddress>;
+
+impl Account {
+    pub fn set_name(&mut self, name: impl AsRef<str>) {
+        self.name = name.as_ref().to_owned();
+    }
+    pub fn as_securified(&self) -> Result<SecurifiedEntity> {
+        match self.security_state() {
+            EntitySecurityState::Securified(sec) => Ok(SecurifiedEntity::new(
+                self.address(),
+                sec,
+                ThirdPartyDepositPreference::default(), // TODO 3rd party
+            )),
+            EntitySecurityState::Unsecured(_) => Err(CommonError::EntityConversionError),
+        }
+    }
+    pub fn as_unsecurified(&self) -> Result<UnsecurifiedEntity> {
+        match self.security_state() {
+            EntitySecurityState::Unsecured(fi) => Ok(UnsecurifiedEntity::new(
+                self.address(),
+                fi,
+                ThirdPartyDepositPreference::default(), // TODO 3rd party
+            )),
+            EntitySecurityState::Securified(_) => Err(CommonError::EntityConversionError),
+        }
+    }
+}
 
 impl IsEntity for Account {
     fn new(
@@ -1841,9 +1905,13 @@ pub struct Profile {
     pub factor_sources: IndexSet<HDFactorSource>,
     pub accounts: HashMap<AccountAddress, Account>,
     pub personas: HashMap<IdentityAddress, Persona>,
+    pub current_network: NetworkID,
 }
 
 impl Profile {
+    pub fn current_network(&self) -> NetworkID {
+        self.current_network
+    }
     pub fn get_entities_erased(&self, entity_kind: CAP26EntityKind) -> IndexSet<AccountOrPersona> {
         match entity_kind {
             CAP26EntityKind::Account => self
@@ -1945,6 +2013,7 @@ impl Profile {
                 .into_iter()
                 .map(|p| (p.entity_address(), p.clone()))
                 .collect::<HashMap<_, _>>(),
+            current_network: NetworkID::Mainnet,
         }
     }
     pub fn account_by_address(&self, address: &AccountAddress) -> Result<Account> {
@@ -1969,6 +2038,28 @@ impl Profile {
                 assert!(self.personas.insert(p.entity_address(), p).is_some());
             }
         }
+    }
+
+    pub fn get_account(&self, address: &AccountAddress) -> Result<Account> {
+        self.get_accounts()
+            .into_iter()
+            .find(|a| a.entity_address() == *address)
+            .ok_or(CommonError::UnknownAccount)
+    }
+
+    pub fn insert_accounts(&mut self, accounts: IndexSet<Account>) -> Result<()> {
+        let count = self.accounts.len();
+        let expected_after_insertion = count + accounts.len();
+        for a in accounts.into_iter() {
+            self.accounts.insert(a.entity_address(), a);
+        }
+        assert_eq!(self.accounts.len(), expected_after_insertion);
+        Ok(())
+    }
+
+    pub fn add_factor_source(&mut self, factor_source: HDFactorSource) -> Result<()> {
+        self.factor_sources.insert(factor_source);
+        Ok(())
     }
 }
 

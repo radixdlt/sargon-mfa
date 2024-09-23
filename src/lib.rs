@@ -7,6 +7,7 @@
 
 mod derivation;
 mod gateway;
+mod pre_derived_keys_cache;
 mod recovery_securify_cache;
 mod samples;
 mod signing;
@@ -21,6 +22,7 @@ pub mod prelude {
 
     pub(crate) use crate::samples::*;
 
+    pub use crate::pre_derived_keys_cache::*;
     pub use crate::recovery_securify_cache::*;
     pub use crate::signing::*;
     pub use crate::types::*;

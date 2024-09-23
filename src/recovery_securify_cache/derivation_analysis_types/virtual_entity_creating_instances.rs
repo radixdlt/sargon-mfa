@@ -11,10 +11,17 @@ pub struct VirtualEntityCreatingInstance {
 impl VirtualEntityCreatingInstance {
     /// # Panics
     /// Panics if factor_instance does not result in address.
+    ///
+    /// Panics if factor_instance is not in unsecurified space.
     pub fn new(
         factor_instance: HierarchicalDeterministicFactorInstance,
         address: AddressOfAccountOrPersona,
     ) -> Self {
+        assert_eq!(
+            factor_instance.key_space(),
+            KeySpace::Unsecurified,
+            "factor instance not in unsecurified space"
+        );
         assert_eq!(
             address.public_key_hash(),
             factor_instance.public_key_hash(),
@@ -68,6 +75,25 @@ impl HasSampleValues for VirtualEntityCreatingInstance {
         )
     }
 }
+
+#[cfg(test)]
+mod test_instance {
+    use super::*;
+
+    type Sut = VirtualEntityCreatingInstance;
+
+    #[test]
+    fn equality() {
+        assert_eq!(Sut::sample(), Sut::sample());
+        assert_eq!(Sut::sample_other(), Sut::sample_other());
+    }
+
+    #[test]
+    fn inequality() {
+        assert_ne!(Sut::sample(), Sut::sample_other());
+    }
+}
+
 /// FactorInstances which we have mananage to match against a securified entity
 /// in Profile, as the FactorInstance which was used to create said entities address.
 ///

@@ -1,17 +1,13 @@
-mod account_recover_scan;
-mod derivation_and_analysis;
-mod derive_and_analyze;
+mod derivation_analysis_types;
+mod derivation_request;
 mod factor_instances;
-mod factor_instances_provider_impl;
 mod onchain_analyzer;
-mod pre_derived_keys_cache;
+mod poly_derive;
 mod profile_analyzer;
 
-pub use account_recover_scan::*;
-pub use derivation_and_analysis::*;
-pub use derive_and_analyze::*;
+pub use derivation_analysis_types::*;
+pub use derivation_request::*;
 pub use factor_instances::*;
-pub use factor_instances_provider_impl::*;
 pub use onchain_analyzer::*;
-pub use pre_derived_keys_cache::*;
+pub use poly_derive::*;
 pub use profile_analyzer::*;

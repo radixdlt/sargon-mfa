@@ -1,4 +1,4 @@
-use crate::{prelude::*, recovery_securify_cache::factor_instances};
+use crate::prelude::*;
 
 #[derive(Debug, Default)]
 pub struct PreDerivedKeysCache;
@@ -124,3 +124,87 @@ impl PreDerivedKeysCache {
         Ok(CacheOutcome::empty(requests))
     }
 }
+
+/*
+
+#[derive(Default, Clone, Debug, PartialEq, Eq)]
+pub struct CachedFactorInstances(pub IndexMap<DerivationRequestInKeySpace, FactorInstances>);
+
+#[derive(Debug, Default)]
+pub struct PreDerivedKeysCache {
+    factor_instances_for_requests: RwLock<CachedFactorInstances>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CacheLoadOutcome {
+    pub requests: IndexSet<DerivationRequestInKeySpace>,
+    /// Response to `requests`
+    pub factor_instances: CachedFactorInstances,
+    /// If `factor_instances` response satisfies all `requests`
+    pub is_satisfying_all_requests: bool,
+    /// If we should derive more factor instances after this response, either
+    /// because we consumed the last factor instance in the cache or because
+    /// we did not fully satisfy all requests.
+    pub should_derive_more: bool,
+}
+impl CacheLoadOutcome {
+    pub fn is_empty(&self) -> bool {
+        self.factor_instances.0.is_empty()
+    }
+}
+
+impl PreDerivedKeysCache {
+    fn get(&self, key: &DerivationRequestInKeySpace) -> Option<FactorInstances> {
+        self.factor_instances_for_requests
+            .try_read()
+            .unwrap()
+            .0
+            .get(key)
+            .cloned()
+    }
+
+    pub async fn load(
+        &self,
+        requests: IndexSet<DerivationRequestInKeySpace>,
+    ) -> Result<CacheLoadOutcome> {
+        let mut found = CachedFactorInstances::default();
+        let mut failure = false;
+        for key in requests.iter() {
+            let Some(loaded) = self.get(key) else {
+                failure = true;
+                continue;
+            };
+            found.0.insert(key.clone(), loaded);
+        }
+
+        Ok(CacheLoadOutcome {
+            requests,
+            factor_instances: found,
+            is_satisfying_all_requests: !failure,
+            should_derive_more: failure,
+        })
+    }
+}
+impl PreDerivedKeysCache {
+    fn with_map(map: IndexMap<DerivationRequestInKeySpace, FactorInstances>) -> Self {
+        Self {
+            factor_instances_for_requests: RwLock::new(CachedFactorInstances(map)),
+        }
+    }
+    pub fn new(probably_free_factor_instances: ProbablyFreeFactorInstances) -> Self {
+        let map = probably_free_factor_instances
+            .0
+            .into_iter()
+            .into_group_map_by(|x| x.derivation_in_key_space())
+            .into_iter()
+            .map(|(k, v)| (k, FactorInstances::from(v)))
+            .collect::<IndexMap<DerivationRequestInKeySpace, FactorInstances>>();
+
+        Self::with_map(map)
+    }
+    pub fn empty() -> Self {
+        Self::with_map(IndexMap::default())
+    }
+}
+
+*/

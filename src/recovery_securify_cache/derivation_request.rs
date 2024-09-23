@@ -1,5 +1,37 @@
 use crate::prelude::*;
 
+#[derive(Default, Clone, Debug, PartialEq, Eq)]
+pub struct AnyFactorDerivationRequests(IndexSet<AnyFactorDerivationRequest>);
+impl AnyFactorDerivationRequests {
+    pub fn for_each_factor_source(
+        &self,
+        factor_sources: FactorSources,
+    ) -> IndexSet<DerivationRequest> {
+        self.for_each_factor_source_id(
+            factor_sources
+                .factor_sources()
+                .into_iter()
+                .map(|f| f.factor_source_id())
+                .collect(),
+        )
+    }
+
+    pub fn for_each_factor_source_id(
+        &self,
+        factor_source_ids: IndexSet<FactorSourceIDFromHash>,
+    ) -> IndexSet<DerivationRequest> {
+        factor_source_ids
+            .iter()
+            .flat_map(|f| {
+                self.0
+                    .clone()
+                    .into_iter()
+                    .map(|x| x.derivation_request_with_factor_source_id(*f))
+            })
+            .collect()
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct DerivationRequest {
     pub factor_source_id: FactorSourceIDFromHash,
