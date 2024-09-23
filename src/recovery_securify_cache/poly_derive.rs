@@ -136,7 +136,7 @@ impl PolyDerivation {
         );
         Self {
             operation_kind,
-            cache: maybe_cache.unwrap_or_else(|| Arc::new(PreDerivedKeysCache)),
+            cache: maybe_cache.unwrap_or_else(|| Arc::new(PreDerivedKeysCache::default())),
             onchain_analyser: maybe_onchain_analyser.unwrap_or_else(OnChainAnalyzer::dummy),
             profile_analyser: maybe_profile_analyser.unwrap_or_else(ProfileAnalyzer::dummy),
             derivation_interactors,
