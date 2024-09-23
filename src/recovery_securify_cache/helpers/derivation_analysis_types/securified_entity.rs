@@ -16,6 +16,9 @@ pub struct SecurifiedEntity {
 }
 
 impl SecurifiedEntity {
+    pub fn network_id(&self) -> NetworkID {
+        self.address.network_id()
+    }
     pub fn new(
         address: AddressOfAccountOrPersona,
         securified_entity_control: SecurifiedEntityControl,

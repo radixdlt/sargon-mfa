@@ -40,6 +40,11 @@ pub enum KeySpace {
     #[debug("Securified")]
     Securified,
 }
+impl KeySpace {
+    pub fn both() -> [Self; 2] {
+        [Self::Unsecurified, Self::Securified]
+    }
+}
 
 #[cfg(test)]
 impl Profile {

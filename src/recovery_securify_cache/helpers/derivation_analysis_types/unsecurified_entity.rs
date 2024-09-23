@@ -15,6 +15,9 @@ pub struct UnsecurifiedEntity {
 }
 
 impl UnsecurifiedEntity {
+    pub fn network_id(&self) -> NetworkID {
+        self.address().network_id()
+    }
     pub fn with_veci(
         veci: VirtualEntityCreatingInstance,
         third_party_deposit: impl Into<Option<ThirdPartyDepositPreference>>,

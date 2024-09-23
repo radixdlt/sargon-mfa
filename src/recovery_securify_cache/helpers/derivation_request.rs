@@ -2,7 +2,25 @@ use crate::prelude::*;
 
 #[derive(Default, Clone, Debug, PartialEq, Eq)]
 pub struct AnyFactorDerivationRequests(IndexSet<AnyFactorDerivationRequest>);
+
+impl FromIterator<AnyFactorDerivationRequest> for AnyFactorDerivationRequests {
+    fn from_iter<I: IntoIterator<Item = AnyFactorDerivationRequest>>(iter: I) -> Self {
+        Self::new(iter.into_iter().collect())
+    }
+}
+
 impl AnyFactorDerivationRequests {
+    pub fn new(requests: IndexSet<AnyFactorDerivationRequest>) -> Self {
+        Self(requests.into_iter().collect())
+    }
+    pub fn just(request: AnyFactorDerivationRequest) -> Self {
+        Self(IndexSet::just(request))
+    }
+
+    pub fn merge(&mut self, other: Self) {
+        self.0.extend(other.0);
+    }
+
     pub fn for_each_factor_source(
         &self,
         factor_sources: FactorSources,
