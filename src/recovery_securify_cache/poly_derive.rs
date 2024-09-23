@@ -262,20 +262,33 @@ impl PolyDerivation {
 /// *** Private API ***
 /// ==================
 impl PolyDerivation {
-    async fn is_done(&self, derived_accounts: &DerivedFactorInstances) -> Result<bool> {
-        self.is_derivation_done_query
-            .is_done(derived_accounts)
-            .await
-    }
-
-    fn requests(&self) -> AnyFactorDerivationRequests {
-        self.operation_kind.requests()
-    }
-
-    fn factor_sources(&self) -> FactorSources {
-        self.operation_kind.factor_sources()
-    }
-
+    /// Get next FactorInstances, either from cache or derive more, or a mix.
+    ///
+    /// High level description:
+    /// Load FactorInstances from cache if possible, if they can satisfy
+    /// the need and if cache would not be empty, used cached instance and done.
+    ///
+    /// If cached satisfy the need but would become empty or if cached could
+    /// only partially satisfy the need, derive many more and fill cache.
+    ///
+    /// If cache is empty, derive many and fill cache.
+    ///
+    /// Satisfy "the need" is a bit tricky, we should not need to know the
+    /// derivation entity indices, that is the job of the Cache (if present) and
+    /// otherwise the ProfileAnalyzer. In case of no cache and no Prifile, we use
+    /// a range of `(0, SIZE)`.
+    ///
+    /// In detail:
+    /// Form FactorSource and IndexRange agnostic derivation requests from
+    /// the operation kind.
+    ///
+    /// Form IndexRange agnostic derivation requests from the FactorSource agnostic
+    /// ones.
+    ///
+    /// Try use "next indices" from cache, if not possible, then use ProfileAnalyzer,
+    /// if not present, then use a range of `(0, SIZE)`, where `SIZE` is typically `30`
+    /// (might depend on FactorSourceKind... which would complicate this
+    /// implementation quite a bit).
     async fn load_or_derive_instances(&self) -> Result<()> {
         let factor_sources = self.factor_sources();
         let abstract_requests = self.requests();
@@ -311,9 +324,33 @@ impl PolyDerivation {
         todo!()
     }
 
-    fn derived_instances(&self) -> DerivedFactorInstances {
-        // self.cache.recovered_accounts()
-        todo!()
+    /// Ask GUI callback/hook if derivation is done, which is async because we should
+    /// it to end user for some operations, e.g. showing the derived Accounts so far
+    /// during (Onboarding/Manual) Account Recover Scan.
+    async fn is_done(&self, derived_accounts: &DerivedFactorInstances) -> Result<bool> {
+        self.is_derivation_done_query
+            .is_done(derived_accounts)
+            .await
+    }
+
+    /// Get the Agnostic derivation requests for the operation kind.
+    fn requests(&self) -> AnyFactorDerivationRequests {
+        self.operation_kind.requests()
+    }
+
+    /// Get the FactorSources for the operation kind.
+    fn factor_sources(&self) -> FactorSources {
+        self.operation_kind.factor_sources()
+    }
+
+    /// The instances derived or loaded from cache, or a mix of both, which
+    /// are relevant for the operation kind.
+    fn derived_instances(&self) -> Result<DerivedFactorInstances> {
+        // Implementation wise we use a simplistic approach, we use
+        // the cache as the storage of any newly derived instances,
+        // or if the existing instances in cache could fulfill the
+        // requests of the operation, then only those are used.
+        todo!("get instances from cache")
     }
 }
 
@@ -321,16 +358,23 @@ impl PolyDerivation {
 /// *** Public API ***
 /// ==================
 impl PolyDerivation {
+    /// The main loop of the derivation process, newly created or recovered entities,
+    /// and a list of free FactorInstances - which is used to fill the cache.
+    ///
+    /// Gets FactorInstances either from cache or derives more, or a mix of both,
+    /// until we are "done", which is either determined by End user in a callback
+    /// or by the operation kind.
     pub async fn poly_derive(self) -> Result<FinalDerivationsAndAnalysis> {
         loop {
-            let is_done = self.is_done(&self.derived_instances()).await?;
+            let derived = self.derived_instances()?;
+            let is_done = self.is_done(&derived).await?;
             if is_done {
                 break;
             }
             self.load_or_derive_instances().await?;
         }
 
-        let derived_instances = self.derived_instances();
+        let derived_instances = self.derived_instances()?;
         let cache = self.cache;
 
         let analysis = FinalDerivationsAndAnalysis {
