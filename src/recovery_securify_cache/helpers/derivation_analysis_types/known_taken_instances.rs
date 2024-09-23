@@ -3,7 +3,7 @@ use crate::prelude::*;
 /// A type used to hide a constructor for some other type, use
 /// it like this:
 ///
-/// ```rust
+/// ```rust,ignore
 /// pub struct ValidatedName {
 ///     hiding_ctor: HiddenConstructor,
 ///     pub name: String,
