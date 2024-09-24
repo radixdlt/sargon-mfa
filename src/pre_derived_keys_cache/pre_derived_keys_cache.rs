@@ -47,23 +47,53 @@ impl PreDerivedKeysCache {
 }
 
 impl PreDerivedKeysCache {
-    /// Loads FactorInstances from the cache, by consuming them, i.e. they will
-    /// be deleted from the cache and returned.
-    ///
-    /// We never query the cache with a `DerivationPath` - which
-    /// contains a derivation index, rather we ask the cache "give me the next N
-    /// Factor Instances for this FactorSourceID, on this network, for this KeyKind,
-    /// for this EntityKind, in this KeySpace" - the outcome of which might be:
-    /// * No Factor Instances for that request
-    /// * Some Factor Instances for that request, but fewer than requested
-    /// * Exactly the requested number of Factor Instances for that request - in which
-    /// the caller SHOULD re-fill the cache before the caller finishes its operation.
-    /// * More Factor Instances than requested, use them and no need to re-fill the cache.
-    ///
-    /// In fact this load function does not work with a single `UnindexDerivationRequest`
-    /// but rather with many, since we might care about reading FactorInstances in
-    /// two different KeySpaces for example, or for multiple FactorSourceIDs.
-    pub async fn take(&self, requests: &UnindexDerivationRequests) -> Result<CacheOutcome> {
-        panic!("impl me")
+    async fn _take_many_instances_for_single_request(
+        &self,
+        request: &UnindexDerivationRequest,
+    ) -> Result<LoadFromCacheOutcome> {
+        let cached = self.probably_free_factor_instances.get(key);
+        match cached {
+            Some(cached) => {
+                let mut cached = cached.clone();
+                let mut instances = FactorInstances::default();
+                while instances.len() < request.number_of_instances {
+                    if let Some(instance) = cached.factor_instances.pop() {
+                        instances.factor_instances.push(instance);
+                    } else {
+                        break;
+                    }
+                }
+                if instances.len() == request.number_of_instances {
+                    Ok(LoadFromCacheOutcome::FullySatisfiedWithSpare(instances))
+                } else if instances.len() > 0 {
+                    Ok(LoadFromCacheOutcome::FullySatisfiedWithoutSpare(instances))
+                } else {
+                    Ok(LoadFromCacheOutcome::CacheIsEmpty)
+                }
+            }
+        }
+    }
+    pub async fn take_many_instances_for_single_request(
+        &self,
+        request: &UnindexDerivationRequest,
+    ) -> Result<LoadFromCacheOutcomeForSingleRequest> {
+        todo!()
+    }
+
+    pub async fn take_many_instances_for_many_requests(
+        &self,
+        requests: &UnindexDerivationRequests,
+    ) -> Result<FactorInstancesFromCache> {
+        let mut outcome_map =
+            IndexMap::<UnindexDerivationRequest, LoadFromCacheOutcomeForSingleRequest>::new();
+        for request in requests.requests() {
+            let outcome = self
+                .take_many_instances_for_single_request(&request)
+                .await?;
+            outcome_map.insert(outcome.request.clone(), outcome);
+        }
+        Ok(FactorInstancesFromCache {
+            per_request: outcome_map,
+        })
     }
 }

@@ -13,6 +13,9 @@ impl From<IndexSet<HierarchicalDeterministicFactorInstance>> for FactorInstances
 }
 
 impl FactorInstances {
+    pub fn len(&self) -> usize {
+        self.factor_instances.len()
+    }
     pub fn filter_satisfying(
         &self,
         derivation_requests: &UnindexDerivationRequests,
