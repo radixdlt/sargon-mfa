@@ -11,11 +11,7 @@ pub struct UnquantifiedUnindexDerivationRequest {
     pub key_kind: CAP26KeyKind,
     pub key_space: KeySpace,
 }
-impl From<&QuantifiedUnindexDerivationRequest> for &UnquantifiedUnindexDerivationRequest {
-    fn from(value: &QuantifiedUnindexDerivationRequest) -> Self {
-        todo!()
-    }
-}
+
 impl From<QuantifiedUnindexDerivationRequest> for UnquantifiedUnindexDerivationRequest {
     fn from(value: QuantifiedUnindexDerivationRequest) -> Self {
         UnquantifiedUnindexDerivationRequest::new(
