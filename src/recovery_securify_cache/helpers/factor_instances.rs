@@ -11,8 +11,24 @@ impl From<IndexSet<HierarchicalDeterministicFactorInstance>> for FactorInstances
         Self::new(instances)
     }
 }
-
+impl From<FactorInstances> for IndexSet<HierarchicalDeterministicFactorInstance> {
+    fn from(value: FactorInstances) -> Self {
+        value.factor_instances()
+    }
+}
 impl FactorInstances {
+    pub fn append(
+        &mut self,
+        instances: impl Into<IndexSet<HierarchicalDeterministicFactorInstance>>,
+    ) {
+        let to_append: IndexSet<_> = instances.into();
+        let mut values = self.factor_instances();
+        values.extend(to_append);
+        self.factor_instances = values.into_iter().collect_vec()
+    }
+    pub fn is_empty(&self) -> bool {
+        self.factor_instances.is_empty()
+    }
     pub fn len(&self) -> usize {
         self.factor_instances.len()
     }

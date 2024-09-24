@@ -1,7 +1,7 @@
 use crate::prelude::*;
 
 impl HierarchicalDeterministicFactorInstance {
-    fn satisfies(&self, request: &UnindexDerivationRequest) -> bool {
+    fn satisfies(&self, request: &QuantifiedUnindexDerivationRequest) -> bool {
         self.derivation_path().satisfies(request)
             && request.factor_source_id == self.factor_source_id
     }
@@ -9,7 +9,7 @@ impl HierarchicalDeterministicFactorInstance {
 
 impl DerivationPath {
     #[allow(clippy::nonminimal_bool)]
-    fn satisfies(&self, request: &UnindexDerivationRequest) -> bool {
+    fn satisfies(&self, request: &QuantifiedUnindexDerivationRequest) -> bool {
         request.entity_kind == self.entity_kind
             && request.network_id == self.network_id
             && request.entity_kind == self.entity_kind
