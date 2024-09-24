@@ -14,6 +14,15 @@ pub struct UnsecurifiedEntity {
     third_party_deposit: Option<ThirdPartyDepositPreference>,
 }
 
+impl TryFrom<UnsecurifiedEntity> for AccountAddress {
+    type Error = CommonError;
+    fn try_from(value: UnsecurifiedEntity) -> Result<Self> {
+        value
+            .address()
+            .into_account()
+            .map_err(|_| CommonError::AddressConversionError)
+    }
+}
 impl UnsecurifiedEntity {
     pub fn network_id(&self) -> NetworkID {
         self.address().network_id()

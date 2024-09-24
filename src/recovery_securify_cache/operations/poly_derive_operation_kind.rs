@@ -2,7 +2,7 @@ use sha2::digest::crypto_common::Key;
 
 use crate::prelude::*;
 
-pub enum PolyDeriveOperationKind {
+pub enum FactorInstancesRequestPurpose {
     /// Onboarding Account Recovery Scan
     /// Assumes `Mainnet`
     OARS { factor_sources: FactorSources },
@@ -35,7 +35,7 @@ pub enum PolyDeriveOperationKind {
         matrix_of_factor_sources: MatrixOfFactorSources,
     },
 }
-impl PolyDeriveOperationKind {
+impl FactorInstancesRequestPurpose {
     fn requests_for_entity_key_kind(
         entity_kind: CAP26EntityKind,
         key_kind: CAP26KeyKind,
@@ -49,6 +49,7 @@ impl PolyDeriveOperationKind {
             })
             .collect::<AnyFactorDerivationRequests>()
     }
+
     fn requests_for_account(
         network: NetworkID,
         key_kind: CAP26KeyKind,
@@ -63,6 +64,7 @@ impl PolyDeriveOperationKind {
     ) -> AnyFactorDerivationRequests {
         Self::requests_for_account(network, CAP26KeyKind::TransactionSigning, key_spaces)
     }
+
     fn requests_for_account_recover_scan(network: NetworkID) -> AnyFactorDerivationRequests {
         Self::requests_for_tx_for_account(network, KeySpace::both())
     }
@@ -84,7 +86,7 @@ impl PolyDeriveOperationKind {
             KeySpace::both(),
         );
 
-        let rola_key_spaces = KeySpace::both(); // Is this correct? Do we in fact ROLA keys in unsecurified keyspace?
+        let rola_key_spaces = KeySpace::both(); // Is this correct? Do we in fact ROLA keys in unsecurified KeySpace?
         let accounts_rola = Self::requests_for_entity_key_kind(
             CAP26EntityKind::Account,
             CAP26KeyKind::AuthenticationSigning,

@@ -3,10 +3,10 @@
 use crate::prelude::*;
 
 #[derive(Default, Clone)]
-pub struct ProfileAnalyzer {
+pub struct ProfileKeyStatusAnalyzer {
     profile: Option<Arc<Profile>>,
 }
-impl ProfileAnalyzer {
+impl ProfileKeyStatusAnalyzer {
     fn new(profile: impl Into<Option<Arc<Profile>>>) -> Self {
         Self {
             profile: profile.into(),

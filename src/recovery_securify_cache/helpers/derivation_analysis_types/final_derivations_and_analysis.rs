@@ -1,6 +1,6 @@
 use crate::prelude::*;
 
-/// The final outcome of `PolyDerivation::poly_derive`, used
+/// The final outcome of `FactorInstancesProvider::poly_derive`, used
 /// by operations such as Account Recovery Scan and
 /// Securifying accounts
 #[derive(Clone, Debug)]

@@ -6,6 +6,7 @@
 #![feature(step_trait)]
 
 mod derivation;
+mod factor_instances_provider;
 mod gateway;
 mod pre_derived_keys_cache;
 mod recovery_securify_cache;
@@ -22,6 +23,7 @@ pub mod prelude {
 
     pub(crate) use crate::samples::*;
 
+    pub use crate::factor_instances_provider::*;
     pub use crate::pre_derived_keys_cache::*;
     pub use crate::recovery_securify_cache::*;
     pub use crate::signing::*;

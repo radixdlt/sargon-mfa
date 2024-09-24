@@ -2,10 +2,10 @@
 
 use crate::prelude::*;
 #[derive(Default, Clone)]
-pub struct OnChainAnalyzer {
+pub struct OnChainKeyStatusAnalyzer {
     gateway: Option<Arc<dyn GatewayReadonly>>,
 }
-impl OnChainAnalyzer {
+impl OnChainKeyStatusAnalyzer {
     pub fn new(gateway: impl Into<Option<Arc<dyn GatewayReadonly>>>) -> Self {
         Self {
             gateway: gateway.into(),

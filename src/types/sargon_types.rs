@@ -1923,6 +1923,10 @@ impl Profile {
     pub fn current_network(&self) -> NetworkID {
         self.current_network
     }
+    pub fn contains_account(&self, address: impl Into<AccountAddress>) -> bool {
+        let address = address.into();
+        self.accounts.contains_key(&address)
+    }
     pub fn get_entities_erased(&self, entity_kind: CAP26EntityKind) -> IndexSet<AccountOrPersona> {
         match entity_kind {
             CAP26EntityKind::Account => self
