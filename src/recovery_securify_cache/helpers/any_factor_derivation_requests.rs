@@ -24,9 +24,9 @@ impl AnyFactorDerivationRequests {
 
     /// TODO: Correct to do cartesian product: `N * M` many requests?
     pub fn for_each_factor_source(
-        &self,
+        self,
         factor_sources: FactorSources,
-    ) -> IndexSet<DerivationRequest> {
+    ) -> UnindexDerivationRequests {
         self.for_each_factor_source_id(
             factor_sources
                 .factor_sources()
@@ -37,9 +37,9 @@ impl AnyFactorDerivationRequests {
     }
 
     pub fn for_each_factor_source_id(
-        &self,
+        self,
         factor_source_ids: IndexSet<FactorSourceIDFromHash>,
-    ) -> IndexSet<DerivationRequest> {
+    ) -> UnindexDerivationRequests {
         factor_source_ids
             .iter()
             .flat_map(|f| {

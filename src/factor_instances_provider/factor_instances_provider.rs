@@ -12,6 +12,84 @@ pub struct NextDerivationIndexAnalyzer {
     cache: Option<Arc<PreDerivedKeysCache>>,
     profile_snapshot: Option<Profile>,
 }
+
+impl NextDerivationIndexAnalyzer {
+    pub fn next(
+        &self,
+        requests_without_indices: UnindexDerivationRequests,
+    ) -> FullDerivationRequests {
+        todo!()
+    }
+}
+
+pub struct FactorInstancesRequestOutcome {
+    /// The FactorInstances that was requested.
+    pub requested: FactorInstances,
+
+    /// If we did derive FactorInstances past those requested and put into the cache.
+    pub did_derive_past_requested: bool,
+}
+
+/// ==================
+/// *** Public API ***
+/// ==================
+impl FactorInstancesProvider {
+    async fn derive_more(
+        &self,
+        unsatisfied: Option<UnsatisfiedUnindexedDerivationRequests>,
+        initially_requested: UnindexDerivationRequests,
+    ) -> Result<FactorInstances> {
+        todo!()
+    }
+
+    /// Does not return ALL derived FactorInstances, but only those that are
+    /// related to the purpose of the request.
+    ///
+    /// Might derive MORE than requested, those will be put into the cache.
+    pub async fn get_factor_instances_outcome(self) -> Result<FactorInstancesRequestOutcome> {
+        let factor_sources = self.purpose.factor_sources();
+
+        // Form requests untied to any FactorSources
+        let unfactored = self.purpose.requests();
+
+        // Form requests tied to FactorSources, but without indices
+        let requested = unfactored.for_each_factor_source(factor_sources);
+
+        // Important we load from cache with requests without indices, since the cache
+        // should know which are the next free indices to fulfill the requests.
+        let take_from_cache_outcome = self.cache.take(&requested).await?;
+
+        // Might be empty, partial or full.
+        let mut factor_instances = take_from_cache_outcome.get();
+
+        if !take_from_cache_outcome.should_derive_more() {
+            Ok(FactorInstancesRequestOutcome {
+                requested: factor_instances,
+                did_derive_past_requested: false,
+            })
+        } else {
+            let should_derive_at_indices_past_initially_requested =
+                take_from_cache_outcome.should_derive_at_indices_past_initially_requested();
+
+            // Should derive more
+            if let Some(unsatisfied) = take_from_cache_outcome.unsatisfied() {
+                let new = self.derive_more(Some(unsatisfied), requested).await?;
+                Ok(FactorInstancesRequestOutcome {
+                    requested: factor_instances,
+                    did_derive_past_requested: should_derive_at_indices_past_initially_requested,
+                })
+            } else {
+                assert!(should_derive_at_indices_past_initially_requested);
+                let past = self.derive_more(None, requested).await?;
+                Ok(FactorInstancesRequestOutcome {
+                    requested: factor_instances,
+                    did_derive_past_requested: true,
+                })
+            }
+        }
+    }
+}
+
 impl NextDerivationIndexAnalyzer {
     pub fn new(
         maybe_cache: impl Into<Option<Arc<PreDerivedKeysCache>>>,
@@ -155,66 +233,6 @@ impl FactorInstancesProvider {
             profile_snapshot,
             derivation_interactors,
         )
-    }
-}
-
-/// ==================
-/// *** Private API ***
-/// ==================
-impl FactorInstancesProvider {
-    async fn load_or_derive_instances(
-        &self,
-        mut intermediary_analysis: &IntermediaryDerivationAndAnalysis,
-    ) -> Result<()> {
-        let factor_sources = self.purpose.factor_sources();
-        let abstract_requests = self.purpose.requests();
-        let requests_without_indices = abstract_requests.for_each_factor_source(factor_sources);
-        /*
-               let cached = self.cache.load(requests_without_indices).await?;
-
-               let to_derive = IndexMap::new();
-
-               if !cached.is_empty() {
-                   let remaining = derivation_requests - cached;
-
-                   if remaining.is_empty() {
-                       /// Could satisfy derivation request from cache
-                       return Ok(());
-                   } else {
-                       to_derive = remaining
-                   }
-               } else {
-                   // no cache... need to determine indices to derive from Profile
-                   to_derive = self
-                       .profile_analyzer
-                       .next_derivation_paths_fulfilling(&requests_without_indices);
-               }
-
-               /// need to derive more
-               let keys_collector = KeysCollector::new(
-                   self.factor_sources(),
-                   remaining,
-                   self.derivation_interactors,
-               )?;
-        */
-        todo!()
-    }
-}
-
-pub struct FactorInstancesRequestOutcome;
-
-/// ==================
-/// *** Public API ***
-/// ==================
-impl FactorInstancesProvider {
-    /// The main loop of the derivation process, newly created or recovered entities,
-    /// and a list of free FactorInstances - which is used to fill the cache.
-    ///
-    /// Gets FactorInstances either from cache or derives more, or a mix of both,
-    /// until we are "done", which is either determined by End user in a callback
-    /// or by the operation kind.
-    pub async fn get_factor_instances(self) -> Result<FactorInstancesRequestOutcome> {
-        todo!()
     }
 }
 

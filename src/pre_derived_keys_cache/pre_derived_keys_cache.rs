@@ -17,13 +17,13 @@ use crate::prelude::*;
 #[derive(Debug, Default, Clone)]
 pub struct PreDerivedKeysCache {
     /// The probably free factor instances, many Factor Instances per
-    /// `DerivationRequest` - which is agnostic to the derivation index.
-    probably_free_factor_instances: IndexMap<DerivationRequest, FactorInstances>,
+    /// `UnindexDerivationRequest` - which is agnostic to the derivation index.
+    probably_free_factor_instances: IndexMap<UnindexDerivationRequest, FactorInstances>,
 }
 
 impl HierarchicalDeterministicFactorInstance {
-    fn erase_to_derivation_request(&self) -> DerivationRequest {
-        DerivationRequest::new(
+    pub fn erase_to_derivation_request(&self) -> UnindexDerivationRequest {
+        UnindexDerivationRequest::new(
             self.factor_source_id,
             self.derivation_path().network_id,
             self.derivation_path().entity_kind,
@@ -41,12 +41,15 @@ impl PreDerivedKeysCache {
                 .into_group_map_by(|x| x.erase_to_derivation_request())
                 .into_iter()
                 .map(|(k, v)| (k, v.into_iter().collect::<FactorInstances>()))
-                .collect::<IndexMap<DerivationRequest, FactorInstances>>(),
+                .collect::<IndexMap<UnindexDerivationRequest, FactorInstances>>(),
         }
     }
 }
 
 impl PreDerivedKeysCache {
+    /// Loads FactorInstances from the cache, by consuming them, i.e. they will
+    /// be deleted from the cache and returned.
+    ///
     /// We never query the cache with a `DerivationPath` - which
     /// contains a derivation index, rather we ask the cache "give me the next N
     /// Factor Instances for this FactorSourceID, on this network, for this KeyKind,
@@ -57,10 +60,10 @@ impl PreDerivedKeysCache {
     /// the caller SHOULD re-fill the cache before the caller finishes its operation.
     /// * More Factor Instances than requested, use them and no need to re-fill the cache.
     ///
-    /// In fact this load function does not work with a single `DerivationRequest`
+    /// In fact this load function does not work with a single `UnindexDerivationRequest`
     /// but rather with many, since we might care about reading FactorInstances in
     /// two different KeySpaces for example, or for multiple FactorSourceIDs.
-    pub async fn load(&self, requests: &DerivationRequests) -> Result<CacheOutcome> {
+    pub async fn take(&self, requests: &UnindexDerivationRequests) -> Result<CacheOutcome> {
         panic!("impl me")
     }
 }

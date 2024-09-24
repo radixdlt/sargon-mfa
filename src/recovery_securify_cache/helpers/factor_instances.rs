@@ -13,7 +13,10 @@ impl From<IndexSet<HierarchicalDeterministicFactorInstance>> for FactorInstances
 }
 
 impl FactorInstances {
-    pub fn filter_satisfying(&self, derivation_requests: &DerivationRequests) -> Result<Self> {
+    pub fn filter_satisfying(
+        &self,
+        derivation_requests: &UnindexDerivationRequests,
+    ) -> Result<Self> {
         if self.satisfies_all_requests(derivation_requests) {
             Ok(self.clone())
         } else {

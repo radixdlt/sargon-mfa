@@ -1,7 +1,7 @@
 use crate::prelude::*;
 
 impl HierarchicalDeterministicFactorInstance {
-    fn satisfies(&self, request: &DerivationRequest) -> bool {
+    fn satisfies(&self, request: &UnindexDerivationRequest) -> bool {
         self.derivation_path().satisfies(request)
             && request.factor_source_id == self.factor_source_id
     }
@@ -9,7 +9,7 @@ impl HierarchicalDeterministicFactorInstance {
 
 impl DerivationPath {
     #[allow(clippy::nonminimal_bool)]
-    fn satisfies(&self, request: &DerivationRequest) -> bool {
+    fn satisfies(&self, request: &UnindexDerivationRequest) -> bool {
         request.entity_kind == self.entity_kind
             && request.network_id == self.network_id
             && request.entity_kind == self.entity_kind
@@ -18,7 +18,7 @@ impl DerivationPath {
     }
 }
 
-impl DerivationRequests {
+impl UnindexDerivationRequests {
     pub fn fully_satisfied_by(&self, instances: &dyn IsFactorInstanceCollectionBase) -> bool {
         instances.satisfies_all_requests(self)
     }
@@ -29,14 +29,14 @@ impl DerivationRequests {
 
 pub trait IsFactorInstanceCollectionBase {
     fn factor_instances(&self) -> IndexSet<HierarchicalDeterministicFactorInstance>;
-    fn satisfies_all_requests(&self, requests: &DerivationRequests) -> bool {
+    fn satisfies_all_requests(&self, requests: &UnindexDerivationRequests) -> bool {
         requests.requests().iter().all(|request| {
             self.factor_instances()
                 .iter()
                 .any(|instance| instance.satisfies(request))
         })
     }
-    fn satisfies_some_requests(&self, requests: &DerivationRequests) -> bool {
+    fn satisfies_some_requests(&self, requests: &UnindexDerivationRequests) -> bool {
         requests.requests().iter().any(|request| {
             self.factor_instances()
                 .iter()

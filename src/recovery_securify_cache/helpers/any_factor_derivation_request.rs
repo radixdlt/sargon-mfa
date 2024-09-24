@@ -1,6 +1,6 @@
 use crate::prelude::*;
 
-/// A partial `DerivationRequest` of sorts, without
+/// A partial `UnindexDerivationRequest` of sorts, without
 /// any specified FactorSource.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct AnyFactorDerivationRequest {
@@ -28,8 +28,8 @@ impl AnyFactorDerivationRequest {
     pub fn derivation_request_with_factor_source_id(
         &self,
         factor_source_id: FactorSourceIDFromHash,
-    ) -> DerivationRequest {
-        DerivationRequest::new(
+    ) -> UnindexDerivationRequest {
+        UnindexDerivationRequest::new(
             factor_source_id,
             self.network_id,
             self.entity_kind,

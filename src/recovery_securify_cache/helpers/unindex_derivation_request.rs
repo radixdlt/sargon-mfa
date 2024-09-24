@@ -1,10 +1,10 @@
 use crate::prelude::*;
 
 /// A "partial" DerivationPath of sorts, without
-/// any specifiedd Derivation Entity Index, but with
+/// any specified Derivation Entity Index, but with
 /// a known KeySpace.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct DerivationRequest {
+pub struct UnindexDerivationRequest {
     pub factor_source_id: FactorSourceIDFromHash,
     pub network_id: NetworkID,
     pub entity_kind: CAP26EntityKind,
@@ -12,7 +12,7 @@ pub struct DerivationRequest {
     pub key_space: KeySpace,
 }
 
-impl DerivationRequest {
+impl UnindexDerivationRequest {
     pub fn new(
         factor_source_id: FactorSourceIDFromHash,
         network_id: NetworkID,
