@@ -151,7 +151,7 @@ impl PolyDerivation {
 impl PolyDerivation {
     pub fn oars(
         factor_sources: &FactorSources,
-        gateway: Arc<dyn Gateway>,
+        gateway: Arc<dyn GatewayReadonly>,
         derivation_interactors: Arc<dyn KeysDerivationInteractors>,
         is_derivation_done_query: Arc<dyn IsDerivationDoneQuery>,
     ) -> Self {
@@ -169,7 +169,7 @@ impl PolyDerivation {
 
     pub fn mars(
         factor_source: &HDFactorSource,
-        gateway: Arc<dyn Gateway>,
+        gateway: Arc<dyn GatewayReadonly>,
         cache: impl Into<Option<Arc<PreDerivedKeysCache>>>,
         profile: Arc<Profile>,
         derivation_interactors: Arc<dyn KeysDerivationInteractors>,
@@ -190,7 +190,7 @@ impl PolyDerivation {
 
     pub fn pre_derive_instance_for_new_factor_source(
         factor_source: &HDFactorSource,
-        gateway: impl Into<Option<Arc<dyn Gateway>>>,
+        gateway: impl Into<Option<Arc<dyn GatewayReadonly>>>,
         cache: impl Into<Option<Arc<PreDerivedKeysCache>>>,
         profile: Arc<Profile>,
         derivation_interactors: Arc<dyn KeysDerivationInteractors>,
@@ -210,7 +210,7 @@ impl PolyDerivation {
     pub fn new_virtual_unsecurified_account(
         network_id: NetworkID,
         factor_source: &HDFactorSource,
-        gateway: impl Into<Option<Arc<dyn Gateway>>>,
+        gateway: impl Into<Option<Arc<dyn GatewayReadonly>>>,
         cache: impl Into<Option<Arc<PreDerivedKeysCache>>>,
         profile: Arc<Profile>,
         derivation_interactors: Arc<dyn KeysDerivationInteractors>,
@@ -232,7 +232,7 @@ impl PolyDerivation {
     pub fn securify_unsecurified_account(
         account_address: AccountAddress,
         matrix_of_factor_sources: MatrixOfFactorSources,
-        gateway: impl Into<Option<Arc<dyn Gateway>>>,
+        gateway: impl Into<Option<Arc<dyn GatewayReadonly>>>,
         cache: impl Into<Option<Arc<PreDerivedKeysCache>>>,
         profile: Arc<Profile>,
         derivation_interactors: Arc<dyn KeysDerivationInteractors>,
@@ -289,9 +289,12 @@ impl PolyDerivation {
     /// if not present, then use a range of `(0, SIZE)`, where `SIZE` is typically `30`
     /// (might depend on FactorSourceKind... which would complicate this
     /// implementation quite a bit).
-    async fn load_or_derive_instances(&self) -> Result<()> {
-        let factor_sources = self.factor_sources();
-        let abstract_requests = self.requests();
+    async fn load_or_derive_instances(
+        &self,
+        mut intermediary_analysis: &IntermediaryDerivationAndAnalysis,
+    ) -> Result<()> {
+        let factor_sources = self.operation_kind.factor_sources();
+        let abstract_requests = self.operation_kind.requests();
         let requests_without_indices = abstract_requests.for_each_factor_source(factor_sources);
         /*
                let cached = self.cache.load(requests_without_indices).await?;
@@ -323,35 +326,6 @@ impl PolyDerivation {
         */
         todo!()
     }
-
-    /// Ask GUI callback/hook if derivation is done, which is async because we should
-    /// it to end user for some operations, e.g. showing the derived Accounts so far
-    /// during (Onboarding/Manual) Account Recover Scan.
-    async fn is_done(&self, derived_accounts: &DerivedFactorInstances) -> Result<bool> {
-        self.is_derivation_done_query
-            .is_done(derived_accounts)
-            .await
-    }
-
-    /// Get the Agnostic derivation requests for the operation kind.
-    fn requests(&self) -> AnyFactorDerivationRequests {
-        self.operation_kind.requests()
-    }
-
-    /// Get the FactorSources for the operation kind.
-    fn factor_sources(&self) -> FactorSources {
-        self.operation_kind.factor_sources()
-    }
-
-    /// The instances derived or loaded from cache, or a mix of both, which
-    /// are relevant for the operation kind.
-    fn derived_instances(&self) -> Result<DerivedFactorInstances> {
-        // Implementation wise we use a simplistic approach, we use
-        // the cache as the storage of any newly derived instances,
-        // or if the existing instances in cache could fulfill the
-        // requests of the operation, then only those are used.
-        todo!("get instances from cache")
-    }
 }
 
 /// ==================
@@ -365,20 +339,23 @@ impl PolyDerivation {
     /// until we are "done", which is either determined by End user in a callback
     /// or by the operation kind.
     pub async fn poly_derive(self) -> Result<FinalDerivationsAndAnalysis> {
+        let mut intermediary_analysis = IntermediaryDerivationAndAnalysis::default();
         loop {
-            let derived = self.derived_instances()?;
-            let is_done = self.is_done(&derived).await?;
+            let is_done = self
+                .is_derivation_done_query
+                .is_done(&intermediary_analysis)
+                .await?;
             if is_done {
                 break;
             }
-            self.load_or_derive_instances().await?;
+            self.load_or_derive_instances(&intermediary_analysis)
+                .await?;
         }
 
-        let derived_instances = self.derived_instances()?;
         let cache = self.cache;
 
         let analysis = FinalDerivationsAndAnalysis {
-            derived_instances,
+            entities_from_analysis: intermediary_analysis.entities_from_analysis,
             cache,
         };
 
@@ -390,7 +367,7 @@ impl PolyDerivation {
 pub async fn oars(
     factor_sources: FactorSources,
     interactors: Arc<dyn KeysDerivationInteractors>,
-    gateway: Arc<dyn Gateway>,
+    gateway: Arc<dyn GatewayReadonly>,
     is_derivation_done_query: Arc<dyn IsDerivationDoneQuery>,
 ) -> Result<(Profile, Arc<PreDerivedKeysCache>)> {
     let network_id = NetworkID::Mainnet;
@@ -405,8 +382,9 @@ pub async fn oars(
     let analysis = derivation.poly_derive().await?;
     let cache = analysis.cache;
 
-    let recovered_unsecurified_accounts =
-        analysis.derived_instances.accounts_unsecurified(network_id);
+    let recovered_unsecurified_accounts = analysis
+        .entities_from_analysis
+        .recovered_unsecurified_accounts();
 
     // TODO handle securified!
     let profile = Profile::new(factor_sources, &recovered_unsecurified_accounts, []);
@@ -418,7 +396,7 @@ pub async fn oars(
 pub async fn mars(
     factor_source: HDFactorSource,
     interactors: Arc<dyn KeysDerivationInteractors>,
-    gateway: Arc<dyn Gateway>,
+    gateway: Arc<dyn GatewayReadonly>,
     profile: &mut Profile,
     cache: impl Into<Option<Arc<PreDerivedKeysCache>>>,
     is_derivation_done_query: Arc<dyn IsDerivationDoneQuery>,
@@ -435,9 +413,9 @@ pub async fn mars(
 
     let analysis = derivation.poly_derive().await?;
     let cache = analysis.cache;
-    let accounts = analysis.derived_instances.accounts_unsecurified(network_id);
+    let entities = analysis.entities_from_analysis.recovered_entities();
 
-    profile.insert_accounts(accounts)?;
+    profile.insert_entities(entities)?;
 
     Ok(cache)
 }
@@ -450,7 +428,7 @@ pub async fn mars(
 /// since this method saves it into Profile.
 pub async fn pre_derive_instance_for_new_factor_source(
     factor_source: &HDFactorSource, // not yet added to Profile.
-    gateway: impl Into<Option<Arc<dyn Gateway>>>,
+    gateway: impl Into<Option<Arc<dyn GatewayReadonly>>>,
     cache: impl Into<Option<Arc<PreDerivedKeysCache>>>,
     profile: &mut Profile,
     derivation_interactors: Arc<dyn KeysDerivationInteractors>,
@@ -476,7 +454,7 @@ pub async fn new_virtual_unsecurified_account(
     name: impl AsRef<str>,
     network_id: NetworkID,
     factor_source: &HDFactorSource,
-    gateway: impl Into<Option<Arc<dyn Gateway>>>,
+    gateway: impl Into<Option<Arc<dyn GatewayReadonly>>>,
     cache: impl Into<Option<Arc<PreDerivedKeysCache>>>,
     profile: &mut Profile,
     derivation_interactors: Arc<dyn KeysDerivationInteractors>,
@@ -494,8 +472,8 @@ pub async fn new_virtual_unsecurified_account(
     let analysis = derivation.poly_derive().await?;
 
     let mut account = analysis
-        .derived_instances
-        .accounts_unsecurified(network_id)
+        .entities_from_analysis
+        .recovered_unsecurified_accounts() // not really "recovered", rather new.
         .first()
         .ok_or(CommonError::UnknownAccount)
         .cloned()?;
@@ -505,4 +483,70 @@ pub async fn new_virtual_unsecurified_account(
     profile.insert_accounts(IndexSet::from_iter([account.clone()]))?;
 
     Ok(account)
+}
+
+#[cfg(test)]
+mod tests {
+    use std::{
+        borrow::{Borrow, BorrowMut},
+        sync::RwLockReadGuard,
+    };
+
+    use super::*;
+
+    struct SargonOS {
+        cache: RwLock<PreDerivedKeysCache>,
+        gateway: RwLock<TestGateway>,
+        profile: RwLock<Profile>,
+        interactors: Arc<dyn KeysDerivationInteractors>,
+    }
+
+    impl SargonOS {
+        pub fn profile_snapshot(&self) -> Profile {
+            self.profile.try_read().unwrap().clone()
+        }
+        pub fn new() -> Self {
+            let interactors: Arc<dyn KeysDerivationInteractors> =
+                Arc::new(TestDerivationInteractors::default());
+            Self {
+                cache: RwLock::new(PreDerivedKeysCache::default()),
+                gateway: RwLock::new(TestGateway::default()),
+                profile: RwLock::new(Profile::default()),
+                interactors,
+            }
+        }
+
+        async fn add_factor_source(&self, factor_source: HDFactorSource) -> Result<()> {
+            let interactors: Arc<dyn KeysDerivationInteractors> =
+                Arc::new(TestDerivationInteractors::default());
+
+            let gateway: Arc<dyn GatewayReadonly> =
+                Arc::new(self.gateway.try_write().unwrap().clone_snapshot());
+            let cache_snapshot: Arc<PreDerivedKeysCache> =
+                Arc::new(self.cache.try_write().unwrap().clone());
+
+            let cache_updated = pre_derive_instance_for_new_factor_source(
+                &factor_source,
+                gateway,
+                cache_snapshot,
+                self.profile.try_write().unwrap().borrow_mut(),
+                interactors,
+            )
+            .await?;
+
+            *self.cache.try_write().unwrap() = Arc::into_inner(cache_updated).unwrap();
+
+            Ok(())
+        }
+    }
+
+    #[actix_rt::test]
+    async fn test() {
+        let os = SargonOS::new();
+        assert_eq!(os.profile_snapshot().factor_sources.len(), 0);
+        os.add_factor_source(HDFactorSource::sample())
+            .await
+            .unwrap();
+        assert_eq!(os.profile_snapshot().factor_sources.len(), 1);
+    }
 }

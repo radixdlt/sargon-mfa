@@ -14,7 +14,7 @@ use crate::prelude::*;
 /// * Exactly the requested number of Factor Instances for that request - in which
 /// the caller SHOULD re-fill the cache before the caller finishes its operation.
 /// * More Factor Instances than requested, use them and no need to re-fill the cache.
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct PreDerivedKeysCache {
     /// The probably free factor instances, many Factor Instances per
     /// `DerivationRequest` - which is agnostic to the derivation index.

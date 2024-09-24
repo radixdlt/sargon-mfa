@@ -24,7 +24,7 @@ pub struct HiddenConstructor;
 /// they are already used by some Securified or Unsecurified entity, which we
 /// know by having matched them against Profile or Gateway or both.
 #[derive(Clone, Default, Debug, PartialEq, Eq, Hash)]
-pub struct KnownTakenInstances {
+pub struct EntitiesFromAnalysis {
     hiding_ctor: HiddenConstructor,
     /// Unsecurified entities that were recovered
     pub recovered_unsecurified_entities: RecoveredUnsecurifiedEntities,
@@ -38,7 +38,7 @@ pub struct KnownTakenInstances {
     pub virtual_entity_creating_instances: VirtualEntityCreatingInstances,
 }
 
-impl IsFactorInstanceCollectionBase for KnownTakenInstances {
+impl IsFactorInstanceCollectionBase for EntitiesFromAnalysis {
     fn factor_instances(&self) -> IndexSet<HierarchicalDeterministicFactorInstance> {
         let mut set = self.recovered_unsecurified_entities.factor_instances();
         set.extend(self.recovered_securified_entities.factor_instances());
@@ -48,7 +48,7 @@ impl IsFactorInstanceCollectionBase for KnownTakenInstances {
     }
 }
 
-impl HasSampleValues for KnownTakenInstances {
+impl HasSampleValues for EntitiesFromAnalysis {
     fn sample() -> Self {
         Self::new(
             RecoveredUnsecurifiedEntities::sample(),
@@ -68,7 +68,7 @@ impl HasSampleValues for KnownTakenInstances {
     }
 }
 
-impl KnownTakenInstances {
+impl EntitiesFromAnalysis {
     /// # Panics
     /// Panics if the collections of factor instances are not disjoint
     pub fn new(
@@ -103,5 +103,33 @@ impl KnownTakenInstances {
             self.virtual_entity_creating_instances
                 .merge(other.virtual_entity_creating_instances),
         )
+    }
+
+    pub fn recovered_entities(&self) -> IndexSet<AccountOrPersona> {
+        let mut set = self.recovered_unsecurified_entities.entities();
+        set.extend(self.recovered_securified_entities.entities());
+        set
+    }
+
+    pub fn recovered_unsecurified_entities(&self) -> IndexSet<AccountOrPersona> {
+        self.recovered_unsecurified_entities.entities()
+    }
+
+    pub fn recovered_unsecurified_accounts(&self) -> IndexSet<Account> {
+        self.recovered_unsecurified_entities()
+            .into_iter()
+            .filter_map(|e| e.as_account_entity().cloned())
+            .collect()
+    }
+
+    pub fn recovered_securified_entities(&self) -> IndexSet<AccountOrPersona> {
+        self.recovered_securified_entities.entities()
+    }
+
+    pub fn recovered_securified_accounts(&self) -> IndexSet<Account> {
+        self.recovered_securified_entities()
+            .into_iter()
+            .filter_map(|e| e.as_account_entity().cloned())
+            .collect()
     }
 }

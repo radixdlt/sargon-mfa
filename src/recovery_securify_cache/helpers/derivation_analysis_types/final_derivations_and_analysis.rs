@@ -5,7 +5,6 @@ use crate::prelude::*;
 /// Securifying accounts
 #[derive(Clone, Debug)]
 pub struct FinalDerivationsAndAnalysis {
-    // OR `KnownTakenInstances` ??
-    pub derived_instances: DerivedFactorInstances,
+    pub entities_from_analysis: EntitiesFromAnalysis,
     pub cache: Arc<PreDerivedKeysCache>,
 }

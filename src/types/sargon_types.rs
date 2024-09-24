@@ -1269,7 +1269,7 @@ impl HasSampleValues for AddressOfAccountOrPersona {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, std::hash::Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, std::hash::Hash, EnumAsInner)]
 pub enum AccountOrPersona {
     AccountEntity(Account),
     PersonaEntity(Persona),
@@ -1908,6 +1908,17 @@ pub struct Profile {
     pub current_network: NetworkID,
 }
 
+impl Default for Profile {
+    fn default() -> Self {
+        Self {
+            factor_sources: IndexSet::new(),
+            accounts: HashMap::new(),
+            personas: HashMap::new(),
+            current_network: NetworkID::Mainnet,
+        }
+    }
+}
+
 impl Profile {
     pub fn current_network(&self) -> NetworkID {
         self.current_network
@@ -2059,6 +2070,31 @@ impl Profile {
 
     pub fn add_factor_source(&mut self, factor_source: HDFactorSource) -> Result<()> {
         self.factor_sources.insert(factor_source);
+        Ok(())
+    }
+
+    pub fn add_account(&mut self, account: &Account) -> Result<()> {
+        self.accounts
+            .insert(account.entity_address(), account.clone());
+        Ok(())
+    }
+
+    pub fn add_persona(&mut self, persona: &Persona) -> Result<()> {
+        self.personas
+            .insert(persona.entity_address(), persona.clone());
+        Ok(())
+    }
+
+    pub fn insert_entities(&mut self, entities: IndexSet<AccountOrPersona>) -> Result<()> {
+        for entity in entities {
+            if let Some(account) = entity.as_account_entity() {
+                self.add_account(account)?;
+            } else if let Some(persona) = entity.as_persona_entity() {
+                self.add_persona(persona)?;
+            } else {
+                panic!("Unknown entity kind");
+            }
+        }
         Ok(())
     }
 }

@@ -12,6 +12,13 @@ pub struct TestGateway {
 }
 
 impl TestGateway {
+    pub fn clone_snapshot(&self) -> Self {
+        Self {
+            has_internet_connection: self.has_internet_connection,
+            known_hashes: RwLock::new(self.known_hashes.try_read().unwrap().clone()),
+            entities: RwLock::new(self.entities.try_read().unwrap().clone()),
+        }
+    }
     pub fn new(has_internet_connection: bool) -> Self {
         Self {
             has_internet_connection,
