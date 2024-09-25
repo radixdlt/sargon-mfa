@@ -3,17 +3,11 @@
 
 use crate::prelude::*;
 
-/// If both `cache` and `profile_snapshot` is `None`, then we use a derivation
-/// index range starting at `0`.
-///
-/// Further more if cache is empty or if we are requesting derivation index ranges
-/// for on a network that is not present in Profile, we start at `0`.
-pub struct NextDerivationIndexAnalyzer {
-    cache: Option<Arc<PreDerivedKeysCache>>,
-    profile_snapshot: Option<Profile>,
+pub struct NextDerivationBasedOnProfileIndexAnalyzer {
+    profile_snapshot: Profile,
 }
 
-impl NextDerivationIndexAnalyzer {
+impl NextDerivationBasedOnProfileIndexAnalyzer {
     pub fn next(
         &self,
         unindexed_requests: UnquantifiedUnindexDerivationRequests,
@@ -28,6 +22,55 @@ pub struct FactorInstancesRequestOutcome {
 
     /// If we did derive FactorInstances past those requested and put into the cache.
     pub did_derive_past_requested: bool,
+}
+
+/// With known start index and quantity
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct QuantifiedDerivationRequestWithStartIndex {
+    pub factor_source_id: FactorSourceIDFromHash,
+    pub network_id: NetworkID,
+    pub entity_kind: CAP26EntityKind,
+    pub key_kind: CAP26KeyKind,
+    pub key_space: KeySpace,
+    pub quantity: usize,
+    pub start_base_index: HDPathValue,
+}
+impl QuantifiedDerivationRequestWithStartIndex {
+    fn new(
+        factor_source_id: FactorSourceIDFromHash,
+        network_id: NetworkID,
+        entity_kind: CAP26EntityKind,
+        key_kind: CAP26KeyKind,
+        key_space: KeySpace,
+        quantity: usize,
+        start_base_index: HDPathValue,
+    ) -> Self {
+        Self {
+            factor_source_id,
+            network_id,
+            entity_kind,
+            key_kind,
+            key_space,
+            quantity,
+            start_base_index,
+        }
+    }
+}
+impl From<(QuantifiedUnindexDerivationRequest, HDPathValue)>
+    for QuantifiedDerivationRequestWithStartIndex
+{
+    fn from(value: (QuantifiedUnindexDerivationRequest, HDPathValue)) -> Self {
+        let (q, i) = value;
+        Self::new(
+            q.factor_source_id,
+            q.network_id,
+            q.entity_kind,
+            q.key_kind,
+            q.key_space,
+            q.requested_quantity(),
+            i,
+        )
+    }
 }
 
 /// ==================
@@ -61,26 +104,37 @@ impl FactorInstancesProvider {
             .map(|x| QuantifiedUnindexDerivationRequest::quantifying(x, quantity))
             .collect::<QuantifiedUnindexDerivationRequests>();
 
-        /// Form quantified requests
+        // Form quantified requests
         // Important we load from cache with requests without indices, since the cache
         // should know which are the next free indices to fulfill the requests.
         let take_from_cache_outcome = self.cache.take(&requested)?;
+
+        let mut derive_more_requests = IndexSet::<DeriveMore>::new();
+        let mut satisfied_by_cache = IndexSet::<HierarchicalDeterministicFactorInstance>::new();
+        for outcome in take_from_cache_outcome.outcomes().into_iter() {
+            let aggregatable = outcome.aggregatable();
+
+            // might be empty
+            satisfied_by_cache.extend(aggregatable.loaded.factor_instances());
+
+            if let Some(derive_more) = aggregatable.derive_more {
+                derive_more_requests.insert(derive_more);
+            }
+        }
 
         todo!()
     }
 }
 
-impl NextDerivationIndexAnalyzer {
-    pub fn new(
-        maybe_cache: impl Into<Option<Arc<PreDerivedKeysCache>>>,
-        maybe_profile_snapshot: impl Into<Option<Profile>>,
-    ) -> Self {
-        let cache = maybe_cache.into();
-        let profile_snapshot = maybe_profile_snapshot.into();
-        Self {
-            cache,
-            profile_snapshot,
-        }
+// impl FactorInstancesFromCache {
+//     pub fn should_derive_more(&self) -> bool {
+//         self.
+//     }
+// }
+
+impl NextDerivationBasedOnProfileIndexAnalyzer {
+    pub fn new(profile_snapshot: Profile) -> Self {
+        Self { profile_snapshot }
     }
 }
 pub struct FactorInstancesProvider {
@@ -88,7 +142,8 @@ pub struct FactorInstancesProvider {
 
     /// If no cache present, a new one is created and will be filled.
     cache: Arc<PreDerivedKeysCache>,
-    next_derivation_index_analyzer: NextDerivationIndexAnalyzer,
+    next_derivation_based_on_profile_index_analyzer:
+        Option<NextDerivationBasedOnProfileIndexAnalyzer>,
 
     /// GUI hook
     derivation_interactors: Arc<dyn KeysDerivationInteractors>,
@@ -106,15 +161,16 @@ impl FactorInstancesProvider {
         derivation_interactors: Arc<dyn KeysDerivationInteractors>,
     ) -> Self {
         let maybe_cache = maybe_cache.into();
-        let next_derivation_index_analyzer =
-            NextDerivationIndexAnalyzer::new(maybe_cache.clone(), maybe_profile_snapshot);
+        let next_derivation_based_on_profile_index_analyzer = maybe_profile_snapshot
+            .into()
+            .map(|p| NextDerivationBasedOnProfileIndexAnalyzer::new(p));
 
         let cache = maybe_cache.unwrap_or_else(|| Arc::new(PreDerivedKeysCache::default()));
 
         Self {
             purpose,
             cache,
-            next_derivation_index_analyzer,
+            next_derivation_based_on_profile_index_analyzer,
             derivation_interactors,
         }
     }

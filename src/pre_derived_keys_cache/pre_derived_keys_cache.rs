@@ -159,27 +159,22 @@ impl PreDerivedKeysCache {
         request: &QuantifiedUnindexDerivationRequest,
     ) -> Result<LoadFromCacheOutcomeForSingleRequest> {
         let outcome = self._take_many_instances_for_single_request(request)?;
-        Ok(LoadFromCacheOutcomeForSingleRequest {
-            request: request.clone(),
+        Ok(LoadFromCacheOutcomeForSingleRequest::new(
+            request.clone(),
             outcome,
-        })
+        ))
     }
 
     fn take_many_instances_for_many_requests(
         &self,
         requests: &QuantifiedUnindexDerivationRequests,
     ) -> Result<FactorInstancesFromCache> {
-        let mut outcome_map = IndexMap::<
-            QuantifiedUnindexDerivationRequest,
-            LoadFromCacheOutcomeForSingleRequest,
-        >::new();
+        let mut outcomes = IndexSet::<LoadFromCacheOutcomeForSingleRequest>::new();
         for request in requests.requests() {
             let outcome = self.take_many_instances_for_single_request(&request)?;
-            outcome_map.insert(outcome.request.clone(), outcome);
+            outcomes.insert(outcome);
         }
-        Ok(FactorInstancesFromCache {
-            per_request: outcome_map,
-        })
+        Ok(FactorInstancesFromCache::new(outcomes))
     }
 
     pub fn take(

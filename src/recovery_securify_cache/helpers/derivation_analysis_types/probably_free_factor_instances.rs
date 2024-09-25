@@ -1,7 +1,7 @@
 use crate::prelude::*;
 
 impl HierarchicalDeterministicFactorInstance {
-    fn satisfies(&self, request: UnquantifiedUnindexDerivationRequest) -> bool {
+    pub fn satisfies(&self, request: UnquantifiedUnindexDerivationRequest) -> bool {
         self.derivation_path().satisfies(request.clone())
             && request.factor_source_id == self.factor_source_id
     }

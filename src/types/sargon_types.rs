@@ -870,6 +870,13 @@ impl HierarchicalDeterministicFactorInstance {
     pub fn key_space(&self) -> KeySpace {
         self.public_key.derivation_path.index.key_space()
     }
+    pub fn derivation_entity_index(&self) -> HDPathComponent {
+        self.public_key.derivation_path.index
+    }
+
+    pub fn derivation_entity_base_index(&self) -> HDPathValue {
+        self.derivation_entity_index().base_index()
+    }
 }
 
 impl HierarchicalDeterministicFactorInstance {
