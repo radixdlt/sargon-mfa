@@ -25,11 +25,11 @@ impl AnyFactorDerivationRequest {
         }
     }
 
-    pub fn derivation_request_with_factor_source_id(
+    pub fn unquantified_derivation_request_with_factor_source(
         &self,
         factor_source_id: FactorSourceIDFromHash,
-    ) -> QuantifiedUnindexDerivationRequest {
-        QuantifiedUnindexDerivationRequest::new(
+    ) -> UnquantifiedUnindexDerivationRequest {
+        UnquantifiedUnindexDerivationRequest::new(
             factor_source_id,
             self.network_id,
             self.entity_kind,

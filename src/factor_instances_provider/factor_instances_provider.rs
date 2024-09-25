@@ -16,7 +16,7 @@ pub struct NextDerivationIndexAnalyzer {
 impl NextDerivationIndexAnalyzer {
     pub fn next(
         &self,
-        requests_without_indices: UnindexDerivationRequests,
+        unindexed_requests: UnquantifiedUnindexDerivationRequests,
     ) -> FullDerivationRequests {
         todo!()
     }
@@ -36,8 +36,8 @@ pub struct FactorInstancesRequestOutcome {
 impl FactorInstancesProvider {
     async fn derive_more(
         &self,
-        unsatisfied: Option<UnsatisfiedUnindexedDerivationRequests>,
-        initially_requested: UnindexDerivationRequests,
+        // unsatisfied: Option<UnsatisfiedUnindexedDerivationRequests>,
+        // initially_requested: UnindexDerivationRequests,
     ) -> Result<FactorInstances> {
         todo!()
     }
@@ -52,12 +52,19 @@ impl FactorInstancesProvider {
         // Form requests untied to any FactorSources
         let unfactored = self.purpose.requests();
 
-        // Form requests tied to FactorSources, but without indices
-        let requested = unfactored.for_each_factor_source(factor_sources);
+        // Form requests tied to FactorSources, but without indices, unquantified
+        let unquantified = unfactored.for_each_factor_source(factor_sources);
 
+        let quantity = self.purpose.quantity();
+        let requested = unquantified
+            .into_iter()
+            .map(|x| QuantifiedUnindexDerivationRequest::quantifying(x, quantity))
+            .collect::<QuantifiedUnindexDerivationRequests>();
+
+        /// Form quantified requests
         // Important we load from cache with requests without indices, since the cache
         // should know which are the next free indices to fulfill the requests.
-        let take_from_cache_outcome = self.cache.take(&requested).await?;
+        let take_from_cache_outcome = self.cache.take(&requested)?;
 
         // Might be empty, partial or full.
         let mut factor_instances = take_from_cache_outcome.get();
@@ -209,24 +216,23 @@ impl FactorInstancesProvider {
         )
     }
 
-    /// Securify unsecurified Account
+    /// Securify unsecurified Accounts
     ///
     /// # Panics
     /// Panics if `UnsecurifiedEntity` is not an account
     /// or if it is not present in `profile_snapshot`.
-    pub fn securify_unsecurified_account(
-        unsecurified_account: UnsecurifiedEntity,
+    pub fn securify_unsecurified_accounts(
+        unsecurified_accounts: UnsecurifiedAccounts,
         matrix_of_factor_sources: MatrixOfFactorSources,
         cache: impl Into<Option<Arc<PreDerivedKeysCache>>>,
         profile_snapshot: Profile,
         derivation_interactors: Arc<dyn KeysDerivationInteractors>,
     ) -> Self {
-        assert!(profile_snapshot
-            .contains_account(AccountAddress::try_from(unsecurified_account.clone()).unwrap()));
+        assert!(profile_snapshot.contains_accounts(unsecurified_accounts.clone()));
 
         Self::new(
-            FactorInstancesRequestPurpose::SecurifyUnsecurifiedAccount {
-                unsecurified_account,
+            FactorInstancesRequestPurpose::SecurifyUnsecurifiedAccounts {
+                unsecurified_accounts,
                 matrix_of_factor_sources,
             },
             cache,
@@ -281,7 +287,7 @@ mod tests {
                     interactors,
                 );
 
-            factor_instances_provider.get_factor_instances().await?;
+            // factor_instances_provider.get_factor_instances().await?;
 
             Ok(())
         }

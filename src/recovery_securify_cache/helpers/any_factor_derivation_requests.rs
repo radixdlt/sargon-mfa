@@ -4,6 +4,24 @@ use crate::prelude::*;
 #[derive(Default, Clone, Debug, PartialEq, Eq)]
 pub struct AnyFactorDerivationRequests(IndexSet<AnyFactorDerivationRequest>);
 
+#[derive(Default, Clone, Debug, PartialEq, Eq)]
+pub struct UnquantifiedUnindexDerivationRequests(IndexSet<UnquantifiedUnindexDerivationRequest>);
+
+impl FromIterator<UnquantifiedUnindexDerivationRequest> for UnquantifiedUnindexDerivationRequests {
+    fn from_iter<I: IntoIterator<Item = UnquantifiedUnindexDerivationRequest>>(iter: I) -> Self {
+        Self(iter.into_iter().collect())
+    }
+}
+
+impl IntoIterator for UnquantifiedUnindexDerivationRequests {
+    type Item = UnquantifiedUnindexDerivationRequest;
+    type IntoIter = <IndexSet<Self::Item> as IntoIterator>::IntoIter;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.into_iter()
+    }
+}
+
 impl FromIterator<AnyFactorDerivationRequest> for AnyFactorDerivationRequests {
     fn from_iter<I: IntoIterator<Item = AnyFactorDerivationRequest>>(iter: I) -> Self {
         Self::new(iter.into_iter().collect())
@@ -26,7 +44,7 @@ impl AnyFactorDerivationRequests {
     pub fn for_each_factor_source(
         self,
         factor_sources: FactorSources,
-    ) -> UnindexDerivationRequests {
+    ) -> UnquantifiedUnindexDerivationRequests {
         self.for_each_factor_source_id(
             factor_sources
                 .factor_sources()
@@ -39,14 +57,14 @@ impl AnyFactorDerivationRequests {
     pub fn for_each_factor_source_id(
         self,
         factor_source_ids: IndexSet<FactorSourceIDFromHash>,
-    ) -> UnindexDerivationRequests {
+    ) -> UnquantifiedUnindexDerivationRequests {
         factor_source_ids
             .iter()
             .flat_map(|f| {
                 self.0
                     .clone()
                     .into_iter()
-                    .map(|x| x.derivation_request_with_factor_source_id(*f))
+                    .map(|x| x.unquantified_derivation_request_with_factor_source(*f))
             })
             .collect()
     }

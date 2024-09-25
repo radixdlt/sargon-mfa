@@ -55,6 +55,11 @@ pub enum DerivationRequestQuantitySelector {
     /// Or when we are doing (MARS) Manual Account Recovery scan (OARS does not have cache).
     Poly { count: usize },
 }
+impl DerivationRequestQuantitySelector {
+    pub fn fill_cache_if_needed() -> Self {
+        DerivationRequestQuantitySelector::Poly { count: 30 }
+    }
+}
 
 /// A "partial" DerivationPath of sorts, without
 /// any specified Derivation Entity Index, but with
@@ -77,6 +82,19 @@ impl QuantifiedUnindexDerivationRequest {
             DerivationRequestQuantitySelector::Mono => 1,
             DerivationRequestQuantitySelector::Poly { count } => *count,
         }
+    }
+    pub fn quantifying(
+        unquantified: UnquantifiedUnindexDerivationRequest,
+        quantity: DerivationRequestQuantitySelector,
+    ) -> Self {
+        Self::new(
+            unquantified.factor_source_id,
+            unquantified.network_id,
+            unquantified.entity_kind,
+            unquantified.key_kind,
+            unquantified.key_space,
+            quantity,
+        )
     }
     fn new(
         factor_source_id: FactorSourceIDFromHash,

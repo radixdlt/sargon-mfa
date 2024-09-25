@@ -1,7 +1,5 @@
 #![allow(unused)]
 
-use std::error::Request;
-
 use crate::prelude::*;
 
 /// A cache of FactorInstances which according to Profile is
@@ -76,15 +74,25 @@ impl PreDerivedKeysCache {
         let key = key.into();
         self.probably_free_factor_instances.get(&key).cloned()
     }
+    fn consume(
+        &self,
+        key: impl Into<UnquantifiedUnindexDerivationRequest>,
+    ) -> Option<FactorInstances> {
+        let key = key.into();
+        self.probably_free_factor_instances.swap_remove(&key)
+    }
 }
-
+impl From<&[HierarchicalDeterministicFactorInstance]> for FactorInstances {
+    fn from(value: &[HierarchicalDeterministicFactorInstance]) -> Self {
+        Self::from_iter(value.into_iter().map(|x| x.clone()))
+    }
+}
 impl PreDerivedKeysCache {
     fn _take_many_instances_for_single_request(
         &self,
         request: &QuantifiedUnindexDerivationRequest,
     ) -> LoadFromCacheOutcome {
-        let cached = self.peek(request);
-        self.delete_all_instances_for_single_request(request);
+        let cached = self.consume(*request);
         match cached {
             Some(cached) => {
                 if cached.len() == 0 {
@@ -103,13 +111,10 @@ impl PreDerivedKeysCache {
                     assert_eq!(to_return.len(), requested_quantity);
                     assert!(!to_keep.is_empty());
 
-                    self.probably_free_factor_instances.insert(
-                        request.clone(),
-                        to_keep.iter().cloned().collect::<FactorInstances>(),
-                    );
-                    return LoadFromCacheOutcome::FullySatisfiedWithSpare(
-                        to_return.iter().cloned().collect::<FactorInstances>(),
-                    );
+                    self.append(*request, to_keep);
+                    return LoadFromCacheOutcome::FullySatisfiedWithSpare(FactorInstances::from(
+                        to_return,
+                    ));
                 } else {
                     return LoadFromCacheOutcome::PartiallySatisfied(cached.clone());
                 }
@@ -118,7 +123,7 @@ impl PreDerivedKeysCache {
         }
     }
 
-    pub fn take_many_instances_for_single_request(
+    fn take_many_instances_for_single_request(
         &self,
         request: &QuantifiedUnindexDerivationRequest,
     ) -> Result<LoadFromCacheOutcomeForSingleRequest> {
@@ -129,9 +134,9 @@ impl PreDerivedKeysCache {
         })
     }
 
-    pub fn take_many_instances_for_many_requests(
+    fn take_many_instances_for_many_requests(
         &self,
-        requests: &UnindexDerivationRequests,
+        requests: &QuantifiedUnindexDerivationRequests,
     ) -> Result<FactorInstancesFromCache> {
         let mut outcome_map = IndexMap::<
             QuantifiedUnindexDerivationRequest,
@@ -144,5 +149,12 @@ impl PreDerivedKeysCache {
         Ok(FactorInstancesFromCache {
             per_request: outcome_map,
         })
+    }
+
+    pub fn take(
+        &self,
+        requests: &QuantifiedUnindexDerivationRequests,
+    ) -> Result<FactorInstancesFromCache> {
+        self.take_many_instances_for_many_requests(requests)
     }
 }

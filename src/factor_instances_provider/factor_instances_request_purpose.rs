@@ -2,6 +2,73 @@ use sha2::digest::crypto_common::Key;
 
 use crate::prelude::*;
 
+/// A NonEmpty collection of Accounts all on the SAME Network
+/// but mixed if they are securified or unsecurified.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Accounts {
+    pub network_id: NetworkID,
+    accounts: IndexSet<Account>,
+}
+impl IntoIterator for Accounts {
+    type Item = Account;
+    type IntoIter = <IndexSet<Account> as IntoIterator>::IntoIter;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.accounts.clone().into_iter()
+    }
+}
+impl Accounts {
+    pub fn len(&self) -> usize {
+        self.accounts.len()
+    }
+    pub fn network_id(&self) -> NetworkID {
+        self.network_id
+    }
+}
+
+/// A NonEmpty collection of Accounts all on the SAME Network and all verified
+/// to be unsecurified.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct UnsecurifiedAccounts {
+    pub network_id: NetworkID,
+    accounts: IndexSet<UnsecurifiedAccount>,
+}
+impl UnsecurifiedAccounts {
+    pub fn len(&self) -> usize {
+        self.accounts.len()
+    }
+    pub fn network_id(&self) -> NetworkID {
+        self.network_id
+    }
+}
+impl From<UnsecurifiedAccounts> for Accounts {
+    fn from(value: UnsecurifiedAccounts) -> Self {
+        todo!()
+    }
+}
+impl From<SecurifiedAccounts> for Accounts {
+    fn from(value: SecurifiedAccounts) -> Self {
+        todo!()
+    }
+}
+
+/// A NonEmpty collection of Accounts all on the SAME Network and all verified
+/// to be unsecurified.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SecurifiedAccounts {
+    network_id: NetworkID,
+    accounts: IndexSet<UnsecurifiedAccount>,
+}
+
+impl SecurifiedAccounts {
+    pub fn network_id(&self) -> NetworkID {
+        self.network_id
+    }
+    pub fn len(&self) -> usize {
+        self.accounts.len()
+    }
+}
+
 pub enum FactorInstancesRequestPurpose {
     /// Onboarding Account Recovery Scan
     /// Assumes `Mainnet`
@@ -23,15 +90,15 @@ pub enum FactorInstancesRequestPurpose {
         factor_source: HDFactorSource,
     },
 
-    /// Securify unsecurified Account
-    SecurifyUnsecurifiedAccount {
-        unsecurified_account: UnsecurifiedEntity,
+    /// Securify unsecurified Accounts
+    SecurifyUnsecurifiedAccounts {
+        unsecurified_accounts: UnsecurifiedAccounts,
         matrix_of_factor_sources: MatrixOfFactorSources,
     },
 
-    /// Securify unsecurified Account
-    UpdateSecurifiedAccount {
-        securified_account: SecurifiedEntity,
+    /// Securify unsecurified Accounts
+    UpdateSecurifiedAccounts {
+        securified_accounts: SecurifiedAccounts,
         matrix_of_factor_sources: MatrixOfFactorSources,
     },
 }
@@ -48,6 +115,31 @@ impl FactorInstancesRequestPurpose {
                 AnyFactorDerivationRequest::new(network, entity_kind, key_space, key_kind)
             })
             .collect::<AnyFactorDerivationRequests>()
+    }
+
+    pub fn quantity(&self) -> DerivationRequestQuantitySelector {
+        match self {
+            Self::OARS { factor_sources } => {
+                DerivationRequestQuantitySelector::fill_cache_if_needed()
+            }
+            Self::MARS { .. } => DerivationRequestQuantitySelector::fill_cache_if_needed(),
+            Self::NewVirtualUnsecurifiedAccount { .. } => DerivationRequestQuantitySelector::Mono,
+            Self::PreDeriveInstancesForNewFactorSource { .. } => {
+                DerivationRequestQuantitySelector::fill_cache_if_needed()
+            }
+            Self::SecurifyUnsecurifiedAccounts {
+                unsecurified_accounts,
+                ..
+            } => DerivationRequestQuantitySelector::Poly {
+                count: unsecurified_accounts.len(),
+            },
+            Self::UpdateSecurifiedAccounts {
+                securified_accounts,
+                ..
+            } => DerivationRequestQuantitySelector::Poly {
+                count: securified_accounts.len(),
+            },
+        }
     }
 
     fn requests_for_account(
@@ -120,17 +212,18 @@ impl FactorInstancesRequestPurpose {
                 Self::requests_for_tx_for_account(*network_id, [KeySpace::Unsecurified])
             }
             Self::PreDeriveInstancesForNewFactorSource { .. } => Self::fill_cache_mainnet(),
-            Self::SecurifyUnsecurifiedAccount {
-                unsecurified_account,
+            Self::SecurifyUnsecurifiedAccounts {
+                unsecurified_accounts,
                 ..
             } => Self::requests_for_tx_for_account(
-                unsecurified_account.network_id(),
+                unsecurified_accounts.network_id(),
                 [KeySpace::Securified],
             ),
-            Self::UpdateSecurifiedAccount {
-                securified_account, ..
+            Self::UpdateSecurifiedAccounts {
+                securified_accounts,
+                ..
             } => Self::requests_for_tx_for_account(
-                securified_account.network_id(),
+                securified_accounts.network_id(),
                 [KeySpace::Securified],
             ),
         }
@@ -146,14 +239,14 @@ impl FactorInstancesRequestPurpose {
             Self::NewVirtualUnsecurifiedAccount { factor_source, .. } => {
                 FactorSources::just(factor_source.clone())
             }
-            Self::SecurifyUnsecurifiedAccount {
+            Self::SecurifyUnsecurifiedAccounts {
                 matrix_of_factor_sources,
                 ..
             } => matrix_of_factor_sources
                 .all_factors()
                 .into_iter()
                 .collect::<FactorSources>(),
-            Self::UpdateSecurifiedAccount {
+            Self::UpdateSecurifiedAccounts {
                 matrix_of_factor_sources,
                 ..
             } => matrix_of_factor_sources

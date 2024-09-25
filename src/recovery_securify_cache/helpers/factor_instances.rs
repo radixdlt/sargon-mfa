@@ -32,16 +32,6 @@ impl FactorInstances {
     pub fn len(&self) -> usize {
         self.factor_instances.len()
     }
-    pub fn filter_satisfying(
-        &self,
-        derivation_requests: &UnindexDerivationRequests,
-    ) -> Result<Self> {
-        if self.satisfies_all_requests(derivation_requests) {
-            Ok(self.clone())
-        } else {
-            Err(CommonError::FactorInstancesDoesNotSatisfyDerivationRequests)
-        }
-    }
 }
 
 impl IntoIterator for FactorInstances {

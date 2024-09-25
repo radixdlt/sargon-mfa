@@ -1,18 +1,18 @@
 use crate::prelude::*;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Hash)]
-pub struct UnindexDerivationRequests {
+pub struct QuantifiedUnindexDerivationRequests {
     hidden: HiddenConstructor,
     requests: Vec<QuantifiedUnindexDerivationRequest>,
 }
 
-impl FromIterator<QuantifiedUnindexDerivationRequest> for UnindexDerivationRequests {
+impl FromIterator<QuantifiedUnindexDerivationRequest> for QuantifiedUnindexDerivationRequests {
     fn from_iter<I: IntoIterator<Item = QuantifiedUnindexDerivationRequest>>(iter: I) -> Self {
         Self::new(iter.into_iter().collect())
     }
 }
 
-impl IntoIterator for UnindexDerivationRequests {
+impl IntoIterator for QuantifiedUnindexDerivationRequests {
     type Item = QuantifiedUnindexDerivationRequest;
     type IntoIter = <IndexSet<QuantifiedUnindexDerivationRequest> as IntoIterator>::IntoIter;
 
@@ -21,7 +21,7 @@ impl IntoIterator for UnindexDerivationRequests {
     }
 }
 
-impl UnindexDerivationRequests {
+impl QuantifiedUnindexDerivationRequests {
     pub fn is_empty(&self) -> bool {
         self.requests.is_empty()
     }

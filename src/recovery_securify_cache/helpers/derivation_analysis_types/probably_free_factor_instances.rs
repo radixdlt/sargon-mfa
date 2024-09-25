@@ -1,7 +1,7 @@
 use crate::prelude::*;
 
 impl HierarchicalDeterministicFactorInstance {
-    fn satisfies(&self, request: &QuantifiedUnindexDerivationRequest) -> bool {
+    fn satisfies(&self, request: UnquantifiedUnindexDerivationRequest) -> bool {
         self.derivation_path().satisfies(request)
             && request.factor_source_id == self.factor_source_id
     }
@@ -9,7 +9,8 @@ impl HierarchicalDeterministicFactorInstance {
 
 impl DerivationPath {
     #[allow(clippy::nonminimal_bool)]
-    fn satisfies(&self, request: &QuantifiedUnindexDerivationRequest) -> bool {
+    fn satisfies(&self, request: impl Into<UnquantifiedUnindexDerivationRequest>) -> bool {
+        let request = request.into();
         request.entity_kind == self.entity_kind
             && request.network_id == self.network_id
             && request.entity_kind == self.entity_kind
@@ -18,30 +19,46 @@ impl DerivationPath {
     }
 }
 
-impl UnindexDerivationRequests {
-    pub fn fully_satisfied_by(&self, instances: &dyn IsFactorInstanceCollectionBase) -> bool {
-        instances.satisfies_all_requests(self)
-    }
-    pub fn partially_satisfied_by(&self, instances: &dyn IsFactorInstanceCollectionBase) -> bool {
-        instances.satisfies_some_requests(self)
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum Satisfaction {
+    FullyWithoutSpare,
+    FullyWithSpare,
+    Partial,
+    Empty,
+}
+
+impl QuantifiedUnindexDerivationRequest {
+    pub fn satisfaction(&self, instances: &dyn IsFactorInstanceCollectionBase) -> Satisfaction {
+        let satisfied = instances
+            .filter_satisfied_requests(UnquantifiedUnindexDerivationRequest::from(self.clone()));
+
+        match (satisfied.len(), self.requested_quantity()) {
+            (0, _) => Satisfaction::Empty,
+            (satisfied, requested) => {
+                if satisfied == requested {
+                    Satisfaction::FullyWithoutSpare
+                } else if satisfied > requested {
+                    Satisfaction::FullyWithSpare
+                } else {
+                    assert!(satisfied < requested && satisfied > 0);
+                    return Satisfaction::Partial;
+                }
+            }
+        }
     }
 }
 
 pub trait IsFactorInstanceCollectionBase {
     fn factor_instances(&self) -> IndexSet<HierarchicalDeterministicFactorInstance>;
-    fn satisfies_all_requests(&self, requests: &UnindexDerivationRequests) -> bool {
-        requests.requests().iter().all(|request| {
-            self.factor_instances()
-                .iter()
-                .any(|instance| instance.satisfies(request))
-        })
-    }
-    fn satisfies_some_requests(&self, requests: &UnindexDerivationRequests) -> bool {
-        requests.requests().iter().any(|request| {
-            self.factor_instances()
-                .iter()
-                .any(|instance| instance.satisfies(request))
-        })
+
+    fn filter_satisfied_requests(
+        &self,
+        request: UnquantifiedUnindexDerivationRequest,
+    ) -> FactorInstances {
+        self.factor_instances()
+            .into_iter()
+            .filter(|instance| instance.satisfies(request.clone()))
+            .collect()
     }
 }
 

@@ -3,6 +3,35 @@ use crate::prelude::*;
 /// The `SecurifiedEntityControl`, address and possibly third party deposit state of some
 /// Securified entity.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct SecurifiedAccount {
+    /// The address which is verified to match the `veci`
+    account_address: AccountAddress,
+
+    securified_entity_control: SecurifiedEntityControl,
+
+    /// If we found this UnsecurifiedEntity while scanning OnChain using
+    /// Gateway, we might have been able to read out the third party deposit
+    /// settings.
+    third_party_deposit: Option<ThirdPartyDepositPreference>,
+}
+
+impl SecurifiedAccount {
+    pub fn address(&self) -> AccountAddress {
+        self.account_address.clone()
+    }
+
+    pub fn securified_entity_control(&self) -> SecurifiedEntityControl {
+        self.securified_entity_control.clone()
+    }
+
+    pub fn third_party_deposit(&self) -> Option<ThirdPartyDepositPreference> {
+        self.third_party_deposit
+    }
+}
+
+/// The `SecurifiedEntityControl`, address and possibly third party deposit state of some
+/// Securified entity.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct SecurifiedEntity {
     /// The address which is verified to match the `veci`
     address: AddressOfAccountOrPersona,
