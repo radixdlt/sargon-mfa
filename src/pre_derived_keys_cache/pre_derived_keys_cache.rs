@@ -93,6 +93,19 @@ impl PreDerivedKeysCache {
 
         values.append(to_append);
 
+        let indices = values
+            .factor_instances()
+            .into_iter()
+            .map(|x| x.derivation_entity_base_index())
+            .collect_vec();
+        assert_eq!(
+            HashSet::<HDPathValue>::from_iter(indices.clone()).len(),
+            indices.len()
+        );
+        let mut sorted_indices = indices.clone();
+        sorted_indices.sort();
+        assert_eq!(sorted_indices, indices);
+
         self.write(|mut c| c.insert(key, values))?;
 
         Ok(())
@@ -147,7 +160,14 @@ impl PreDerivedKeysCache {
                             FactorInstances::from(to_return),
                         ))
                     }
-                    Ordering::Less => Ok(LoadFromCacheOutcome::PartiallySatisfied(cached.clone())),
+                    Ordering::Less => {
+                        let number_of_instances_needed_to_fully_satisfy_request =
+                            requested_quantity - cached.len();
+                        Ok(LoadFromCacheOutcome::PartiallySatisfied {
+                            partial_from_cache: cached.clone(),
+                            number_of_instances_needed_to_fully_satisfy_request,
+                        })
+                    }
                 }
             }
             None => Ok(LoadFromCacheOutcome::CacheIsEmpty),
@@ -182,5 +202,13 @@ impl PreDerivedKeysCache {
         requests: &QuantifiedUnindexDerivationRequests,
     ) -> Result<FactorInstancesFromCache> {
         self.take_many_instances_for_many_requests(requests)
+    }
+
+    pub fn put(
+        &self,
+        key: UnquantifiedUnindexDerivationRequest,
+        instances: FactorInstances,
+    ) -> Result<()> {
+        self.append(key, instances)
     }
 }

@@ -21,13 +21,16 @@ pub enum LoadFromCacheOutcome {
     /// consuming the loaded ones.
     FullySatisfiedWithoutSpare(FactorInstances),
 
-    /// The single `QuantifiedUnindexDerivationRequest` couls only be partially
-    /// statisfied
+    /// The single `QuantifiedUnindexDerivationRequest` could only be partially
+    /// satisfied
     ///
     /// We MUST derive more FactorInstances, and
     /// we SHOULD derive FactorInstance with an abundance so that we can
     /// fill the cache.
-    PartiallySatisfied(FactorInstances),
+    PartiallySatisfied {
+        partial_from_cache: FactorInstances,
+        number_of_instances_needed_to_fully_satisfy_request: usize,
+    },
 
     /// The cache countained no FactorInstances for the single request.
     CacheIsEmpty,
@@ -36,29 +39,17 @@ pub enum LoadFromCacheOutcome {
 impl LoadFromCacheOutcome {
     fn non_empty_factor_instances(&self) -> Option<FactorInstances> {
         match self {
-            LoadFromCacheOutcome::FullySatisfiedWithSpare(factor_instances) => {
-                Some(factor_instances.clone())
+            LoadFromCacheOutcome::FullySatisfiedWithSpare(from_cache) => Some(from_cache.clone()),
+            LoadFromCacheOutcome::FullySatisfiedWithoutSpare(from_cache) => {
+                Some(from_cache.clone())
             }
-            LoadFromCacheOutcome::FullySatisfiedWithoutSpare(factor_instances) => {
-                Some(factor_instances.clone())
-            }
-            LoadFromCacheOutcome::PartiallySatisfied(factor_instances) => {
-                Some(factor_instances.clone())
-            }
+            LoadFromCacheOutcome::PartiallySatisfied {
+                partial_from_cache, ..
+            } => Some(partial_from_cache.clone()),
             LoadFromCacheOutcome::CacheIsEmpty => None,
         }
     }
 }
-// impl LoadFromCacheOutcome {
-//     fn satisfaction(&self) -> Satisfaction {
-//         match self {
-//             LoadFromCacheOutcome::FullySatisfiedWithSpare(_) => Satisfaction::FullyWithSpare,
-//             LoadFromCacheOutcome::FullySatisfiedWithoutSpare(_) => Satisfaction::FullyWithoutSpare,
-//             LoadFromCacheOutcome::PartiallySatisfied(_) => Satisfaction::Partial,
-//             LoadFromCacheOutcome::CacheIsEmpty => Satisfaction::Empty,
-//         }
-//     }
-// }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct LoadFromCacheOutcomeForSingleRequest {
@@ -102,28 +93,32 @@ impl LoadFromCacheOutcomeForSingleRequest {
     }
     pub fn action(&self) -> Action {
         match self.outcome {
-            LoadFromCacheOutcome::FullySatisfiedWithSpare(ref factor_instances) => {
-                Action::FullySatisfiedWithSpare(factor_instances.clone())
+            LoadFromCacheOutcome::FullySatisfiedWithSpare(ref from_cache) => {
+                Action::FullySatisfiedWithSpare(from_cache.clone())
             }
-            LoadFromCacheOutcome::FullySatisfiedWithoutSpare(ref factor_instances) => {
-                let last_index = Self::last_index_of(factor_instances);
+            LoadFromCacheOutcome::FullySatisfiedWithoutSpare(ref from_cache) => {
+                let last_index = Self::last_index_of(from_cache);
                 Action::FullySatisfiedWithoutSpare(
-                    factor_instances.clone(),
+                    from_cache.clone(),
                     QuantifiedDerivationRequestWithStartIndex::from((
                         self.request.clone(),
                         last_index,
                     )),
                 )
             }
-            LoadFromCacheOutcome::PartiallySatisfied(ref factor_instances) => {
-                let last_index = Self::last_index_of(factor_instances);
-                Action::PartiallySatisfied(
-                    factor_instances.clone(),
-                    QuantifiedDerivationRequestWithStartIndex::from((
+            LoadFromCacheOutcome::PartiallySatisfied {
+                ref partial_from_cache,
+                number_of_instances_needed_to_fully_satisfy_request,
+            } => {
+                let last_index = Self::last_index_of(partial_from_cache);
+                Action::PartiallySatisfied {
+                    partial_from_cache: partial_from_cache.clone(),
+                    derive_more: QuantifiedDerivationRequestWithStartIndex::from((
                         self.request.clone(),
                         last_index,
                     )),
-                )
+                    number_of_instances_needed_to_fully_satisfy_request,
+                }
             }
             LoadFromCacheOutcome::CacheIsEmpty => Action::CacheIsEmpty,
         }
@@ -133,7 +128,11 @@ impl LoadFromCacheOutcomeForSingleRequest {
 pub enum Action {
     FullySatisfiedWithSpare(FactorInstances),
     FullySatisfiedWithoutSpare(FactorInstances, QuantifiedDerivationRequestWithStartIndex),
-    PartiallySatisfied(FactorInstances, QuantifiedDerivationRequestWithStartIndex),
+    PartiallySatisfied {
+        partial_from_cache: FactorInstances,
+        derive_more: QuantifiedDerivationRequestWithStartIndex,
+        number_of_instances_needed_to_fully_satisfy_request: usize,
+    },
     CacheIsEmpty,
 }
 

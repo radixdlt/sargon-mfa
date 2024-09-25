@@ -2252,6 +2252,9 @@ pub enum CommonError {
 
     #[error("FactorInstances does not satisfy derivation requests")]
     FactorInstancesDoesNotSatisfyDerivationRequests,
+
+    #[error("Next Derivatin Entity Index From Profile Analyser not present, but required")]
+    ProfileIndexAssignerNotPresent,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]

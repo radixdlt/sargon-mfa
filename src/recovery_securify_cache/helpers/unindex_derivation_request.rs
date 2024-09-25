@@ -12,6 +12,18 @@ pub struct UnquantifiedUnindexDerivationRequest {
     pub key_space: KeySpace,
 }
 
+impl From<QuantifiedDerivationRequestWithStartIndex> for UnquantifiedUnindexDerivationRequest {
+    fn from(value: QuantifiedDerivationRequestWithStartIndex) -> Self {
+        UnquantifiedUnindexDerivationRequest::new(
+            value.factor_source_id,
+            value.network_id,
+            value.entity_kind,
+            value.key_kind,
+            value.key_space,
+        )
+    }
+}
+
 impl From<QuantifiedUnindexDerivationRequest> for UnquantifiedUnindexDerivationRequest {
     fn from(value: QuantifiedUnindexDerivationRequest) -> Self {
         UnquantifiedUnindexDerivationRequest::new(
