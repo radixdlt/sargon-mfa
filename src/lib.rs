@@ -44,6 +44,8 @@ pub mod prelude {
     pub(crate) use std::time::SystemTime;
     pub(crate) use uuid::Uuid;
 
+    pub(crate) use std::ops::Range;
+
     pub(crate) use sha2::{Digest, Sha256};
 
     pub(crate) use std::{

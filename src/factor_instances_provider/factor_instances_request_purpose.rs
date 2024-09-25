@@ -100,14 +100,8 @@ pub enum FactorInstancesRequestPurpose {
     },
 
     /// Securify unsecurified Accounts
-    SecurifyUnsecurifiedAccounts {
-        unsecurified_accounts: UnsecurifiedAccounts,
-        matrix_of_factor_sources: MatrixOfFactorSources,
-    },
-
-    /// Securify unsecurified Accounts
-    UpdateSecurifiedAccounts {
-        securified_accounts: SecurifiedAccounts,
+    UpdateOrSetSecurityShieldForAccounts {
+        accounts: Accounts,
         matrix_of_factor_sources: MatrixOfFactorSources,
     },
 }
@@ -134,18 +128,11 @@ impl FactorInstancesRequestPurpose {
             Self::PreDeriveInstancesForNewFactorSource { .. } => {
                 DerivationRequestQuantitySelector::fill_cache_if_needed()
             }
-            Self::SecurifyUnsecurifiedAccounts {
-                unsecurified_accounts,
-                ..
-            } => DerivationRequestQuantitySelector::Poly {
-                count: unsecurified_accounts.len(),
-            },
-            Self::UpdateSecurifiedAccounts {
-                securified_accounts,
-                ..
-            } => DerivationRequestQuantitySelector::Poly {
-                count: securified_accounts.len(),
-            },
+            Self::UpdateOrSetSecurityShieldForAccounts { accounts, .. } => {
+                DerivationRequestQuantitySelector::Poly {
+                    count: accounts.len(),
+                }
+            }
         }
     }
 
@@ -219,20 +206,10 @@ impl FactorInstancesRequestPurpose {
                 Self::requests_for_tx_for_account(*network_id, [KeySpace::Unsecurified])
             }
             Self::PreDeriveInstancesForNewFactorSource { .. } => Self::fill_cache_mainnet(),
-            Self::SecurifyUnsecurifiedAccounts {
-                unsecurified_accounts,
-                ..
-            } => Self::requests_for_tx_for_account(
-                unsecurified_accounts.network_id(),
-                [KeySpace::Securified],
-            ),
-            Self::UpdateSecurifiedAccounts {
-                securified_accounts,
-                ..
-            } => Self::requests_for_tx_for_account(
-                securified_accounts.network_id(),
-                [KeySpace::Securified],
-            ),
+
+            Self::UpdateOrSetSecurityShieldForAccounts { accounts, .. } => {
+                Self::requests_for_tx_for_account(accounts.network_id(), [KeySpace::Securified])
+            }
         }
     }
 
@@ -246,14 +223,7 @@ impl FactorInstancesRequestPurpose {
             Self::NewVirtualUnsecurifiedAccount { factor_source, .. } => {
                 FactorSources::just(factor_source.clone())
             }
-            Self::SecurifyUnsecurifiedAccounts {
-                matrix_of_factor_sources,
-                ..
-            } => matrix_of_factor_sources
-                .all_factors()
-                .into_iter()
-                .collect::<FactorSources>(),
-            Self::UpdateSecurifiedAccounts {
+            Self::UpdateOrSetSecurityShieldForAccounts {
                 matrix_of_factor_sources,
                 ..
             } => matrix_of_factor_sources
