@@ -73,6 +73,12 @@ impl From<(QuantifiedUnindexDerivationRequest, HDPathValue)>
     }
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub enum DeriveMore {
+    WithKnownLastIndex(QuantifiedDerivationRequestWithStartIndex),
+    WithoutKnownLastIndex(QuantifiedUnindexDerivationRequest),
+}
+
 /// ==================
 /// *** Public API ***
 /// ==================
@@ -112,13 +118,26 @@ impl FactorInstancesProvider {
         let mut derive_more_requests = IndexSet::<DeriveMore>::new();
         let mut satisfied_by_cache = IndexSet::<HierarchicalDeterministicFactorInstance>::new();
         for outcome in take_from_cache_outcome.outcomes().into_iter() {
-            let aggregatable = outcome.aggregatable();
-
-            // might be empty
-            satisfied_by_cache.extend(aggregatable.loaded.factor_instances());
-
-            if let Some(derive_more) = aggregatable.derive_more {
-                derive_more_requests.insert(derive_more);
+            match outcome.action() {
+                Action::FullySatisfiedWithSpare(factor_instances) => {
+                    satisfied_by_cache.extend(factor_instances);
+                }
+                Action::FullySatisfiedWithoutSpare(
+                    factor_instances,
+                    quantified_derivation_request_with_start_index,
+                ) => {
+                    satisfied_by_cache.extend(factor_instances);
+                    derive_more_requests.insert(DeriveMore::WithKnownLastIndex(
+                        quantified_derivation_request_with_start_index,
+                    ));
+                }
+                Action::PartiallySatisfied(
+                    factor_instances,
+                    quantified_derivation_request_with_start_index,
+                ) => todo!("uh so complicated"),
+                Action::CacheIsEmpty => {
+                    todo!("complicated")
+                }
             }
         }
 

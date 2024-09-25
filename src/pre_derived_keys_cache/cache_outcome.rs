@@ -49,6 +49,16 @@ impl LoadFromCacheOutcome {
         }
     }
 }
+// impl LoadFromCacheOutcome {
+//     fn satisfaction(&self) -> Satisfaction {
+//         match self {
+//             LoadFromCacheOutcome::FullySatisfiedWithSpare(_) => Satisfaction::FullyWithSpare,
+//             LoadFromCacheOutcome::FullySatisfiedWithoutSpare(_) => Satisfaction::FullyWithoutSpare,
+//             LoadFromCacheOutcome::PartiallySatisfied(_) => Satisfaction::Partial,
+//             LoadFromCacheOutcome::CacheIsEmpty => Satisfaction::Empty,
+//         }
+//     }
+// }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct LoadFromCacheOutcomeForSingleRequest {
@@ -79,6 +89,8 @@ impl LoadFromCacheOutcomeForSingleRequest {
         Self {
             hidden: HiddenConstructor,
             request,
+            // satisfaction: outcome.satisfaction(),
+            // factor_instances: outcome.non_empty_factor_instances(),
             outcome,
         }
     }
@@ -88,91 +100,35 @@ impl LoadFromCacheOutcomeForSingleRequest {
         instances.sort_by_key(|instance| instance.derivation_entity_base_index());
         instances.last().unwrap().derivation_entity_base_index()
     }
-    pub fn aggregatable(&self) -> AggregatableLoadFromCacheOutcomeForSingleRequest {
+    pub fn action(&self) -> Action {
         match self.outcome {
             LoadFromCacheOutcome::FullySatisfiedWithSpare(ref factor_instances) => {
-                AggregatableLoadFromCacheOutcomeForSingleRequest::fully_satisfied_with_spare(
-                    factor_instances.clone(),
-                )
+                Action::FullySatisfiedWithSpare(factor_instances.clone())
             }
             LoadFromCacheOutcome::FullySatisfiedWithoutSpare(ref factor_instances) => {
                 let last_index = Self::last_index_of(&factor_instances);
-                let derive_more = QuantifiedDerivationRequestWithStartIndex::from((
-                    self.request.clone(),
-                    last_index,
-                ));
-                AggregatableLoadFromCacheOutcomeForSingleRequest::fully_satisfied_without_spare(
+                Action::FullySatisfiedWithoutSpare(
                     factor_instances.clone(),
-                    derive_more,
+                    QuantifiedDerivationRequestWithStartIndex::from((self.request, last_index)),
                 )
             }
             LoadFromCacheOutcome::PartiallySatisfied(ref factor_instances) => {
                 let last_index = Self::last_index_of(&factor_instances);
-                let derive_more = QuantifiedDerivationRequestWithStartIndex::from((
-                    self.request.clone(),
-                    last_index,
-                ));
-                AggregatableLoadFromCacheOutcomeForSingleRequest::partially_satisfied(
+                Action::PartiallySatisfied(
                     factor_instances.clone(),
-                    derive_more,
+                    QuantifiedDerivationRequestWithStartIndex::from((self.request, last_index)),
                 )
             }
-            LoadFromCacheOutcome::CacheIsEmpty => {
-                AggregatableLoadFromCacheOutcomeForSingleRequest::cache_is_empty(
-                    self.request.clone(),
-                )
-            }
+            LoadFromCacheOutcome::CacheIsEmpty => Action::CacheIsEmpty,
         }
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct AggregatableLoadFromCacheOutcomeForSingleRequest {
-    hidden: HiddenConstructor,
-
-    /// might be empty
-    pub loaded: FactorInstances,
-
-    pub derive_more: Option<DeriveMore>,
-}
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub enum DeriveMore {
-    FromLast(QuantifiedDerivationRequestWithStartIndex),
-    ReadNextFromProfile(QuantifiedUnindexDerivationRequest),
-}
-impl AggregatableLoadFromCacheOutcomeForSingleRequest {
-    /// We must not make any decision regarding what the next index is, we must
-    /// let next index assigner decide that, since we might need to read it out
-    /// from profile.
-    fn cache_is_empty(req: QuantifiedUnindexDerivationRequest) -> Self {
-        Self::new(
-            FactorInstances::default(),
-            Some(DeriveMore::ReadNextFromProfile(req)),
-        )
-    }
-    fn partially_satisfied(
-        loaded: FactorInstances,
-        derive_more: QuantifiedDerivationRequestWithStartIndex,
-    ) -> Self {
-        Self::new(loaded, Some(DeriveMore::FromLast(derive_more)))
-    }
-    fn fully_satisfied_without_spare(
-        loaded: FactorInstances,
-        derive_more: QuantifiedDerivationRequestWithStartIndex,
-    ) -> Self {
-        Self::new(loaded, Some(DeriveMore::FromLast(derive_more)))
-    }
-    fn fully_satisfied_with_spare(loaded: FactorInstances) -> Self {
-        Self::new(loaded, None)
-    }
-    fn new(loaded: FactorInstances, derive_more: Option<DeriveMore>) -> Self {
-        assert!(!(loaded.is_empty() && derive_more.is_none()));
-        Self {
-            loaded,
-            derive_more,
-            hidden: HiddenConstructor,
-        }
-    }
+pub enum Action {
+    FullySatisfiedWithSpare(FactorInstances),
+    FullySatisfiedWithoutSpare(FactorInstances, QuantifiedDerivationRequestWithStartIndex),
+    PartiallySatisfied(FactorInstances, QuantifiedDerivationRequestWithStartIndex),
+    CacheIsEmpty,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
