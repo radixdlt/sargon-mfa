@@ -182,7 +182,7 @@ impl FactorInstancesProvider {
         let maybe_cache = maybe_cache.into();
         let next_derivation_based_on_profile_index_analyzer = maybe_profile_snapshot
             .into()
-            .map(|p| NextDerivationBasedOnProfileIndexAnalyzer::new(p));
+            .map(NextDerivationBasedOnProfileIndexAnalyzer::new);
 
         let cache = maybe_cache.unwrap_or_else(|| Arc::new(PreDerivedKeysCache::default()));
 

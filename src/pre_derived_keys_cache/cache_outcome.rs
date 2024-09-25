@@ -106,17 +106,23 @@ impl LoadFromCacheOutcomeForSingleRequest {
                 Action::FullySatisfiedWithSpare(factor_instances.clone())
             }
             LoadFromCacheOutcome::FullySatisfiedWithoutSpare(ref factor_instances) => {
-                let last_index = Self::last_index_of(&factor_instances);
+                let last_index = Self::last_index_of(factor_instances);
                 Action::FullySatisfiedWithoutSpare(
                     factor_instances.clone(),
-                    QuantifiedDerivationRequestWithStartIndex::from((self.request, last_index)),
+                    QuantifiedDerivationRequestWithStartIndex::from((
+                        self.request.clone(),
+                        last_index,
+                    )),
                 )
             }
             LoadFromCacheOutcome::PartiallySatisfied(ref factor_instances) => {
-                let last_index = Self::last_index_of(&factor_instances);
+                let last_index = Self::last_index_of(factor_instances);
                 Action::PartiallySatisfied(
                     factor_instances.clone(),
-                    QuantifiedDerivationRequestWithStartIndex::from((self.request, last_index)),
+                    QuantifiedDerivationRequestWithStartIndex::from((
+                        self.request.clone(),
+                        last_index,
+                    )),
                 )
             }
             LoadFromCacheOutcome::CacheIsEmpty => Action::CacheIsEmpty,
