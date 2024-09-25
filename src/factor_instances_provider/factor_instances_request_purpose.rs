@@ -21,6 +21,9 @@ impl Accounts {
     pub fn len(&self) -> usize {
         self.accounts.len()
     }
+    pub fn is_empty(&self) -> bool {
+        self.accounts.is_empty()
+    }
     pub fn network_id(&self) -> NetworkID {
         self.network_id
     }
@@ -37,17 +40,20 @@ impl UnsecurifiedAccounts {
     pub fn len(&self) -> usize {
         self.accounts.len()
     }
+    pub fn is_empty(&self) -> bool {
+        self.accounts.is_empty()
+    }
     pub fn network_id(&self) -> NetworkID {
         self.network_id
     }
 }
 impl From<UnsecurifiedAccounts> for Accounts {
-    fn from(value: UnsecurifiedAccounts) -> Self {
+    fn from(_value: UnsecurifiedAccounts) -> Self {
         todo!()
     }
 }
 impl From<SecurifiedAccounts> for Accounts {
-    fn from(value: SecurifiedAccounts) -> Self {
+    fn from(_value: SecurifiedAccounts) -> Self {
         todo!()
     }
 }
@@ -66,6 +72,9 @@ impl SecurifiedAccounts {
     }
     pub fn len(&self) -> usize {
         self.accounts.len()
+    }
+    pub fn is_empty(&self) -> bool {
+        self.accounts.is_empty()
     }
 }
 
@@ -119,9 +128,7 @@ impl FactorInstancesRequestPurpose {
 
     pub fn quantity(&self) -> DerivationRequestQuantitySelector {
         match self {
-            Self::OARS { factor_sources } => {
-                DerivationRequestQuantitySelector::fill_cache_if_needed()
-            }
+            Self::OARS { .. } => DerivationRequestQuantitySelector::fill_cache_if_needed(),
             Self::MARS { .. } => DerivationRequestQuantitySelector::fill_cache_if_needed(),
             Self::NewVirtualUnsecurifiedAccount { .. } => DerivationRequestQuantitySelector::Mono,
             Self::PreDeriveInstancesForNewFactorSource { .. } => {

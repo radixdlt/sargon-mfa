@@ -1,6 +1,10 @@
 #![allow(unused)]
 
+use std::sync::{RwLockReadGuard, RwLockWriteGuard};
+
 use crate::prelude::*;
+
+type InstancesForRequestMap = IndexMap<UnquantifiedUnindexDerivationRequest, FactorInstances>;
 
 /// A cache of FactorInstances which according to Profile is
 /// not known to be taken, i.e. they are "probably free".
@@ -14,11 +18,11 @@ use crate::prelude::*;
 /// * Exactly the requested number of Factor Instances for that request - in which
 /// the caller SHOULD re-fill the cache before the caller finishes its operation.
 /// * More Factor Instances than requested, use them and no need to re-fill the cache.
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default)]
 pub struct PreDerivedKeysCache {
     /// The probably free factor instances, many Factor Instances per
     /// `QuantifiedUnindexDerivationRequest` - which is agnostic to the derivation index.
-    probably_free_factor_instances: IndexMap<UnquantifiedUnindexDerivationRequest, FactorInstances>,
+    probably_free_factor_instances: RwLock<InstancesForRequestMap>,
 }
 
 impl From<HierarchicalDeterministicFactorInstance> for UnquantifiedUnindexDerivationRequest {
@@ -34,92 +38,119 @@ impl From<HierarchicalDeterministicFactorInstance> for UnquantifiedUnindexDeriva
 }
 
 impl PreDerivedKeysCache {
+    fn read<T>(
+        &self,
+        call: impl FnOnce(RwLockReadGuard<'_, InstancesForRequestMap>) -> T,
+    ) -> Result<T> {
+        let cached = self
+            .probably_free_factor_instances
+            .try_read()
+            .map_err(|_| CommonError::KeysCacheWriteGuard)?;
+        Ok(call(cached))
+    }
+    fn write<T>(
+        &self,
+        mut call: impl FnOnce(RwLockWriteGuard<'_, InstancesForRequestMap>) -> T,
+    ) -> Result<T> {
+        let cached = self
+            .probably_free_factor_instances
+            .try_write()
+            .map_err(|_| CommonError::KeysCacheWriteGuard)?;
+        Ok(call(cached))
+    }
+
     pub fn new(probably_free_factor_instances: ProbablyFreeFactorInstances) -> Self {
         Self {
-            probably_free_factor_instances: probably_free_factor_instances
-                .into_iter()
-                .into_group_map_by(|x| UnquantifiedUnindexDerivationRequest::from(*x))
-                .into_iter()
-                .map(|(k, v)| (k, v.into_iter().collect::<FactorInstances>()))
-                .collect::<IndexMap<UnquantifiedUnindexDerivationRequest, FactorInstances>>(),
+            probably_free_factor_instances: RwLock::new(
+                probably_free_factor_instances
+                    .into_iter()
+                    .into_group_map_by(|x| UnquantifiedUnindexDerivationRequest::from(x.clone()))
+                    .into_iter()
+                    .map(|(k, v)| (k, v.into_iter().collect::<FactorInstances>()))
+                    .collect::<IndexMap<UnquantifiedUnindexDerivationRequest, FactorInstances>>(),
+            ),
         }
     }
 }
 
 impl PreDerivedKeysCache {
-    fn delete(&self, key: impl Into<UnquantifiedUnindexDerivationRequest>) {
-        let key = key.into();
-        self.probably_free_factor_instances.swap_remove(&key);
-    }
-
     /// Appends the FactorInstances at the end of any existing FactorInstances, if any,
     /// otherwise creates a new entry
     fn append(
         &self,
         key: impl Into<UnquantifiedUnindexDerivationRequest>,
         to_append: impl Into<FactorInstances>,
-    ) {
+    ) -> Result<()> {
         let key = key.into();
         let to_append = to_append.into();
-        if let Some(ref existing) = self.probably_free_factor_instances.get(&key) {
-            existing.append(to_append);
-        } else {
-            self.probably_free_factor_instances.insert(key, to_append);
-        }
+
+        let maybe_existing = self.consume(key.clone())?;
+        let mut values = maybe_existing.unwrap_or_default();
+
+        assert!(values
+            .factor_instances()
+            .is_disjoint(&to_append.factor_instances()));
+
+        values.append(to_append);
+
+        self.write(|mut c| c.insert(key, values))?;
+
+        Ok(())
     }
     fn peek(
         &self,
         key: impl Into<UnquantifiedUnindexDerivationRequest>,
-    ) -> Option<FactorInstances> {
+    ) -> Result<Option<FactorInstances>> {
         let key = key.into();
-        self.probably_free_factor_instances.get(&key).cloned()
+        self.read(|c| c.get(&key).cloned())
     }
     fn consume(
         &self,
         key: impl Into<UnquantifiedUnindexDerivationRequest>,
-    ) -> Option<FactorInstances> {
+    ) -> Result<Option<FactorInstances>> {
         let key = key.into();
-        self.probably_free_factor_instances.swap_remove(&key)
+        self.write(|mut c| c.swap_remove(&key))
     }
 }
 impl From<&[HierarchicalDeterministicFactorInstance]> for FactorInstances {
     fn from(value: &[HierarchicalDeterministicFactorInstance]) -> Self {
-        Self::from_iter(value.into_iter().map(|x| x.clone()))
+        Self::from_iter(value.iter().cloned())
     }
 }
+use std::cmp::Ordering;
 impl PreDerivedKeysCache {
     fn _take_many_instances_for_single_request(
         &self,
         request: &QuantifiedUnindexDerivationRequest,
-    ) -> LoadFromCacheOutcome {
-        let cached = self.consume(*request);
+    ) -> Result<LoadFromCacheOutcome> {
+        let cached = self.consume(request.clone())?;
         match cached {
             Some(cached) => {
-                if cached.len() == 0 {
-                    return LoadFromCacheOutcome::CacheIsEmpty;
+                if cached.is_empty() {
+                    return Ok(LoadFromCacheOutcome::CacheIsEmpty);
                 }
                 let requested_quantity = request.requested_quantity();
-                if cached.len() == requested_quantity {
-                    return LoadFromCacheOutcome::FullySatisfiedWithoutSpare(cached.clone());
-                } else if cached.len() > requested_quantity {
-                    let (to_return, to_keep) = cached
-                        .factor_instances()
-                        .into_iter()
-                        .collect_vec()
-                        .split_at(requested_quantity);
+                match cached.len().cmp(&requested_quantity) {
+                    Ordering::Equal => Ok(LoadFromCacheOutcome::FullySatisfiedWithoutSpare(
+                        cached.clone(),
+                    )),
+                    Ordering::Greater => {
+                        let to_split = cached.clone().into_iter().collect_vec();
 
-                    assert_eq!(to_return.len(), requested_quantity);
-                    assert!(!to_keep.is_empty());
+                        let (to_return, to_keep) = to_split.split_at(requested_quantity);
 
-                    self.append(*request, to_keep);
-                    return LoadFromCacheOutcome::FullySatisfiedWithSpare(FactorInstances::from(
-                        to_return,
-                    ));
-                } else {
-                    return LoadFromCacheOutcome::PartiallySatisfied(cached.clone());
+                        assert_eq!(to_return.len(), requested_quantity);
+                        assert!(!to_keep.is_empty());
+
+                        self.append(request.clone(), to_keep);
+                        Ok(LoadFromCacheOutcome::FullySatisfiedWithSpare(
+                            FactorInstances::from(to_return),
+                        ))
+                    }
+                    Ordering::Less => Ok(LoadFromCacheOutcome::PartiallySatisfied(cached.clone())),
                 }
             }
-            None => LoadFromCacheOutcome::CacheIsEmpty,
+            None => Ok(LoadFromCacheOutcome::CacheIsEmpty),
         }
     }
 
@@ -127,7 +158,7 @@ impl PreDerivedKeysCache {
         &self,
         request: &QuantifiedUnindexDerivationRequest,
     ) -> Result<LoadFromCacheOutcomeForSingleRequest> {
-        let outcome = self._take_many_instances_for_single_request(request);
+        let outcome = self._take_many_instances_for_single_request(request)?;
         Ok(LoadFromCacheOutcomeForSingleRequest {
             request: request.clone(),
             outcome,

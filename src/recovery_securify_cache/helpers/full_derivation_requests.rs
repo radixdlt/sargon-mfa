@@ -5,8 +5,8 @@ pub struct FullDerivationRequests {
     requests: Vec<DerivationPath>,
 }
 
-impl Into<IndexMap<FactorSourceIDFromHash, IndexSet<DerivationPath>>> for FullDerivationRequests {
-    fn into(self) -> IndexMap<FactorSourceIDFromHash, IndexSet<DerivationPath>> {
+impl From<FullDerivationRequests> for IndexMap<FactorSourceIDFromHash, IndexSet<DerivationPath>> {
+    fn from(_val: FullDerivationRequests) -> Self {
         todo!()
     }
 }

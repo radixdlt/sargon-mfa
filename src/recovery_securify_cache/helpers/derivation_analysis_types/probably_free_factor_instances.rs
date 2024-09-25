@@ -2,7 +2,7 @@ use crate::prelude::*;
 
 impl HierarchicalDeterministicFactorInstance {
     fn satisfies(&self, request: UnquantifiedUnindexDerivationRequest) -> bool {
-        self.derivation_path().satisfies(request)
+        self.derivation_path().satisfies(request.clone())
             && request.factor_source_id == self.factor_source_id
     }
 }
@@ -27,23 +27,19 @@ pub enum Satisfaction {
     Empty,
 }
 
+use std::cmp::Ordering;
 impl QuantifiedUnindexDerivationRequest {
     pub fn satisfaction(&self, instances: &dyn IsFactorInstanceCollectionBase) -> Satisfaction {
         let satisfied = instances
             .filter_satisfied_requests(UnquantifiedUnindexDerivationRequest::from(self.clone()));
 
-        match (satisfied.len(), self.requested_quantity()) {
-            (0, _) => Satisfaction::Empty,
-            (satisfied, requested) => {
-                if satisfied == requested {
-                    Satisfaction::FullyWithoutSpare
-                } else if satisfied > requested {
-                    Satisfaction::FullyWithSpare
-                } else {
-                    assert!(satisfied < requested && satisfied > 0);
-                    return Satisfaction::Partial;
-                }
-            }
+        if satisfied.is_empty() {
+            return Satisfaction::Empty;
+        }
+        match satisfied.len().cmp(&self.requested_quantity()) {
+            Ordering::Equal => Satisfaction::FullyWithoutSpare,
+            Ordering::Greater => Satisfaction::FullyWithSpare,
+            Ordering::Less => Satisfaction::Partial,
         }
     }
 }

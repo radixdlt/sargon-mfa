@@ -159,7 +159,9 @@ impl KeysCollector {
         sensible_env_logger::safe_init!();
         Self::new(
             all_factor_sources_in_profile,
-            derivation_paths.into_iter().collect(),
+            derivation_paths
+                .into_iter()
+                .collect::<IndexMap<FactorSourceIDFromHash, IndexSet<DerivationPath>>>(),
             Arc::new(TestDerivationInteractors::default()),
         )
         .unwrap()

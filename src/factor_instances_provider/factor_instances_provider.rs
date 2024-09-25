@@ -66,34 +66,7 @@ impl FactorInstancesProvider {
         // should know which are the next free indices to fulfill the requests.
         let take_from_cache_outcome = self.cache.take(&requested)?;
 
-        // Might be empty, partial or full.
-        let mut factor_instances = take_from_cache_outcome.get();
-
-        if !take_from_cache_outcome.should_derive_more() {
-            Ok(FactorInstancesRequestOutcome {
-                requested: factor_instances,
-                did_derive_past_requested: false,
-            })
-        } else {
-            let should_derive_at_indices_past_initially_requested =
-                take_from_cache_outcome.should_derive_at_indices_past_initially_requested();
-
-            // Should derive more
-            if let Some(unsatisfied) = take_from_cache_outcome.unsatisfied() {
-                let new = self.derive_more(Some(unsatisfied), requested).await?;
-                Ok(FactorInstancesRequestOutcome {
-                    requested: factor_instances,
-                    did_derive_past_requested: should_derive_at_indices_past_initially_requested,
-                })
-            } else {
-                assert!(should_derive_at_indices_past_initially_requested);
-                let past = self.derive_more(None, requested).await?;
-                Ok(FactorInstancesRequestOutcome {
-                    requested: factor_instances,
-                    did_derive_past_requested: true,
-                })
-            }
-        }
+        todo!()
     }
 }
 
@@ -274,18 +247,18 @@ mod tests {
         }
 
         async fn add_factor_source(&self, factor_source: HDFactorSource) -> Result<()> {
-            let interactors: Arc<dyn KeysDerivationInteractors> =
-                Arc::new(TestDerivationInteractors::default());
+            // let interactors: Arc<dyn KeysDerivationInteractors> =
+            //     Arc::new(TestDerivationInteractors::default());
 
-            let cache: Arc<PreDerivedKeysCache> = Arc::new(self.cache.try_write().unwrap().clone());
+            // let cache: Arc<PreDerivedKeysCache> = Arc::new(self.cache.try_write().unwrap().clone());
 
-            let factor_instances_provider =
-                FactorInstancesProvider::pre_derive_instance_for_new_factor_source(
-                    &factor_source,
-                    cache,
-                    self.profile_snapshot(),
-                    interactors,
-                );
+            // let factor_instances_provider =
+            //     FactorInstancesProvider::pre_derive_instance_for_new_factor_source(
+            //         &factor_source,
+            //         cache,
+            //         self.profile_snapshot(),
+            //         interactors,
+            //     );
 
             // factor_instances_provider.get_factor_instances().await?;
 

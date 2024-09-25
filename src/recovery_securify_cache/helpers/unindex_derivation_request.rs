@@ -44,7 +44,7 @@ impl UnquantifiedUnindexDerivationRequest {
 /// Note that this might be used as the intended purpose selector
 /// but if we are filling the cache, we will create many instances
 /// anyway.
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum DerivationRequestQuantitySelector {
     /// Used for creating a new single account, persona, a new ROLA key etc,
     /// but not for securing many accounts with a single security shield.
