@@ -37,6 +37,7 @@ pub mod prelude {
     pub(crate) use indexmap::{IndexMap, IndexSet};
     pub(crate) use itertools::Itertools;
     pub(crate) use std::cell::RefCell;
+    pub(crate) use std::cmp::Ordering;
     pub(crate) use std::future::Future;
     pub(crate) use std::ops::{Deref, DerefMut};
     pub(crate) use std::pin::Pin;
@@ -47,7 +48,7 @@ pub mod prelude {
 
     pub(crate) use std::{
         collections::{HashMap, HashSet},
-        sync::{Arc, RwLock},
+        sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard},
     };
 
     pub(crate) use log::*;

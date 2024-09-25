@@ -1,7 +1,5 @@
 #![allow(unused)]
 
-use std::sync::{RwLockReadGuard, RwLockWriteGuard};
-
 use crate::prelude::*;
 
 type InstancesForRequestMap = IndexMap<UnquantifiedUnindexDerivationRequest, FactorInstances>;
@@ -48,6 +46,7 @@ impl PreDerivedKeysCache {
             .map_err(|_| CommonError::KeysCacheWriteGuard)?;
         Ok(call(cached))
     }
+
     fn write<T>(
         &self,
         mut call: impl FnOnce(RwLockWriteGuard<'_, InstancesForRequestMap>) -> T,
@@ -110,6 +109,7 @@ impl PreDerivedKeysCache {
 
         Ok(())
     }
+
     fn peek(
         &self,
         key: impl Into<UnquantifiedUnindexDerivationRequest>,
@@ -117,6 +117,7 @@ impl PreDerivedKeysCache {
         let key = key.into();
         self.read(|c| c.get(&key).cloned())
     }
+
     fn consume(
         &self,
         key: impl Into<UnquantifiedUnindexDerivationRequest>,
@@ -125,12 +126,13 @@ impl PreDerivedKeysCache {
         self.write(|mut c| c.swap_remove(&key))
     }
 }
+
 impl From<&[HierarchicalDeterministicFactorInstance]> for FactorInstances {
     fn from(value: &[HierarchicalDeterministicFactorInstance]) -> Self {
         Self::from_iter(value.iter().cloned())
     }
 }
-use std::cmp::Ordering;
+
 impl PreDerivedKeysCache {
     fn _take_many_instances_for_single_request(
         &self,
