@@ -244,21 +244,52 @@ mod tests {
             }
         }
 
+        fn cache(&self) -> Option<Arc<RwLock<PreDerivedKeysCache>>> {
+            Some(self.cache.clone())
+        }
+
         async fn add_factor_source(&self, factor_source: HDFactorSource) -> Result<()> {
-            // let interactors: Arc<dyn KeysDerivationInteractors> =
-            //     Arc::new(TestDerivationInteractors::default());
+            let interactors: Arc<dyn KeysDerivationInteractors> =
+                Arc::new(TestDerivationInteractors::default());
 
-            // let cache: Arc<PreDerivedKeysCache> = Arc::new(self.cache.try_write().unwrap().clone());
+            assert_eq!(
+                self.cache
+                    .try_read()
+                    .unwrap()
+                    .total_number_of_factor_instances(),
+                0
+            );
+            let factor_instances_provider =
+                FactorInstancesProvider::pre_derive_instance_for_new_factor_source(
+                    &factor_source,
+                    self.cache(),
+                    self.profile_snapshot(),
+                    interactors,
+                );
 
-            // let factor_instances_provider =
-            //     FactorInstancesProvider::pre_derive_instance_for_new_factor_source(
-            //         &factor_source,
-            //         cache,
-            //         self.profile_snapshot(),
-            //         interactors,
-            //     );
+            let instances = factor_instances_provider
+                .get_factor_instances_outcome()
+                .await?;
 
-            // factor_instances_provider.get_factor_instances().await?;
+            assert!(
+                instances.is_empty(),
+                "should be empty, since should have been put into the cache, not here."
+            );
+
+            assert!(
+                !self
+                    .cache
+                    .try_read()
+                    .unwrap()
+                    .all_factor_instances()
+                    .is_empty(),
+                "Should have put factors into the cache."
+            );
+
+            self.profile
+                .try_write()
+                .unwrap()
+                .add_factor_source(factor_source.clone());
 
             Ok(())
         }
@@ -267,10 +298,10 @@ mod tests {
     #[actix_rt::test]
     async fn test() {
         let os = SargonOS::new();
-        // assert_eq!(os.profile_snapshot().factor_sources.len(), 0);
-        // os.add_factor_source(HDFactorSource::sample())
-        //     .await
-        //     .unwrap();
-        // assert_eq!(os.profile_snapshot().factor_sources.len(), 1);
+        assert_eq!(os.profile_snapshot().factor_sources.len(), 0);
+        os.add_factor_source(HDFactorSource::sample())
+            .await
+            .unwrap();
+        assert_eq!(os.profile_snapshot().factor_sources.len(), 1);
     }
 }

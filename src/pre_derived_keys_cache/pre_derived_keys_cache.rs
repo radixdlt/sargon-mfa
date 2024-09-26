@@ -36,6 +36,21 @@ impl From<HierarchicalDeterministicFactorInstance> for UnquantifiedUnindexDeriva
 }
 
 impl PreDerivedKeysCache {
+    /// useful for debugging / testing
+    pub fn total_number_of_factor_instances(&self) -> usize {
+        self.all_factor_instances().len()
+    }
+    /// useful for debugging / testing
+    pub fn all_factor_instances(&self) -> FactorInstances {
+        self.read(|c| {
+            c.values()
+                .cloned()
+                .flat_map(|x| x.factor_instances())
+                .collect()
+        })
+        .unwrap()
+    }
+
     pub fn clone_snapshot(&self) -> Self {
         Self {
             probably_free_factor_instances: RwLock::new(
