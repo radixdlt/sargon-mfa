@@ -140,7 +140,11 @@ impl FactorInstancesProvider {
         cache: PreDerivedKeysCache,
         next_index_assigner: &NextIndexAssignerWithEphemeralLocalOffsets,
         derivation_interactors: Arc<dyn KeysDerivationInteractors>,
-    ) -> Result<(FactorInstances, PreDerivedKeysCache)> {
+    ) -> Result<(
+        FactorInstances,
+        PreDerivedKeysCache,
+        DidDeriveNewFactorInstances,
+    )> {
         let requested = purpose.requests();
 
         let from_cache = cache.take(&requested)?;
@@ -148,6 +152,7 @@ impl FactorInstancesProvider {
 
         let mut factor_instances_to_use_directly = split.satisfied_by_cache();
 
+        let mut did_derive_new_instances = false;
         if let Some(derive_more_requests) = split.derive_more_requests() {
             let mut newly_derived_to_be_used_directly =
                 IndexSet::<HierarchicalDeterministicFactorInstance>::new();
@@ -167,15 +172,20 @@ impl FactorInstancesProvider {
                 newly_derived_to_be_used_directly.extend(_newly_derived.to_use_directly);
             }
 
+            did_derive_new_instances = true;
             factor_instances_to_use_directly.extend(newly_derived_to_be_used_directly);
         }
 
         Ok((
             FactorInstances::from(factor_instances_to_use_directly),
             cache,
+            DidDeriveNewFactorInstances(did_derive_new_instances),
         ))
     }
 }
+
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
+pub struct DidDeriveNewFactorInstances(bool);
 
 /// ==================
 /// *** Public API ***
@@ -185,7 +195,9 @@ impl FactorInstancesProvider {
     /// related to the purpose of the request.
     ///
     /// Might derive MORE than requested, those will be put into the cache.
-    pub async fn get_factor_instances_outcome(self) -> Result<FactorInstances> {
+    pub async fn get_factor_instances_outcome(
+        self,
+    ) -> Result<(FactorInstances, DidDeriveNewFactorInstances)> {
         let copy_of_cache = self.cache.try_read().unwrap().clone_snapshot();
 
         let result = Self::_get_factor_instances_outcome(
@@ -200,10 +212,10 @@ impl FactorInstancesProvider {
         .await;
 
         match result {
-            Ok((outcome, updated_cache)) => {
+            Ok((outcome, updated_cache, did_derive_new_instances)) => {
                 // Replace cache with updated one
                 *self.cache.try_write().unwrap() = updated_cache;
-                Ok(outcome)
+                Ok((outcome, did_derive_new_instances))
             }
             Err(e) => {
                 // No need to rollback the cache, we did not modify it, only a copy of it.
@@ -261,7 +273,7 @@ mod tests {
         pub async fn new_mainnet_account_with_bdfs(
             &self,
             name: impl AsRef<str>,
-        ) -> Result<Account> {
+        ) -> Result<(Account, DidDeriveNewFactorInstances)> {
             self.new_account_with_bdfs(NetworkID::Mainnet, name).await
         }
 
@@ -269,7 +281,7 @@ mod tests {
             &self,
             network: NetworkID,
             name: impl AsRef<str>,
-        ) -> Result<Account> {
+        ) -> Result<(Account, DidDeriveNewFactorInstances)> {
             let bdfs = self.profile_snapshot().bdfs();
             self.new_account(bdfs, network, name).await
         }
@@ -279,7 +291,7 @@ mod tests {
             factor_source: HDFactorSource,
             network: NetworkID,
             name: impl AsRef<str>,
-        ) -> Result<Account> {
+        ) -> Result<(Account, DidDeriveNewFactorInstances)> {
             let interactors: Arc<dyn KeysDerivationInteractors> =
                 Arc::new(TestDerivationInteractors::default());
 
@@ -292,7 +304,7 @@ mod tests {
                     interactors,
                 );
 
-            let instances = factor_instances_provider
+            let (instances, did_derive_new) = factor_instances_provider
                 .get_factor_instances_outcome()
                 .await?;
 
@@ -301,7 +313,7 @@ mod tests {
             let address = AccountAddress::new(network, instance.public_key_hash());
             let account = Account::new(name, address, EntitySecurityState::Unsecured(instance));
             self.profile.try_write().unwrap().add_account(&account);
-            Ok(account)
+            Ok((account, did_derive_new))
         }
 
         async fn add_factor_source(&self, factor_source: HDFactorSource) -> Result<()> {
@@ -316,9 +328,11 @@ mod tests {
                     interactors,
                 );
 
-            let instances = factor_instances_provider
+            let (instances, did_derive_new) = factor_instances_provider
                 .get_factor_instances_outcome()
                 .await?;
+
+            assert!(did_derive_new.0);
 
             assert!(
                 instances.is_empty(),
@@ -406,7 +420,9 @@ mod tests {
                 == 1
         );
 
-        let alice = os.new_mainnet_account_with_bdfs("Alice").await.unwrap();
+        let (alice, did_derive_new_factor_instances) =
+            os.new_mainnet_account_with_bdfs("Alice").await.unwrap();
+        assert!(!did_derive_new_factor_instances.0, "should have used cache");
         assert_eq!(
             os.profile_snapshot().get_accounts(),
             IndexSet::just(alice.clone())
@@ -454,7 +470,10 @@ mod tests {
                 == 0
         );
 
-        let bob = os.new_mainnet_account_with_bdfs("Bob").await.unwrap();
+        let (bob, did_derive_new_factor_instances) =
+            os.new_mainnet_account_with_bdfs("Bob").await.unwrap();
+
+        assert!(!did_derive_new_factor_instances.0, "should have used cache");
         assert_ne!(alice.address(), bob.address());
 
         let free_factor_instances_after_account_creation =
