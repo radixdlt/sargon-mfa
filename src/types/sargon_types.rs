@@ -1931,6 +1931,14 @@ impl From<Account> for AccountAddress {
     }
 }
 impl Profile {
+    /// # Panics if no BDFS was found
+    pub fn bdfs(&self) -> HDFactorSource {
+        self.factor_sources
+            .iter()
+            .find(|f| f.factor_source_kind() == FactorSourceKind::Device)
+            .expect("a Device FactorSource")
+            .clone()
+    }
     pub fn current_network(&self) -> NetworkID {
         self.current_network
     }

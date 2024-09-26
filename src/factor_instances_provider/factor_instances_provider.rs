@@ -243,26 +243,75 @@ mod tests {
                 interactors,
             }
         }
+        pub async fn with_bdfs() -> (Self, HDFactorSource) {
+            let self_ = Self::new();
+            let bdfs = HDFactorSource::device();
+            self_.add_factor_source(bdfs.clone()).await.unwrap();
+            (self_, bdfs)
+        }
 
-        fn cache(&self) -> Option<Arc<RwLock<PreDerivedKeysCache>>> {
+        fn _cache(&self) -> Option<Arc<RwLock<PreDerivedKeysCache>>> {
             Some(self.cache.clone())
+        }
+
+        pub fn cache_snapshot(&self) -> PreDerivedKeysCache {
+            self.cache.try_read().unwrap().clone_snapshot()
+        }
+
+        pub async fn new_mainnet_account_with_bdfs(
+            &self,
+            name: impl AsRef<str>,
+        ) -> Result<Account> {
+            self.new_account_with_bdfs(NetworkID::Mainnet, name).await
+        }
+
+        pub async fn new_account_with_bdfs(
+            &self,
+            network: NetworkID,
+            name: impl AsRef<str>,
+        ) -> Result<Account> {
+            let bdfs = self.profile_snapshot().bdfs();
+            self.new_account(bdfs, network, name).await
+        }
+
+        pub async fn new_account(
+            &self,
+            factor_source: HDFactorSource,
+            network: NetworkID,
+            name: impl AsRef<str>,
+        ) -> Result<Account> {
+            let interactors: Arc<dyn KeysDerivationInteractors> =
+                Arc::new(TestDerivationInteractors::default());
+
+            let factor_instances_provider =
+                FactorInstancesProvider::new_virtual_unsecurified_account(
+                    network,
+                    &factor_source,
+                    self._cache(),
+                    self.profile_snapshot(),
+                    interactors,
+                );
+
+            let instances = factor_instances_provider
+                .get_factor_instances_outcome()
+                .await?;
+
+            assert_eq!(instances.len(), 1);
+            let instance = instances.into_iter().next().unwrap();
+            let address = AccountAddress::new(network, instance.public_key_hash());
+            let account = Account::new(name, address, EntitySecurityState::Unsecured(instance));
+            self.profile.try_write().unwrap().add_account(&account);
+            Ok(account)
         }
 
         async fn add_factor_source(&self, factor_source: HDFactorSource) -> Result<()> {
             let interactors: Arc<dyn KeysDerivationInteractors> =
                 Arc::new(TestDerivationInteractors::default());
 
-            assert_eq!(
-                self.cache
-                    .try_read()
-                    .unwrap()
-                    .total_number_of_factor_instances(),
-                0
-            );
             let factor_instances_provider =
                 FactorInstancesProvider::pre_derive_instance_for_new_factor_source(
                     &factor_source,
-                    self.cache(),
+                    self._cache(),
                     self.profile_snapshot(),
                     interactors,
                 );
@@ -276,16 +325,6 @@ mod tests {
                 "should be empty, since should have been put into the cache, not here."
             );
 
-            assert!(
-                !self
-                    .cache
-                    .try_read()
-                    .unwrap()
-                    .all_factor_instances()
-                    .is_empty(),
-                "Should have put factors into the cache."
-            );
-
             self.profile
                 .try_write()
                 .unwrap()
@@ -296,12 +335,86 @@ mod tests {
     }
 
     #[actix_rt::test]
-    async fn test() {
+    async fn add_factor_source() {
         let os = SargonOS::new();
+        assert_eq!(os.cache_snapshot().total_number_of_factor_instances(), 0);
         assert_eq!(os.profile_snapshot().factor_sources.len(), 0);
-        os.add_factor_source(HDFactorSource::sample())
-            .await
-            .unwrap();
-        assert_eq!(os.profile_snapshot().factor_sources.len(), 1);
+        let factor_source = HDFactorSource::sample();
+        os.add_factor_source(factor_source.clone()).await.unwrap();
+        assert!(
+            !os.cache_snapshot().all_factor_instances().is_empty(),
+            "Should have put factors into the cache."
+        );
+        assert_eq!(
+            os.profile_snapshot().factor_sources,
+            IndexSet::just(factor_source)
+        );
+    }
+
+    #[actix_rt::test]
+    async fn create_account() {
+        let (os, bdfs) = SargonOS::with_bdfs().await;
+        let free_factor_instances = os.cache_snapshot().all_factor_instances();
+        let number_of_free_factor_instances = free_factor_instances.len();
+        assert!(
+            number_of_free_factor_instances > 0,
+            "should have many, for bdfs"
+        );
+        assert_eq!(
+            os.profile_snapshot().factor_sources.len(),
+            1,
+            "should have bdfs"
+        );
+        assert_eq!(os.profile_snapshot().accounts.len(), 0, "no accounts");
+
+        let expected_path = DerivationPath::new(
+            NetworkID::Mainnet,
+            CAP26EntityKind::Account,
+            CAP26KeyKind::TransactionSigning,
+            HDPathComponent::unsecurified_hardening_base_index(0),
+        );
+
+        assert!(
+            free_factor_instances
+                .clone()
+                .into_iter()
+                .filter(|x| x.factor_source_id() == bdfs.factor_source_id())
+                .filter(|x| x.derivation_path() == expected_path)
+                .count()
+                == 1
+        );
+
+        let alice = os.new_mainnet_account_with_bdfs("Alice").await.unwrap();
+        assert_eq!(
+            os.profile_snapshot().get_accounts(),
+            IndexSet::just(alice.clone())
+        );
+
+        let free_factor_instances_after_account_creation =
+            os.cache_snapshot().all_factor_instances();
+        assert_eq!(
+            free_factor_instances_after_account_creation.len(),
+            number_of_free_factor_instances - 1
+        );
+
+        assert_eq!(
+            alice
+                .clone()
+                .as_unsecurified()
+                .unwrap()
+                .factor_instance()
+                .derivation_path(),
+            expected_path
+        );
+
+        assert!(
+            free_factor_instances_after_account_creation
+                .clone()
+                .into_iter()
+                .filter(|x| x.factor_source_id() == bdfs.factor_source_id())
+                .filter(|x| x.derivation_path() == expected_path)
+                .count()
+                == 0
+        );
     }
 }
