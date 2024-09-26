@@ -12,17 +12,8 @@ pub struct UnquantifiedUnindexDerivationRequest {
     pub key_space: KeySpace,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct DerivationRequestWithRange {
-    pub factor_source_id: FactorSourceIDFromHash,
-    pub network_id: NetworkID,
-    pub entity_kind: CAP26EntityKind,
-    pub key_kind: CAP26KeyKind,
-    pub key_space: KeySpace,
-    pub range: Range<HDPathValue>,
-}
 impl HDPathComponent {
-    pub fn with_base_index_in_keyspace(base_index: u32, key_space: KeySpace) -> Self {
+    pub fn with_base_index_in_key_space(base_index: u32, key_space: KeySpace) -> Self {
         match key_space {
             KeySpace::Securified => Self::securifying_base_index(base_index),
             KeySpace::Unsecurified => Self::unsecurified_hardening_base_index(base_index),
@@ -32,12 +23,12 @@ impl HDPathComponent {
 impl DerivationRequestWithRange {
     pub fn derivation_paths(&self) -> IndexSet<DerivationPath> {
         let mut paths = IndexSet::<DerivationPath>::new();
-        for i in self.range.clone() {
+        for i in self.range().clone() {
             paths.insert(DerivationPath::new(
                 self.network_id,
                 self.entity_kind,
                 self.key_kind,
-                HDPathComponent::with_base_index_in_keyspace(i, self.key_space),
+                HDPathComponent::with_base_index_in_key_space(i, self.key_space),
             ));
         }
         paths
@@ -46,7 +37,7 @@ impl DerivationRequestWithRange {
 
 /// With known start index and quantity
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct QuantifiedDerivationRequestWithStartIndex {
+pub struct DerivationRequestWithRange {
     pub factor_source_id: FactorSourceIDFromHash,
     pub network_id: NetworkID,
     pub entity_kind: CAP26EntityKind,
@@ -55,7 +46,10 @@ pub struct QuantifiedDerivationRequestWithStartIndex {
     pub quantity: usize,
     pub start_base_index: HDPathValue,
 }
-impl QuantifiedDerivationRequestWithStartIndex {
+impl DerivationRequestWithRange {
+    pub fn range(&self) -> Range<HDPathValue> {
+        self.start_base_index..(self.start_base_index + self.quantity as u32)
+    }
     fn new(
         factor_source_id: FactorSourceIDFromHash,
         network_id: NetworkID,
@@ -76,9 +70,7 @@ impl QuantifiedDerivationRequestWithStartIndex {
         }
     }
 }
-impl From<(QuantifiedUnindexDerivationRequest, HDPathValue)>
-    for QuantifiedDerivationRequestWithStartIndex
-{
+impl From<(QuantifiedUnindexDerivationRequest, HDPathValue)> for DerivationRequestWithRange {
     fn from(value: (QuantifiedUnindexDerivationRequest, HDPathValue)) -> Self {
         let (q, i) = value;
         Self::new(
@@ -93,8 +85,8 @@ impl From<(QuantifiedUnindexDerivationRequest, HDPathValue)>
     }
 }
 
-impl From<QuantifiedDerivationRequestWithStartIndex> for UnquantifiedUnindexDerivationRequest {
-    fn from(value: QuantifiedDerivationRequestWithStartIndex) -> Self {
+impl From<DerivationRequestWithRange> for UnquantifiedUnindexDerivationRequest {
+    fn from(value: DerivationRequestWithRange) -> Self {
         UnquantifiedUnindexDerivationRequest::new(
             value.factor_source_id,
             value.network_id,

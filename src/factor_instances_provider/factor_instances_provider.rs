@@ -16,7 +16,7 @@ pub struct FactorInstancesProvider {
     /// If we did not find any cached keys at all, use the next index
     /// analyser to get the "next index" - which uses the Profile
     /// if present.
-    next_index_assigner: NextDerivationIndexAnalyzer,
+    next_index_assigner: NextIndexAssignerWithEphemeralLocalOffsets,
 
     /// GUI hook used for KeysCollector if we need to derive more
     /// factor instances.
@@ -35,7 +35,12 @@ impl FactorInstancesProvider {
         derivation_interactors: Arc<dyn KeysDerivationInteractors>,
     ) -> Self {
         let maybe_cache = maybe_cache.into();
-        let next_index_assigner = NextDerivationIndexAnalyzer::new(maybe_profile_snapshot);
+
+        /// Important we create `NextIndexAssignerWithEphemeralLocalOffsets`
+        /// inside this ctor and that we do not pass it as a parameter, since
+        /// it cannot be reused, since it has ephemeral local offsets.
+        let next_index_assigner =
+            NextIndexAssignerWithEphemeralLocalOffsets::new(maybe_profile_snapshot);
 
         let cache = maybe_cache.unwrap_or_else(|| Arc::new(PreDerivedKeysCache::default()));
 
@@ -53,7 +58,7 @@ impl FactorInstancesProvider {
 /// ==================
 impl FactorInstancesProvider {
     async fn derive_more(&self, requests: IndexSet<DeriveMore>) -> Result<IndexSet<NewlyDerived>> {
-        let with_proto_ranges = requests
+        let with_ranges = requests
             .clone()
             .into_iter()
             .map(|x| match x {
@@ -62,22 +67,10 @@ impl FactorInstancesProvider {
                 } => with_start_index,
                 DeriveMore::WithoutKnownLastIndex(ref partial) => {
                     let next = self.next_index_assigner.next(partial.clone().into());
-                    QuantifiedDerivationRequestWithStartIndex::from((partial.clone(), next))
+                    DerivationRequestWithRange::from((partial.clone(), next))
                 }
             })
-            .collect::<IndexSet<QuantifiedDerivationRequestWithStartIndex>>();
-
-        let with_ranges = with_proto_ranges
-            .into_iter()
-            .map(|x| DerivationRequestWithRange {
-                factor_source_id: x.factor_source_id,
-                network_id: x.network_id,
-                entity_kind: x.entity_kind,
-                key_kind: x.key_kind,
-                key_space: x.key_space,
-                range: x.start_base_index..(x.start_base_index + x.quantity as u32),
-            })
-            .collect::<IndexSet<_>>();
+            .collect::<IndexSet<DerivationRequestWithRange>>();
 
         let mut derivation_paths = with_ranges
             .into_iter()

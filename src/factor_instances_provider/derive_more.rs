@@ -3,7 +3,7 @@ use crate::prelude::*;
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum DeriveMore {
     WithKnownStartIndex {
-        with_start_index: QuantifiedDerivationRequestWithStartIndex,
+        with_start_index: DerivationRequestWithRange,
         number_of_instances_needed_to_fully_satisfy_request: Option<usize>,
     },
     WithoutKnownLastIndex(QuantifiedUnindexDerivationRequest),

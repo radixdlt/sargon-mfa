@@ -56,7 +56,6 @@ pub struct LoadFromCacheOutcomeForSingleRequest {
     hidden: HiddenConstructor,
     pub request: QuantifiedUnindexDerivationRequest,
     outcome: LoadFromCacheOutcome,
-    // factor_instances: Option<FactorInstances>,
 }
 impl LoadFromCacheOutcomeForSingleRequest {
     /// # Panics
@@ -80,8 +79,6 @@ impl LoadFromCacheOutcomeForSingleRequest {
         Self {
             hidden: HiddenConstructor,
             request,
-            // satisfaction: outcome.satisfaction(),
-            // factor_instances: outcome.non_empty_factor_instances(),
             outcome,
         }
     }
@@ -100,10 +97,7 @@ impl LoadFromCacheOutcomeForSingleRequest {
                 let last_index = Self::last_index_of(from_cache);
                 Action::FullySatisfiedWithoutSpare(
                     from_cache.clone(),
-                    QuantifiedDerivationRequestWithStartIndex::from((
-                        self.request.clone(),
-                        last_index,
-                    )),
+                    DerivationRequestWithRange::from((self.request.clone(), last_index)),
                 )
             }
             LoadFromCacheOutcome::PartiallySatisfied {
@@ -113,7 +107,7 @@ impl LoadFromCacheOutcomeForSingleRequest {
                 let last_index = Self::last_index_of(partial_from_cache);
                 Action::PartiallySatisfied {
                     partial_from_cache: partial_from_cache.clone(),
-                    derive_more: QuantifiedDerivationRequestWithStartIndex::from((
+                    derive_more: DerivationRequestWithRange::from((
                         self.request.clone(),
                         last_index,
                     )),
@@ -127,10 +121,10 @@ impl LoadFromCacheOutcomeForSingleRequest {
 
 pub enum Action {
     FullySatisfiedWithSpare(FactorInstances),
-    FullySatisfiedWithoutSpare(FactorInstances, QuantifiedDerivationRequestWithStartIndex),
+    FullySatisfiedWithoutSpare(FactorInstances, DerivationRequestWithRange),
     PartiallySatisfied {
         partial_from_cache: FactorInstances,
-        derive_more: QuantifiedDerivationRequestWithStartIndex,
+        derive_more: DerivationRequestWithRange,
         number_of_instances_needed_to_fully_satisfy_request: usize,
     },
     CacheIsEmpty,
