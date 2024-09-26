@@ -18,6 +18,8 @@ pub enum DeriveMoreToSatisfyOriginalRequest {
         with_start_index: DerivationRequestWithRange,
         number_of_instances_needed_to_fully_satisfy_request: Option<usize>,
     },
+    /// When cache is empty, we don't know the last index, in this context,
+    /// we will need to use the NextIndexAssigner.
     WithoutKnownLastIndex(QuantifiedUnindexDerivationRequest),
 }
 impl DeriveMoreToSatisfyOriginalRequest {
