@@ -60,16 +60,17 @@ impl FactorInstancesProvider {
 impl FactorInstancesProvider {
     fn paths_for_additional_derivation(
         next_index_assigner: &NextIndexAssignerWithEphemeralLocalOffsets,
-        requests: IndexSet<DeriveMore>,
+        requests: IndexSet<DeriveMoreToSatisfyOriginalRequest>,
     ) -> IndexMap<FactorSourceIDFromHash, IndexSet<DerivationPath>> {
         let with_ranges = requests
             .clone()
             .into_iter()
             .map(|x| match x {
-                DeriveMore::WithKnownStartIndex {
-                    with_start_index, ..
+                DeriveMoreToSatisfyOriginalRequest::WithKnownStartIndex {
+                    with_start_index,
+                    ..
                 } => with_start_index,
-                DeriveMore::WithoutKnownLastIndex(ref partial) => {
+                DeriveMoreToSatisfyOriginalRequest::WithoutKnownLastIndex(ref partial) => {
                     let next = next_index_assigner.next(partial.clone().into());
                     DerivationRequestWithRange::from((partial.clone(), next))
                 }
@@ -94,9 +95,10 @@ impl FactorInstancesProvider {
     async fn derive_more(
         purpose: FactorInstancesRequestPurpose,
         next_index_assigner: &NextIndexAssignerWithEphemeralLocalOffsets,
-        requests: IndexSet<DeriveMore>,
+        derive_more_with_abundance: DeriveMoreWithAbundance,
         derivation_interactors: Arc<dyn KeysDerivationInteractors>,
     ) -> Result<IndexSet<NewlyDerived>> {
+        let requests = derive_more_with_abundance.all_requests();
         let derivation_paths =
             Self::paths_for_additional_derivation(next_index_assigner, requests.clone());
 
@@ -135,6 +137,12 @@ impl FactorInstancesProvider {
         Ok(out)
     }
 
+    fn _requests_with_abundance(
+        derive_more: IndexSet<DeriveMoreToSatisfyOriginalRequest>,
+    ) -> DeriveMoreWithAbundance {
+        todo!()
+    }
+
     async fn _get_factor_instances_outcome(
         purpose: FactorInstancesRequestPurpose,
         cache: PreDerivedKeysCache,
@@ -153,14 +161,23 @@ impl FactorInstancesProvider {
         let mut factor_instances_to_use_directly = split.satisfied_by_cache();
 
         let mut did_derive_new_instances = false;
+        println!(
+            "🎭 factor_instances_to_use_directly: #{}",
+            factor_instances_to_use_directly.len()
+        );
         if let Some(derive_more_requests) = split.derive_more_requests() {
+            println!(
+                "🎭 derive_more_requests: #{} - ‼️ might result in MANY factor instances right?",
+                derive_more_requests.len()
+            );
+            let derive_more_with_abundance = Self::_requests_with_abundance(derive_more_requests);
             let mut newly_derived_to_be_used_directly =
                 IndexSet::<HierarchicalDeterministicFactorInstance>::new();
 
             let newly_derived = Self::derive_more(
                 purpose,
                 next_index_assigner,
-                derive_more_requests,
+                derive_more_with_abundance,
                 derivation_interactors,
             )
             .await?;
@@ -199,7 +216,10 @@ impl FactorInstancesProvider {
         self,
     ) -> Result<(FactorInstances, DidDeriveNewFactorInstances)> {
         let copy_of_cache = self.cache.try_read().unwrap().clone_snapshot();
-
+        println!(
+            "🍬🔮 cache passed to FactorInstancesProvider contains #{} instances",
+            copy_of_cache.total_number_of_factor_instances()
+        );
         let result = Self::_get_factor_instances_outcome(
             self.purpose,
             // Take a copy of the cache, so we can modify it without affecting the original,
@@ -214,6 +234,10 @@ impl FactorInstancesProvider {
         match result {
             Ok((outcome, updated_cache, did_derive_new_instances)) => {
                 // Replace cache with updated one
+                println!(
+                    "🍬✅ updating cache to a one with #{} instances",
+                    updated_cache.total_number_of_factor_instances()
+                );
                 *self.cache.try_write().unwrap() = updated_cache;
                 Ok((outcome, did_derive_new_instances))
             }
@@ -269,7 +293,9 @@ mod tests {
         pub fn cache_snapshot(&self) -> PreDerivedKeysCache {
             self.cache.try_read().unwrap().clone_snapshot()
         }
-
+        pub fn clear_cache(&self) {
+            *self.cache.try_write().unwrap() = PreDerivedKeysCache::default();
+        }
         pub async fn new_mainnet_account_with_bdfs(
             &self,
             name: impl AsRef<str>,
@@ -307,7 +333,10 @@ mod tests {
             let (instances, did_derive_new) = factor_instances_provider
                 .get_factor_instances_outcome()
                 .await?;
-
+            println!(
+                "🌈 cache.total_number_of_factor_instances: {}",
+                self.cache_snapshot().total_number_of_factor_instances()
+            );
             assert_eq!(instances.len(), 1);
             let instance = instances.into_iter().next().unwrap();
             let address = AccountAddress::new(network, instance.public_key_hash());
@@ -509,5 +538,54 @@ mod tests {
             )
         );
         assert_eq!(bob_veci.factor_source_id, bdfs.factor_source_id());
+
+        // NOW CLEAR CACHE and create 3rd account, should work thanks to the profile...
+        os.clear_cache();
+        assert_eq!(os.cache_snapshot().total_number_of_factor_instances(), 0);
+        let (carol, did_derive_new_factor_instances) =
+            os.new_mainnet_account_with_bdfs("Carol").await.unwrap();
+
+        assert!(
+            did_derive_new_factor_instances.0,
+            "cache was cleared, so we should have derive more..."
+        );
+        assert_ne!(carol.address(), bob.address());
+
+        let free_factor_instances_after_account_creation =
+            os.cache_snapshot().all_factor_instances();
+
+        assert_eq!(
+            free_factor_instances_after_account_creation.len(),
+            179,
+            "BatchOfNew.count - 1, since we just cleared cache, derive many more, and consumed one."
+        );
+
+        assert_eq!(
+            free_factor_instances_after_account_creation
+                .clone()
+                .into_iter()
+                .filter(|x| x.satisfies(UnquantifiedUnindexDerivationRequest::new(
+                    bdfs.factor_source_id(),
+                    network,
+                    entity_kind,
+                    key_kind,
+                    key_space
+                )))
+                .count(),
+            29,
+            "29, since we just cleared cache, derive many more, and consumed one."
+        );
+
+        let carol_veci = carol.clone().as_unsecurified().unwrap().factor_instance();
+        assert_eq!(
+            bob_veci.derivation_path(),
+            DerivationPath::new(
+                NetworkID::Mainnet,
+                CAP26EntityKind::Account,
+                CAP26KeyKind::TransactionSigning,
+                HDPathComponent::unsecurified_hardening_base_index(2), // third account should have index 2
+            )
+        );
+        assert_eq!(carol_veci.factor_source_id, bdfs.factor_source_id());
     }
 }

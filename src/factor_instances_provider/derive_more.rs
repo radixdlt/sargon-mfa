@@ -1,14 +1,26 @@
 use crate::prelude::*;
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct DeriveMoreWithAbundance {
+    requests_to_satisfy_original_request: IndexSet<DeriveMoreToSatisfyOriginalRequest>,
+    /// should be standard batch size - length of `requests_to_satisfy_original_request`
+    with_abundance: AnyFactorDerivationRequest,
+}
+impl DeriveMoreWithAbundance {
+    pub fn all_requests(self) -> IndexSet<DeriveMoreToSatisfyOriginalRequest> {
+        todo!()
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub enum DeriveMore {
+pub enum DeriveMoreToSatisfyOriginalRequest {
     WithKnownStartIndex {
         with_start_index: DerivationRequestWithRange,
         number_of_instances_needed_to_fully_satisfy_request: Option<usize>,
     },
     WithoutKnownLastIndex(QuantifiedUnindexDerivationRequest),
 }
-impl DeriveMore {
+impl DeriveMoreToSatisfyOriginalRequest {
     /// `None` for `WithoutKnownLastIndex`, only `Some` for `WithKnownStartIndex`
     ///  where `if_partial_how_many_to_use_directly` is `Some`
     pub fn number_of_instances_needed_to_fully_satisfy_request(&self) -> Option<usize> {

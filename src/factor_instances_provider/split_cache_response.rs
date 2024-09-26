@@ -1,7 +1,7 @@
 use crate::prelude::*;
 
 pub struct SplitFactorInstancesFromCache {
-    derive_more_requests: IndexSet<DeriveMore>,
+    derive_more_requests: IndexSet<DeriveMoreToSatisfyOriginalRequest>,
     satisfied_by_cache: IndexSet<HierarchicalDeterministicFactorInstance>,
 }
 impl SplitFactorInstancesFromCache {
@@ -9,7 +9,7 @@ impl SplitFactorInstancesFromCache {
         self.satisfied_by_cache.clone()
     }
 
-    pub(super) fn derive_more_requests(self) -> Option<IndexSet<DeriveMore>> {
+    pub(super) fn derive_more_requests(self) -> Option<IndexSet<DeriveMoreToSatisfyOriginalRequest>> {
         if self.derive_more_requests.is_empty() {
             None
         } else {
@@ -21,7 +21,7 @@ impl SplitFactorInstancesFromCache {
 pub(super) fn split_cache_response(
     take_from_cache_outcome: FactorInstancesFromCache,
 ) -> SplitFactorInstancesFromCache {
-    let mut derive_more_requests = IndexSet::<DeriveMore>::new();
+    let mut derive_more_requests = IndexSet::<DeriveMoreToSatisfyOriginalRequest>::new();
     let mut satisfied_by_cache = IndexSet::<HierarchicalDeterministicFactorInstance>::new();
 
     for outcome in take_from_cache_outcome.outcomes().into_iter() {
@@ -32,7 +32,7 @@ pub(super) fn split_cache_response(
             Action::FullySatisfiedWithoutSpare(factor_instances, with_start_index) => {
                 satisfied_by_cache.extend(factor_instances);
 
-                derive_more_requests.insert(DeriveMore::WithKnownStartIndex {
+                derive_more_requests.insert(DeriveMoreToSatisfyOriginalRequest::WithKnownStartIndex {
                     with_start_index,
                     number_of_instances_needed_to_fully_satisfy_request: None,
                 });
@@ -43,7 +43,7 @@ pub(super) fn split_cache_response(
                 number_of_instances_needed_to_fully_satisfy_request,
             } => {
                 satisfied_by_cache.extend(partial_from_cache);
-                derive_more_requests.insert(DeriveMore::WithKnownStartIndex {
+                derive_more_requests.insert(DeriveMoreToSatisfyOriginalRequest::WithKnownStartIndex {
                     with_start_index: derive_more,
                     number_of_instances_needed_to_fully_satisfy_request: Some(
                         number_of_instances_needed_to_fully_satisfy_request,
@@ -51,7 +51,7 @@ pub(super) fn split_cache_response(
                 });
             }
             Action::CacheIsEmpty => {
-                derive_more_requests.insert(DeriveMore::WithoutKnownLastIndex(outcome.request));
+                derive_more_requests.insert(DeriveMoreToSatisfyOriginalRequest::WithoutKnownLastIndex(outcome.request));
             }
         }
     }
