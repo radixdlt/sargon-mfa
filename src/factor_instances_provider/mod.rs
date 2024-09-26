@@ -4,6 +4,7 @@ mod factor_instances_provider;
 mod factor_instances_provider_operations;
 mod factor_instances_request_purpose;
 mod next_derivation_index_analyzer;
+mod split_cache_response;
 
 pub(crate) use derive_more::*;
 pub use factor_instances_provider::*;

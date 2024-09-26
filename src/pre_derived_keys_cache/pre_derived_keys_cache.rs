@@ -36,6 +36,16 @@ impl From<HierarchicalDeterministicFactorInstance> for UnquantifiedUnindexDeriva
 }
 
 impl PreDerivedKeysCache {
+    pub fn clone_snapshot(&self) -> Self {
+        Self {
+            probably_free_factor_instances: RwLock::new(
+                self.probably_free_factor_instances
+                    .try_read()
+                    .unwrap()
+                    .clone(),
+            ),
+        }
+    }
     fn read<T>(
         &self,
         call: impl FnOnce(RwLockReadGuard<'_, InstancesForRequestMap>) -> T,

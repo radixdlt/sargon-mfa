@@ -120,7 +120,7 @@ impl FactorInstancesRequestPurpose {
             .collect::<AnyFactorDerivationRequests>()
     }
 
-    pub fn quantity(&self) -> DerivationRequestQuantitySelector {
+    fn quantity(&self) -> DerivationRequestQuantitySelector {
         match self {
             Self::OARS { .. } => DerivationRequestQuantitySelector::fill_cache_if_needed(),
             Self::MARS { .. } => DerivationRequestQuantitySelector::fill_cache_if_needed(),
@@ -134,6 +134,23 @@ impl FactorInstancesRequestPurpose {
                 }
             }
         }
+    }
+
+    pub fn requests(&self) -> QuantifiedUnindexDerivationRequests {
+        let factor_sources = self.factor_sources();
+
+        // Form requests untied to any FactorSources
+        let unfactored = self.unfactored_requests();
+
+        // Form requests tied to FactorSources, but without indices, unquantified
+        let unquantified = unfactored.for_each_factor_source(factor_sources);
+
+        let quantity = self.quantity();
+
+        unquantified
+            .into_iter()
+            .map(|x| QuantifiedUnindexDerivationRequest::quantifying(x, quantity))
+            .collect::<QuantifiedUnindexDerivationRequests>()
     }
 
     fn requests_for_account(
@@ -198,7 +215,7 @@ impl FactorInstancesRequestPurpose {
 
     /// N.B. if cache is empty we will not only derive to satisfy these requests,
     /// we will derive ALL possible factor instances to fill the cache.
-    pub fn requests(&self) -> AnyFactorDerivationRequests {
+    fn unfactored_requests(&self) -> AnyFactorDerivationRequests {
         match self {
             Self::OARS { .. } => Self::requests_for_account_recover_scan(NetworkID::Mainnet),
             Self::MARS { network_id, .. } => Self::requests_for_account_recover_scan(*network_id),

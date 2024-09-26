@@ -3,6 +3,8 @@
 
 use crate::prelude::*;
 
+use super::split_cache_response::split_cache_response;
+
 /// A provider of FactorInstances, reading them from the cache if present,
 /// else if missing derives many instances in Abundance and caches the
 /// not requested ones, and returns one matching the requested ones.
@@ -11,7 +13,7 @@ pub struct FactorInstancesProvider {
     purpose: FactorInstancesRequestPurpose,
 
     /// If no cache present, a new one is created and will be filled.
-    cache: Arc<PreDerivedKeysCache>,
+    cache: Arc<RwLock<PreDerivedKeysCache>>,
 
     /// If we did not find any cached keys at all, use the next index
     /// analyser to get the "next index" - which uses the Profile
@@ -30,19 +32,18 @@ pub struct FactorInstancesProvider {
 impl FactorInstancesProvider {
     pub fn new(
         purpose: FactorInstancesRequestPurpose,
-        maybe_cache: impl Into<Option<Arc<PreDerivedKeysCache>>>,
+        maybe_cache: Option<Arc<RwLock<PreDerivedKeysCache>>>,
         maybe_profile_snapshot: impl Into<Option<Profile>>,
         derivation_interactors: Arc<dyn KeysDerivationInteractors>,
     ) -> Self {
-        let maybe_cache = maybe_cache.into();
-
         /// Important we create `NextIndexAssignerWithEphemeralLocalOffsets`
         /// inside this ctor and that we do not pass it as a parameter, since
         /// it cannot be reused, since it has ephemeral local offsets.
         let next_index_assigner =
             NextIndexAssignerWithEphemeralLocalOffsets::new(maybe_profile_snapshot);
 
-        let cache = maybe_cache.unwrap_or_else(|| Arc::new(PreDerivedKeysCache::default()));
+        let cache =
+            maybe_cache.unwrap_or_else(|| Arc::new(RwLock::new(PreDerivedKeysCache::default())));
 
         Self {
             purpose,
@@ -57,7 +58,10 @@ impl FactorInstancesProvider {
 /// *** Private API ***
 /// ==================
 impl FactorInstancesProvider {
-    async fn derive_more(&self, requests: IndexSet<DeriveMore>) -> Result<IndexSet<NewlyDerived>> {
+    fn paths_for_additional_derivation(
+        next_index_assigner: &NextIndexAssignerWithEphemeralLocalOffsets,
+        requests: IndexSet<DeriveMore>,
+    ) -> IndexMap<FactorSourceIDFromHash, IndexSet<DerivationPath>> {
         let with_ranges = requests
             .clone()
             .into_iter()
@@ -66,13 +70,13 @@ impl FactorInstancesProvider {
                     with_start_index, ..
                 } => with_start_index,
                 DeriveMore::WithoutKnownLastIndex(ref partial) => {
-                    let next = self.next_index_assigner.next(partial.clone().into());
+                    let next = next_index_assigner.next(partial.clone().into());
                     DerivationRequestWithRange::from((partial.clone(), next))
                 }
             })
             .collect::<IndexSet<DerivationRequestWithRange>>();
 
-        let mut derivation_paths = with_ranges
+        with_ranges
             .into_iter()
             .into_group_map_by(|x| x.factor_source_id)
             .into_iter()
@@ -84,12 +88,22 @@ impl FactorInstancesProvider {
                         .collect::<IndexSet<DerivationPath>>(),
                 )
             })
-            .collect::<IndexMap<FactorSourceIDFromHash, IndexSet<DerivationPath>>>();
+            .collect::<IndexMap<FactorSourceIDFromHash, IndexSet<DerivationPath>>>()
+    }
+
+    async fn derive_more(
+        purpose: FactorInstancesRequestPurpose,
+        next_index_assigner: &NextIndexAssignerWithEphemeralLocalOffsets,
+        requests: IndexSet<DeriveMore>,
+        derivation_interactors: Arc<dyn KeysDerivationInteractors>,
+    ) -> Result<IndexSet<NewlyDerived>> {
+        let derivation_paths =
+            Self::paths_for_additional_derivation(next_index_assigner, requests.clone());
 
         let keys_collector = KeysCollector::new(
-            self.purpose.factor_sources(),
+            purpose.factor_sources(),
             derivation_paths,
-            self.derivation_interactors.clone(),
+            derivation_interactors.clone(),
         )?;
 
         let derivation_outcome = keys_collector.collect_keys().await;
@@ -120,6 +134,47 @@ impl FactorInstancesProvider {
 
         Ok(out)
     }
+
+    async fn _get_factor_instances_outcome(
+        purpose: FactorInstancesRequestPurpose,
+        cache: PreDerivedKeysCache,
+        next_index_assigner: &NextIndexAssignerWithEphemeralLocalOffsets,
+        derivation_interactors: Arc<dyn KeysDerivationInteractors>,
+    ) -> Result<(FactorInstances, PreDerivedKeysCache)> {
+        let requested = purpose.requests();
+
+        let from_cache = cache.take(&requested)?;
+        let split = split_cache_response(from_cache);
+
+        let mut factor_instances_to_use_directly = split.satisfied_by_cache();
+
+        if let Some(derive_more_requests) = split.derive_more_requests() {
+            let mut newly_derived_to_be_used_directly =
+                IndexSet::<HierarchicalDeterministicFactorInstance>::new();
+
+            let newly_derived = Self::derive_more(
+                purpose,
+                next_index_assigner,
+                derive_more_requests,
+                derivation_interactors,
+            )
+            .await?;
+
+            for _newly_derived in newly_derived.into_iter() {
+                let (key, to_cache) = _newly_derived.key_value_for_cache();
+                cache.put(key, to_cache)?;
+
+                newly_derived_to_be_used_directly.extend(_newly_derived.to_use_directly);
+            }
+
+            factor_instances_to_use_directly.extend(newly_derived_to_be_used_directly);
+        }
+
+        Ok((
+            FactorInstances::from(factor_instances_to_use_directly),
+            cache,
+        ))
+    }
 }
 
 /// ==================
@@ -131,79 +186,30 @@ impl FactorInstancesProvider {
     ///
     /// Might derive MORE than requested, those will be put into the cache.
     pub async fn get_factor_instances_outcome(self) -> Result<FactorInstances> {
-        let factor_sources = self.purpose.factor_sources();
+        let copy_of_cache = self.cache.try_read().unwrap().clone_snapshot();
 
-        // Form requests untied to any FactorSources
-        let unfactored = self.purpose.requests();
+        let result = Self::_get_factor_instances_outcome(
+            self.purpose,
+            // Take a copy of the cache, so we can modify it without affecting the original,
+            // important if this method fails, we do not want to rollback the cache.
+            // Instead we update the cache with the returned one in case of success.
+            copy_of_cache,
+            &self.next_index_assigner,
+            self.derivation_interactors,
+        )
+        .await;
 
-        // Form requests tied to FactorSources, but without indices, unquantified
-        let unquantified = unfactored.for_each_factor_source(factor_sources);
-
-        let quantity = self.purpose.quantity();
-        let requested = unquantified
-            .into_iter()
-            .map(|x| QuantifiedUnindexDerivationRequest::quantifying(x, quantity))
-            .collect::<QuantifiedUnindexDerivationRequests>();
-
-        // Form quantified requests
-        // Important we load from cache with requests without indices, since the cache
-        // should know which are the next free indices to fulfill the requests.
-        let take_from_cache_outcome = self.cache.take(&requested)?;
-
-        let mut derive_more_requests = IndexSet::<DeriveMore>::new();
-        let mut satisfied_by_cache = IndexSet::<HierarchicalDeterministicFactorInstance>::new();
-
-        for outcome in take_from_cache_outcome.outcomes().into_iter() {
-            match outcome.action() {
-                Action::FullySatisfiedWithSpare(factor_instances) => {
-                    satisfied_by_cache.extend(factor_instances);
-                }
-                Action::FullySatisfiedWithoutSpare(factor_instances, with_start_index) => {
-                    satisfied_by_cache.extend(factor_instances);
-
-                    derive_more_requests.insert(DeriveMore::WithKnownStartIndex {
-                        with_start_index,
-                        number_of_instances_needed_to_fully_satisfy_request: None,
-                    });
-                }
-                Action::PartiallySatisfied {
-                    partial_from_cache,
-                    derive_more,
-                    number_of_instances_needed_to_fully_satisfy_request,
-                } => {
-                    satisfied_by_cache.extend(partial_from_cache);
-                    derive_more_requests.insert(DeriveMore::WithKnownStartIndex {
-                        with_start_index: derive_more,
-                        number_of_instances_needed_to_fully_satisfy_request: Some(
-                            number_of_instances_needed_to_fully_satisfy_request,
-                        ),
-                    });
-                }
-                Action::CacheIsEmpty => {
-                    derive_more_requests.insert(DeriveMore::WithoutKnownLastIndex(outcome.request));
-                }
+        match result {
+            Ok((outcome, updated_cache)) => {
+                // Replace cache with updated one
+                *self.cache.try_write().unwrap() = updated_cache;
+                Ok(outcome)
+            }
+            Err(e) => {
+                // No need to rollback the cache, we did not modify it, only a copy of it.
+                Err(e)
             }
         }
-
-        let mut factor_instances_to_use_directly = satisfied_by_cache;
-
-        if !derive_more_requests.is_empty() {
-            let mut newly_derived_to_be_used_directly =
-                IndexSet::<HierarchicalDeterministicFactorInstance>::new();
-
-            let newly_derived = self.derive_more(derive_more_requests).await?;
-
-            for _newly_derived in newly_derived.into_iter() {
-                let (key, to_cache) = _newly_derived.key_value_for_cache();
-                self.cache.put(key, to_cache)?;
-
-                newly_derived_to_be_used_directly.extend(_newly_derived.to_use_directly);
-            }
-
-            factor_instances_to_use_directly.extend(newly_derived_to_be_used_directly);
-        }
-
-        Ok(FactorInstances::from(factor_instances_to_use_directly))
     }
 }
 
