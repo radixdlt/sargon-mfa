@@ -54,12 +54,9 @@ impl FactorInstancesProvider {
     }
 }
 
-/// ==================
-/// *** Private API ***
-/// ==================
-impl FactorInstancesProvider {
-    fn paths_for_additional_derivation(
-        next_index_assigner: &NextIndexAssignerWithEphemeralLocalOffsets,
+impl NextIndexAssignerWithEphemeralLocalOffsets {
+    pub fn paths_for_additional_derivation(
+        &self,
         requests: IndexSet<DeriveMoreToSatisfyOriginalRequest>,
     ) -> IndexMap<FactorSourceIDFromHash, IndexSet<DerivationPath>> {
         let with_ranges = requests
@@ -71,7 +68,7 @@ impl FactorInstancesProvider {
                     ..
                 } => with_start_index,
                 DeriveMoreToSatisfyOriginalRequest::WithoutKnownLastIndex(ref partial) => {
-                    let next = next_index_assigner.next(partial.clone().into());
+                    let next = self.next(partial.clone().into());
                     DerivationRequestWithRange::from((partial.clone(), next))
                 }
             })
@@ -91,7 +88,12 @@ impl FactorInstancesProvider {
             })
             .collect::<IndexMap<FactorSourceIDFromHash, IndexSet<DerivationPath>>>()
     }
+}
 
+/// ==================
+/// *** Private API ***
+/// ==================
+impl FactorInstancesProvider {
     async fn derive_more(
         purpose: FactorInstancesRequestPurpose,
         next_index_assigner: &NextIndexAssignerWithEphemeralLocalOffsets,
@@ -137,12 +139,6 @@ impl FactorInstancesProvider {
         Ok(out)
     }
 
-    fn _requests_with_abundance(
-        derive_more: IndexSet<DeriveMoreToSatisfyOriginalRequest>,
-    ) -> DeriveMoreWithAbundance {
-        todo!()
-    }
-
     async fn _get_factor_instances_outcome(
         purpose: FactorInstancesRequestPurpose,
         cache: PreDerivedKeysCache,
@@ -170,7 +166,8 @@ impl FactorInstancesProvider {
                 "🎭 derive_more_requests: #{} - ‼️ might result in MANY factor instances right?",
                 derive_more_requests.len()
             );
-            let derive_more_with_abundance = Self::_requests_with_abundance(derive_more_requests);
+            let derive_more_with_abundance =
+                DeriveMoreWithAbundance::new(derive_more_requests, &purpose, next_index_assigner);
             let mut newly_derived_to_be_used_directly =
                 IndexSet::<HierarchicalDeterministicFactorInstance>::new();
 
