@@ -70,7 +70,13 @@ impl DerivationRequestWithRange {
         }
     }
 }
+
 impl From<(QuantifiedUnindexDerivationRequest, HDPathComponent)> for DerivationRequestWithRange {
+    fn from(value: (QuantifiedUnindexDerivationRequest, HDPathComponent)) -> Self {
+        Self::from((value.0, value.1.base_index()))
+    }
+}
+impl From<(QuantifiedUnindexDerivationRequest, HDPathValue)> for DerivationRequestWithRange {
     fn from(value: (QuantifiedUnindexDerivationRequest, HDPathValue)) -> Self {
         let (q, i) = value;
         Self::new(

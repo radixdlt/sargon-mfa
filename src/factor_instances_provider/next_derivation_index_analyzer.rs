@@ -75,14 +75,13 @@ impl NextDerivationIndexFromProfile {
                 let all_unsecurified_in_profile = self
                     .profile_snapshot
                     .get_unsecurified_entities_of_kind_on_network(entity_kind, network_id);
-                let max_or_none = all_unsecurified_in_profile
+
+                all_unsecurified_in_profile
                     .into_iter()
-                    .map(|ue| ue.veci().factor_instance())
+                    .map(|x: UnsecurifiedEntity| x.veci().factor_instance())
                     .filter(|fi| fi.matches(&unindexed_request))
                     .map(|fi| fi.derivation_path().index)
-                    .max();
-
-                max_or_none
+                    .max()
             }
         };
 
@@ -98,7 +97,7 @@ impl EphemeralLocalIndexOffsets {
     pub fn write_next(&self, request: UnquantifiedUnindexDerivationRequest) -> usize {
         let mut write = self.local_offsets.try_write().unwrap();
         let entry = write.entry(request).or_insert(0);
-        let next = entry.clone();
+        let next = *entry;
         *entry += 1;
         next
     }
@@ -128,8 +127,7 @@ impl NextIndexAssignerWithEphemeralLocalOffsets {
         let from_profile = self
             .profile_offsets
             .as_ref()
-            .map(|p| p.read_next(unindexed_request.clone()))
-            .flatten()
+            .and_then(|p| p.read_next(unindexed_request.clone()))
             .unwrap_or(default);
 
         let from_local = self.ephemeral_local_offsets.write_next(unindexed_request);

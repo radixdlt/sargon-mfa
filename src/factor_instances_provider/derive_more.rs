@@ -9,12 +9,6 @@ pub enum DeriveMore {
     WithoutKnownLastIndex(QuantifiedUnindexDerivationRequest),
 }
 impl DeriveMore {
-    pub fn requires_profile_index_assigner(&self) -> bool {
-        match self {
-            Self::WithKnownStartIndex { .. } => false,
-            Self::WithoutKnownLastIndex(_) => true,
-        }
-    }
     /// `None` for `WithoutKnownLastIndex`, only `Some` for `WithKnownStartIndex`
     ///  where `if_partial_how_many_to_use_directly` is `Some`
     pub fn number_of_instances_needed_to_fully_satisfy_request(&self) -> Option<usize> {
