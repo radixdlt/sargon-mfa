@@ -354,8 +354,10 @@ mod tests {
     #[actix_rt::test]
     async fn create_account() {
         let (os, bdfs) = SargonOS::with_bdfs().await;
-        let free_factor_instances = os.cache_snapshot().all_factor_instances();
-        let number_of_free_factor_instances = free_factor_instances.len();
+        let free_factor_instances_before_any_account_created =
+            os.cache_snapshot().all_factor_instances();
+        let number_of_free_factor_instances =
+            free_factor_instances_before_any_account_created.len();
         assert!(
             number_of_free_factor_instances > 0,
             "should have many, for bdfs"
@@ -367,15 +369,35 @@ mod tests {
         );
         assert_eq!(os.profile_snapshot().accounts.len(), 0, "no accounts");
 
+        let network = NetworkID::Mainnet;
+        let entity_kind = CAP26EntityKind::Account;
+        let key_kind = CAP26KeyKind::TransactionSigning;
+        let key_space = KeySpace::Unsecurified;
+
         let expected_path = DerivationPath::new(
-            NetworkID::Mainnet,
-            CAP26EntityKind::Account,
-            CAP26KeyKind::TransactionSigning,
+            network,
+            entity_kind,
+            key_kind,
             HDPathComponent::unsecurified_hardening_base_index(0),
         );
 
+        assert_eq!(
+            free_factor_instances_before_any_account_created
+                .clone()
+                .into_iter()
+                .filter(|x| x.satisfies(UnquantifiedUnindexDerivationRequest::new(
+                    bdfs.factor_source_id(),
+                    network,
+                    entity_kind,
+                    key_kind,
+                    key_space
+                )))
+                .count(),
+            30
+        );
+
         assert!(
-            free_factor_instances
+            free_factor_instances_before_any_account_created
                 .clone()
                 .into_iter()
                 .filter(|x| x.factor_source_id() == bdfs.factor_source_id())
@@ -398,6 +420,21 @@ mod tests {
         );
 
         assert_eq!(
+            free_factor_instances_after_account_creation
+                .clone()
+                .into_iter()
+                .filter(|x| x.satisfies(UnquantifiedUnindexDerivationRequest::new(
+                    bdfs.factor_source_id(),
+                    network,
+                    entity_kind,
+                    key_kind,
+                    key_space
+                )))
+                .count(),
+            29
+        );
+
+        assert_eq!(
             alice
                 .clone()
                 .as_unsecurified()
@@ -416,5 +453,42 @@ mod tests {
                 .count()
                 == 0
         );
+
+        let bob = os.new_mainnet_account_with_bdfs("Bob").await.unwrap();
+        assert_ne!(alice.address(), bob.address());
+
+        let free_factor_instances_after_account_creation =
+            os.cache_snapshot().all_factor_instances();
+        assert_eq!(
+            free_factor_instances_after_account_creation.len(),
+            number_of_free_factor_instances - 2
+        );
+
+        assert_eq!(
+            free_factor_instances_after_account_creation
+                .clone()
+                .into_iter()
+                .filter(|x| x.satisfies(UnquantifiedUnindexDerivationRequest::new(
+                    bdfs.factor_source_id(),
+                    network,
+                    entity_kind,
+                    key_kind,
+                    key_space
+                )))
+                .count(),
+            28
+        );
+
+        let bob_veci = bob.clone().as_unsecurified().unwrap().factor_instance();
+        assert_eq!(
+            bob_veci.derivation_path(),
+            DerivationPath::new(
+                NetworkID::Mainnet,
+                CAP26EntityKind::Account,
+                CAP26KeyKind::TransactionSigning,
+                HDPathComponent::unsecurified_hardening_base_index(1),
+            )
+        );
+        assert_eq!(bob_veci.factor_source_id, bdfs.factor_source_id());
     }
 }
