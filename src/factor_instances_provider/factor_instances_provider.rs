@@ -26,7 +26,7 @@ pub struct FactorInstancesProvider {
 }
 
 /// ==================
-/// *** CTOR ***
+///    *** CTOR ***
 /// ==================
 
 impl FactorInstancesProvider {
@@ -97,12 +97,14 @@ impl FactorInstancesProvider {
     async fn derive_more(
         purpose: FactorInstancesRequestPurpose,
         next_index_assigner: &NextIndexAssignerWithEphemeralLocalOffsets,
-        derive_more_with_abundance: DeriveMoreWithAbundance,
+        requests: IndexSet<DeriveMoreToSatisfyOriginalRequest>,
         derivation_interactors: Arc<dyn KeysDerivationInteractors>,
     ) -> Result<IndexSet<NewlyDerived>> {
-        let requests = derive_more_with_abundance.all_requests();
+        for apa in requests.iter() {
+            apa.number_of_instances_needed_to_fully_satisfy_request()
+        }
         let derivation_paths =
-            Self::paths_for_additional_derivation(next_index_assigner, requests.clone());
+            next_index_assigner.paths_for_additional_derivation(requests.clone());
 
         let keys_collector = KeysCollector::new(
             purpose.factor_sources(),
@@ -166,15 +168,14 @@ impl FactorInstancesProvider {
                 "🎭 derive_more_requests: #{} - ‼️ might result in MANY factor instances right?",
                 derive_more_requests.len()
             );
-            let derive_more_with_abundance =
-                DeriveMoreWithAbundance::new(derive_more_requests, &purpose, next_index_assigner);
+
             let mut newly_derived_to_be_used_directly =
                 IndexSet::<HierarchicalDeterministicFactorInstance>::new();
 
             let newly_derived = Self::derive_more(
                 purpose,
                 next_index_assigner,
-                derive_more_with_abundance,
+                derive_more_requests,
                 derivation_interactors,
             )
             .await?;
