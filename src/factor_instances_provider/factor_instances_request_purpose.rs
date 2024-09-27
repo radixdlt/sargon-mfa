@@ -78,6 +78,7 @@ impl SecurifiedAccounts {
     }
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum FactorInstancesRequestPurpose {
     /// Onboarding Account Recovery Scan
     /// Assumes `Mainnet`
@@ -148,12 +149,12 @@ impl FactorInstancesRequestPurpose {
         // Form requests tied to FactorSources, but without indices, unquantified
         let unquantified = unfactored.for_each_factor_source(factor_sources);
 
-        let quantified = unquantified
+        
+
+        unquantified
             .into_iter()
             .map(|x| QuantifiedUnindexDerivationRequest::quantifying(x, quantity))
-            .collect::<QuantifiedUnindexDerivationRequests>();
-
-        quantified
+            .collect::<QuantifiedUnindexDerivationRequests>()
     }
 
     pub fn requests(&self) -> QuantifiedUnindexDerivationRequests {

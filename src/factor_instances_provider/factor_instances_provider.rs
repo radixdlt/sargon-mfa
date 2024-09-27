@@ -67,9 +67,12 @@ impl NextIndexAssignerWithEphemeralLocalOffsets {
                     with_start_index,
                     ..
                 } => with_start_index,
-                DeriveMoreToSatisfyOriginalRequest::WithoutKnownLastIndex(ref partial) => {
-                    let next = self.next(partial.clone().into());
-                    DerivationRequestWithRange::from((partial.clone(), next))
+                DeriveMoreToSatisfyOriginalRequest::WithoutKnownLastIndex {
+                    ref without_known_last_index,
+                    ..
+                } => {
+                    let next = self.next(without_known_last_index.clone().into());
+                    DerivationRequestWithRange::from((without_known_last_index.clone(), next))
                 }
             })
             .collect::<IndexSet<DerivationRequestWithRange>>();
@@ -100,9 +103,6 @@ impl FactorInstancesProvider {
         requests: IndexSet<DeriveMoreToSatisfyOriginalRequest>,
         derivation_interactors: Arc<dyn KeysDerivationInteractors>,
     ) -> Result<IndexSet<NewlyDerived>> {
-        for apa in requests.iter() {
-            apa.number_of_instances_needed_to_fully_satisfy_request()
-        }
         let derivation_paths =
             next_index_assigner.paths_for_additional_derivation(requests.clone());
 
@@ -125,14 +125,25 @@ impl FactorInstancesProvider {
                 if let Some(number_of_instances_needed_to_fully_satisfy_request) =
                     original.number_of_instances_needed_to_fully_satisfy_request()
                 {
+                    assert!(number_of_instances_needed_to_fully_satisfy_request > 0);
+                    println!(
+                        "♋️ number_of_instances_needed_to_fully_satisfy_request: #{}, v: #{}",
+                        number_of_instances_needed_to_fully_satisfy_request,
+                        v.len()
+                    );
                     let (to_use_directly, to_cache) =
                         v.split_at(number_of_instances_needed_to_fully_satisfy_request);
+
+                    println!("♋️ to_cache: #{}", to_cache.len());
+                    println!("♋️ to_use_directly: #{}", to_use_directly.len());
+
                     NewlyDerived::some_to_use_directly(
                         k,
                         FactorInstances::from(to_cache),
                         FactorInstances::from(to_use_directly),
                     )
                 } else {
+                    println!("♋️ cache_all: {:?}", v);
                     NewlyDerived::cache_all(k, v.into_iter().collect())
                 }
             })
@@ -182,6 +193,11 @@ impl FactorInstancesProvider {
 
             for _newly_derived in newly_derived.into_iter() {
                 let (key, to_cache) = _newly_derived.key_value_for_cache();
+                println!(
+                    "🦄 newly derived more instances: to_use_directly: #{}, to_cache: #{}",
+                    _newly_derived.to_use_directly.len(),
+                    to_cache.len()
+                );
                 cache.put(key, to_cache)?;
 
                 newly_derived_to_be_used_directly.extend(_newly_derived.to_use_directly);
@@ -219,7 +235,7 @@ impl FactorInstancesProvider {
             copy_of_cache.total_number_of_factor_instances()
         );
         let result = Self::_get_factor_instances_outcome(
-            self.purpose,
+            self.purpose.clone(),
             // Take a copy of the cache, so we can modify it without affecting the original,
             // important if this method fails, we do not want to rollback the cache.
             // Instead we update the cache with the returned one in case of success.
@@ -230,8 +246,16 @@ impl FactorInstancesProvider {
         .await;
 
         match result {
-            Ok((outcome, updated_cache, did_derive_new_instances)) => {
+            Ok((mut outcome, updated_cache, did_derive_new_instances)) => {
                 // Replace cache with updated one
+                if let FactorInstancesRequestPurpose::PreDeriveInstancesForNewFactorSource {
+                    ..
+                } = self.purpose
+                {
+                    // uh terrible code... this should have been handled earlier in the code...
+                    updated_cache.put_aggregated(outcome)?;
+                    outcome = FactorInstances::default();
+                }
                 println!(
                     "🍬✅ updating cache to a one with #{} instances",
                     updated_cache.total_number_of_factor_instances()
@@ -292,6 +316,7 @@ mod tests {
             self.cache.try_read().unwrap().clone_snapshot()
         }
         pub fn clear_cache(&self) {
+            println!("💣🧹 clearing cache");
             *self.cache.try_write().unwrap() = PreDerivedKeysCache::default();
         }
         pub async fn new_mainnet_account_with_bdfs(

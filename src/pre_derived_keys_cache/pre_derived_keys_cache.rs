@@ -85,14 +85,9 @@ impl PreDerivedKeysCache {
 
     pub fn new(probably_free_factor_instances: ProbablyFreeFactorInstances) -> Self {
         Self {
-            probably_free_factor_instances: RwLock::new(
-                probably_free_factor_instances
-                    .into_iter()
-                    .into_group_map_by(|x| UnquantifiedUnindexDerivationRequest::from(x.clone()))
-                    .into_iter()
-                    .map(|(k, v)| (k, v.into_iter().collect::<FactorInstances>()))
-                    .collect::<IndexMap<UnquantifiedUnindexDerivationRequest, FactorInstances>>(),
-            ),
+            probably_free_factor_instances: RwLock::new(Self::group(
+                probably_free_factor_instances,
+            )),
         }
     }
 }
@@ -164,12 +159,12 @@ impl PreDerivedKeysCache {
         request: &QuantifiedUnindexDerivationRequest,
     ) -> Result<LoadFromCacheOutcome> {
         let cached = self.consume(request.clone())?;
+        let requested_quantity = request.requested_quantity();
         match cached {
             Some(cached) => {
                 if cached.is_empty() {
-                    return Ok(LoadFromCacheOutcome::CacheIsEmpty);
+                    return Ok(LoadFromCacheOutcome::CacheIsEmpty { requested_quantity });
                 }
-                let requested_quantity = request.requested_quantity();
                 match cached.len().cmp(&requested_quantity) {
                     Ordering::Equal => Ok(LoadFromCacheOutcome::FullySatisfiedWithoutSpare(
                         cached.clone(),
@@ -197,7 +192,7 @@ impl PreDerivedKeysCache {
                     }
                 }
             }
-            None => Ok(LoadFromCacheOutcome::CacheIsEmpty),
+            None => Ok(LoadFromCacheOutcome::CacheIsEmpty { requested_quantity }),
         }
     }
 
@@ -237,5 +232,26 @@ impl PreDerivedKeysCache {
         instances: FactorInstances,
     ) -> Result<()> {
         self.append(key, instances)
+    }
+
+    fn group(
+        mixed: impl IntoIterator<Item = HierarchicalDeterministicFactorInstance>,
+    ) -> IndexMap<UnquantifiedUnindexDerivationRequest, FactorInstances> {
+        mixed
+            .into_iter()
+            .into_group_map_by(|x| UnquantifiedUnindexDerivationRequest::from(x.clone()))
+            .into_iter()
+            .map(|(k, v)| (k, v.into_iter().collect::<FactorInstances>()))
+            .collect::<IndexMap<UnquantifiedUnindexDerivationRequest, FactorInstances>>()
+    }
+
+    pub fn put_aggregated(&self, mixed: FactorInstances) -> Result<()> {
+        let instances_per_request = Self::group(mixed);
+
+        for (k, v) in instances_per_request.into_iter() {
+            self.put(k, v)?;
+        }
+
+        Ok(())
     }
 }

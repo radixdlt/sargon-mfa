@@ -8,7 +8,10 @@ pub enum DeriveMoreToSatisfyOriginalRequest {
     },
     /// When cache is empty, we don't know the last index, in this context,
     /// we will need to use the NextIndexAssigner.
-    WithoutKnownLastIndex(QuantifiedUnindexDerivationRequest),
+    WithoutKnownLastIndex {
+        without_known_last_index: QuantifiedUnindexDerivationRequest,
+        requested_quantity: usize,
+    },
 }
 impl DeriveMoreToSatisfyOriginalRequest {
     /// `None` for `WithoutKnownLastIndex`, only `Some` for `WithKnownStartIndex`
@@ -19,7 +22,9 @@ impl DeriveMoreToSatisfyOriginalRequest {
                 number_of_instances_needed_to_fully_satisfy_request,
                 ..
             } => *number_of_instances_needed_to_fully_satisfy_request,
-            Self::WithoutKnownLastIndex(_) => None,
+            Self::WithoutKnownLastIndex {
+                requested_quantity, ..
+            } => Some(*requested_quantity),
         }
     }
     pub fn unquantified(&self) -> UnquantifiedUnindexDerivationRequest {
@@ -27,7 +32,10 @@ impl DeriveMoreToSatisfyOriginalRequest {
             Self::WithKnownStartIndex {
                 with_start_index, ..
             } => with_start_index.clone().into(),
-            Self::WithoutKnownLastIndex(request) => request.clone().into(),
+            Self::WithoutKnownLastIndex {
+                without_known_last_index,
+                ..
+            } => without_known_last_index.clone().into(),
         }
     }
 }
