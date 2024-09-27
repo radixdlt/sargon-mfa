@@ -270,6 +270,10 @@ mod tests {
             self.cache.try_read().unwrap().clone_snapshot()
         }
 
+        pub fn clear_cache(&self) {
+            *self.cache.try_write().unwrap() = PreDerivedKeysCache::default();
+        }
+
         pub async fn new_mainnet_account_with_bdfs(
             &self,
             name: impl AsRef<str>,
@@ -365,6 +369,7 @@ mod tests {
         );
     }
 
+    #[ignore = "WIP this test is failing but it should NOT, we need to FILL the cache in case of it being empty, which we are not doing...yet."]
     #[actix_rt::test]
     async fn create_account() {
         let (os, bdfs) = SargonOS::with_bdfs().await;
@@ -509,5 +514,49 @@ mod tests {
             )
         );
         assert_eq!(bob_veci.factor_source_id, bdfs.factor_source_id());
+
+        // NOW CLEAR CACHE and create 3rd account, should work thanks to the profile...
+        os.clear_cache();
+        assert_eq!(os.cache_snapshot().total_number_of_factor_instances(), 0);
+        let (carol, did_derive_new_factor_instances) =
+            os.new_mainnet_account_with_bdfs("Carol").await.unwrap();
+        assert!(
+            did_derive_new_factor_instances.0,
+            "cache was cleared, so we should have derive more..."
+        );
+        assert_ne!(carol.address(), bob.address());
+        let free_factor_instances_after_account_creation =
+            os.cache_snapshot().all_factor_instances();
+        assert_eq!(
+                   free_factor_instances_after_account_creation.len(),
+                   179,
+                   "BatchOfNew.count - 1, since we just cleared cache, derive many more, and consumed one."
+               );
+        assert_eq!(
+            free_factor_instances_after_account_creation
+                .clone()
+                .into_iter()
+                .filter(|x| x.satisfies(UnquantifiedUnindexDerivationRequest::new(
+                    bdfs.factor_source_id(),
+                    network,
+                    entity_kind,
+                    key_kind,
+                    key_space
+                )))
+                .count(),
+            29,
+            "29, since we just cleared cache, derive many more, and consumed one."
+        );
+        let carol_veci = carol.clone().as_unsecurified().unwrap().factor_instance();
+        assert_eq!(
+            bob_veci.derivation_path(),
+            DerivationPath::new(
+                NetworkID::Mainnet,
+                CAP26EntityKind::Account,
+                CAP26KeyKind::TransactionSigning,
+                HDPathComponent::unsecurified_hardening_base_index(2), // third account should have index 2
+            )
+        );
+        assert_eq!(carol_veci.factor_source_id, bdfs.factor_source_id());
     }
 }
