@@ -217,12 +217,10 @@ impl FactorInstancesProvider {
                     let (to_use_directly, to_cache) =
                         v.split_at(number_of_instances_to_use_directly);
 
-                    let to_use_directly = to_use_directly
-                        .into_iter()
-                        .cloned()
-                        .collect::<FactorInstances>();
+                    let to_use_directly =
+                        to_use_directly.iter().cloned().collect::<FactorInstances>();
 
-                    let to_cache = to_cache.into_iter().cloned().collect::<FactorInstances>();
+                    let to_cache = to_cache.iter().cloned().collect::<FactorInstances>();
 
                     NewlyDerived::maybe_some_to_use_directly(k, to_cache, to_use_directly)
                 } else {

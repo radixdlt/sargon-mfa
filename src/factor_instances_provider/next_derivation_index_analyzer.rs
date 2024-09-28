@@ -132,8 +132,6 @@ impl NextIndexAssignerWithEphemeralLocalOffsets {
 
         let from_local = self.ephemeral_local_offsets.write_next(unindexed_request);
 
-        let next = from_profile.add_n(from_local as HDPathValue);
-
-        next
+        from_profile.add_n(from_local as HDPathValue)
     }
 }

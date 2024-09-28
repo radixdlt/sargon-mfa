@@ -144,8 +144,8 @@ impl FactorInstancesRequestPurpose {
         let unfactored = self.unfactored_requests();
 
         // Form requests tied to FactorSources, but without indices, unquantified
-        let unquantified = unfactored.for_each_factor_source(factor_sources);
-        unquantified
+
+        unfactored.for_each_factor_source(factor_sources)
     }
 
     pub fn requests_with_quantity(
@@ -153,12 +153,11 @@ impl FactorInstancesRequestPurpose {
         quantity: DerivationRequestQuantitySelector,
     ) -> QuantifiedUnindexDerivationRequests {
         let unquantified = self.unquantified_factored();
-        let quantified = unquantified
+
+        unquantified
             .into_iter()
             .map(|x| QuantifiedUnindexDerivationRequest::quantifying(x, quantity))
-            .collect::<QuantifiedUnindexDerivationRequests>();
-
-        quantified
+            .collect::<QuantifiedUnindexDerivationRequests>()
     }
 
     pub fn requests(&self) -> QuantifiedUnindexDerivationRequests {
