@@ -76,6 +76,7 @@ impl FactorInstancesProvider {
         next_index_assigner: &NextIndexAssignerWithEphemeralLocalOffsets,
         requests_to_satisfy_request: IndexSet<DeriveMore>,
         original_purpose: FactorInstancesRequestPurpose,
+        cache: PreDerivedKeysCache, // check if already saturated
     ) -> IndexMap<FactorSourceIDFromHash, IndexSet<DerivationPath>> {
         let fill_cache_for_all_referenced_factor_source =
             fill_cache_for_every_factor_source_in(original_purpose);
@@ -83,6 +84,10 @@ impl FactorInstancesProvider {
         let fill_cache = fill_cache_for_all_referenced_factor_source
             .into_iter()
             .filter(|x| {
+                if cache.is_saturated_for(x) {
+                    return false;
+                }
+
                 let original_contains_matching =
                     requests_to_satisfy_request
                         .iter()
@@ -186,11 +191,13 @@ impl FactorInstancesProvider {
         next_index_assigner: &NextIndexAssignerWithEphemeralLocalOffsets,
         requests_to_satisfy_request: IndexSet<DeriveMore>,
         derivation_interactors: Arc<dyn KeysDerivationInteractors>,
+        cache: PreDerivedKeysCache, // check if already saturated
     ) -> Result<IndexSet<NewlyDerived>> {
         let derivation_paths = Self::paths_for_additional_derivation(
             next_index_assigner,
             requests_to_satisfy_request.clone(),
             purpose.clone(),
+            cache,
         );
 
         let keys_collector = KeysCollector::new(
@@ -260,6 +267,7 @@ impl FactorInstancesProvider {
                 next_index_assigner,
                 derive_more_requests,
                 derivation_interactors,
+                cache.clone_snapshot(), // check if already saturated
             )
             .await?;
 
@@ -369,6 +377,7 @@ mod tests {
         }
 
         pub fn clear_cache(&self) {
+            println!("💣 CLEAR CACHE");
             *self.cache.try_write().unwrap() = PreDerivedKeysCache::default();
         }
 
@@ -394,6 +403,7 @@ mod tests {
             network: NetworkID,
             name: impl AsRef<str>,
         ) -> Result<(Account, DidDeriveNewFactorInstances)> {
+            println!("🔮 Creating account: '{}'", name.as_ref());
             let interactors: Arc<dyn KeysDerivationInteractors> =
                 Arc::new(TestDerivationInteractors::default());
 
@@ -412,6 +422,19 @@ mod tests {
 
             assert_eq!(instances.len(), 1);
             let instance = instances.into_iter().next().unwrap();
+            println!("🇸🇪🚀 instance: {:?}", instance);
+            println!(
+                "🇸🇪🚀 cache: {:?}",
+                self.cache_snapshot()
+                    .all_factor_instances()
+                    .into_iter()
+                    .map(|f| f.derivation_path())
+                    .filter(|x| x.entity_kind == CAP26EntityKind::Account
+                        && x.key_kind == CAP26KeyKind::TransactionSigning
+                        && x.index.key_space() == KeySpace::Unsecurified)
+                    .map(|x| x.index)
+                    .collect_vec()
+            );
             let address = AccountAddress::new(network, instance.public_key_hash());
             let account = Account::new(name, address, EntitySecurityState::Unsecured(instance));
             self.profile.try_write().unwrap().add_account(&account);
@@ -689,30 +712,36 @@ mod tests {
         assert_eq!(diana_veci.factor_source_id, bdfs.factor_source_id());
 
         let expected_start = 4; // Diana used 3, so next should be 4
-        let count = 6;
+        let count = DerivationRequestQuantitySelector::FILL_CACHE_QUANTITY - 2; // there should be FILL_CACHE_QUANTITY - 2 left in the cache (1st used for Carol, 2nd used for Diana)
         let mut derivation_entity_indices = IndexSet::<HDPathComponent>::new();
 
-        for i in 0..count {
+        for i in expected_start..expected_start + count {
             let (account, did_derive_new_factor_instances) = os
-                .new_mainnet_account_with_bdfs("some account")
+                .new_mainnet_account_with_bdfs(format!("Acco: {}", i))
                 .await
                 .unwrap();
-            assert!(!did_derive_new_factor_instances.0, "should have used cache");
-            derivation_entity_indices.insert(
-                account
-                    .as_unsecurified()
-                    .unwrap()
-                    .veci()
-                    .factor_instance()
-                    .derivation_entity_index(),
+            assert_eq!(
+                did_derive_new_factor_instances.0,
+                i == expected_start + count - 1
             );
+            let derivation_entity_index = account
+                .as_unsecurified()
+                .unwrap()
+                .veci()
+                .factor_instance()
+                .derivation_entity_index();
+
+            assert_eq!(derivation_entity_index.base_index() as usize, i);
+
+            derivation_entity_indices.insert(derivation_entity_index);
         }
         assert_eq!(
-            derivation_entity_indices
-                .into_iter()
-                .map(|x| x.to_string())
-                .collect_vec(),
-            vec!["4'", "5'", "6'", "7'", "8'", "9'"]
+            *derivation_entity_indices.first().unwrap(),
+            HDPathComponent::unsecurified_hardening_base_index(expected_start as u32)
+        );
+        assert_eq!(
+            *derivation_entity_indices.last().unwrap(),
+            HDPathComponent::unsecurified_hardening_base_index((expected_start + count - 1) as u32)
         );
     }
 }

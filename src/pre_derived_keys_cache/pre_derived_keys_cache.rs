@@ -111,9 +111,14 @@ impl PreDerivedKeysCache {
         let maybe_existing = self.consume(key.clone())?;
         let mut values = maybe_existing.unwrap_or_default();
 
-        assert!(values
-            .factor_instances()
-            .is_disjoint(&to_append.factor_instances()));
+        assert!(
+            values
+                .factor_instances()
+                .is_disjoint(&to_append.factor_instances()),
+            "Non disjoin sets, \n🔵 existing values: {:?}\n 💙,\n\n🟢 to_append: {:?}\n💚\n",
+            values.factor_instances(),
+            to_append.factor_instances()
+        );
 
         values.append(to_append);
 
@@ -241,5 +246,14 @@ impl PreDerivedKeysCache {
         instances: FactorInstances,
     ) -> Result<()> {
         self.append(key, instances)
+    }
+
+    pub fn is_saturated_for(&self, req: &QuantifiedUnindexDerivationRequest) -> bool {
+        let key = UnquantifiedUnindexDerivationRequest::from(req.clone());
+        if let Ok(Some(existing)) = self.peek(key) {
+            existing.len() >= req.requested_quantity()
+        } else {
+            false
+        }
     }
 }
