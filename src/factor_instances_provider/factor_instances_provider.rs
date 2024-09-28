@@ -228,7 +228,11 @@ impl FactorInstancesProvider {
                         to_use_directly.iter().cloned().collect::<FactorInstances>();
 
                     let to_cache = to_cache.iter().cloned().collect::<FactorInstances>();
-
+                    println!(
+                        "🍭 to_cache: #{}, to_use_directly: #{}",
+                        to_cache.len(),
+                        to_use_directly.len()
+                    );
                     NewlyDerived::maybe_some_to_use_directly(k, to_cache, to_use_directly)
                 } else {
                     let to_cache = v.into_iter().collect::<FactorInstances>();
@@ -711,18 +715,33 @@ mod tests {
         );
         assert_eq!(diana_veci.factor_source_id, bdfs.factor_source_id());
 
-        let expected_start = 4; // Diana used 3, so next should be 4
-        let count = DerivationRequestQuantitySelector::FILL_CACHE_QUANTITY - 2; // there should be FILL_CACHE_QUANTITY - 2 left in the cache (1st used for Carol, 2nd used for Diana)
-        let mut derivation_entity_indices = IndexSet::<HDPathComponent>::new();
+        // Now lets derive a bunch using only keys in cache but without using the last
+        let expected_start = diana_veci.derivation_entity_base_index() + 1;
+        assert_eq!(expected_start, 4); // Diana used 3, so next should be 4
 
+        let left_in_cache = os
+            .cache_snapshot()
+            .all_factor_instances()
+            .into_iter()
+            .map(|x| x.derivation_path())
+            .filter(|x| {
+                x.entity_kind == CAP26EntityKind::Account
+                    && x.key_kind == CAP26KeyKind::TransactionSigning
+                    && x.index.key_space() == KeySpace::Unsecurified
+            })
+            .count();
+
+        let count = (left_in_cache - 1) as u32; // -1 since if we were to use the last one the FactorInstancesProvider will
+                                                // fill the cache, but we want to derive using all instances without filling the cache yet again
+        let mut derivation_entity_indices = IndexSet::<HDPathComponent>::new();
         for i in expected_start..expected_start + count {
             let (account, did_derive_new_factor_instances) = os
                 .new_mainnet_account_with_bdfs(format!("Acco: {}", i))
                 .await
                 .unwrap();
-            assert_eq!(
-                did_derive_new_factor_instances.0,
-                i == expected_start + count - 1
+            assert!(
+                !did_derive_new_factor_instances.0,
+                "should have used the cache"
             );
             let derivation_entity_index = account
                 .as_unsecurified()
@@ -731,17 +750,35 @@ mod tests {
                 .factor_instance()
                 .derivation_entity_index();
 
-            assert_eq!(derivation_entity_index.base_index() as usize, i);
+            assert_eq!(derivation_entity_index.base_index(), i);
 
             derivation_entity_indices.insert(derivation_entity_index);
         }
         assert_eq!(
             *derivation_entity_indices.first().unwrap(),
-            HDPathComponent::unsecurified_hardening_base_index(expected_start as u32)
+            HDPathComponent::unsecurified_hardening_base_index(expected_start)
         );
         assert_eq!(
             *derivation_entity_indices.last().unwrap(),
-            HDPathComponent::unsecurified_hardening_base_index((expected_start + count - 1) as u32)
+            HDPathComponent::unsecurified_hardening_base_index(expected_start + count - 1)
+        );
+        assert_eq!(derivation_entity_indices.last().unwrap().base_index(), 30);
+
+        let (last_in_cache, did_use_cache) = os
+            .new_mainnet_account_with_bdfs("Last of the...")
+            .await
+            .unwrap();
+        assert!(did_use_cache.0, "should have use (last) in the cache");
+
+        assert_eq!(
+            last_in_cache
+                .as_unsecurified()
+                .unwrap()
+                .veci()
+                .factor_instance()
+                .derivation_entity_index()
+                .base_index(),
+            31
         );
     }
 }

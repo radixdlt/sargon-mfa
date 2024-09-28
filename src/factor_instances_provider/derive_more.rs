@@ -32,19 +32,6 @@ impl DeriveMore {
         }
     }
 
-    fn _number_of_instances_needed_to_fully_satisfy_request(&self) -> Option<usize> {
-        match self {
-            Self::WithKnownStartIndex {
-                number_of_instances_needed_to_fully_satisfy_request,
-                ..
-            } => *number_of_instances_needed_to_fully_satisfy_request,
-            Self::WithoutKnownLastIndex {
-                number_of_instances_needed_to_fully_satisfy_request,
-                ..
-            } => Some(*number_of_instances_needed_to_fully_satisfy_request),
-        }
-    }
-
     pub fn unquantified(&self) -> UnquantifiedUnindexDerivationRequest {
         match self {
             Self::WithKnownStartIndex {
