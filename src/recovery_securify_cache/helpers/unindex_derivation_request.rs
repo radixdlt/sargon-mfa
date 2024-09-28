@@ -147,7 +147,7 @@ pub enum DerivationRequestQuantitySelector {
     Poly { count: usize },
 }
 impl DerivationRequestQuantitySelector {
-    pub const FILL_CACHE_QUANTITY: usize = 3;
+    pub const FILL_CACHE_QUANTITY: usize = 30;
     pub fn fill_cache_if_needed() -> Self {
         DerivationRequestQuantitySelector::Poly {
             count: Self::FILL_CACHE_QUANTITY,

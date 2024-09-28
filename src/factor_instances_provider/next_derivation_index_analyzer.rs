@@ -76,33 +76,12 @@ impl NextDerivationIndexFromProfile {
                     .profile_snapshot
                     .get_unsecurified_entities_of_kind_on_network(entity_kind, network_id);
 
-                println!(
-                    "🎭🎭🎭 NextDerivationIndexFromProfile, all_unsecurified_in_profile: #{}",
-                    all_unsecurified_in_profile.len()
-                );
-
-                let apor = all_unsecurified_in_profile
+                all_unsecurified_in_profile
                     .into_iter()
                     .map(|x: UnsecurifiedEntity| x.veci().factor_instance())
                     .filter(|fi| fi.matches(&unindexed_request))
-                    .collect::<IndexSet<_>>();
-
-                println!(
-                    "🎭🎭🎭 NextDerivationIndexFromProfile, apor: #{}",
-                    apor.len()
-                );
-
-                let bananer = apor
-                    .into_iter()
                     .map(|fi| fi.derivation_path().index)
-                    .collect::<IndexSet<_>>();
-
-                println!(
-                    "🎭🎭🎭 NextDerivationIndexFromProfile, bananer: {:?}",
-                    bananer
-                );
-
-                bananer.into_iter().max()
+                    .max()
             }
         };
 
@@ -151,19 +130,9 @@ impl NextIndexAssignerWithEphemeralLocalOffsets {
             .and_then(|p| p.read_next(unindexed_request.clone()))
             .unwrap_or(default);
 
-        println!(
-            "🎭 NextIndexAssignerWithEphemeralLocalOffs, from_profile: {}",
-            from_profile.base_index()
-        );
-
         let from_local = self.ephemeral_local_offsets.write_next(unindexed_request);
 
         let next = from_profile.add_n(from_local as HDPathValue);
-
-        println!(
-            "🎭 NextIndexAssignerWithEphemeralLocalOffs, next: {:?}",
-            next
-        );
 
         next
     }

@@ -166,39 +166,6 @@ impl FactorInstancesProvider {
         requests_with_ranges_with_abundance.extend(requests_to_satisfy_with_ranges);
         requests_with_ranges_with_abundance.extend(fill_cache);
 
-        // for x in fill_cache.into_iter() {
-        //     if let Some(request_with_range_without_abundance) =
-        //         requests_to_satisfy_with_ranges.iter().find(|y| {
-        //             let h = UnquantifiedUnindexDerivationRequest::from((*y).clone());
-        //             UnquantifiedUnindexDerivationRequest::from(x.clone()) == h
-        //         })
-        //     {
-        //         let request_with_range_with_abundance: DerivationRequestWithRange = {
-        //             let quantity = 1 - 2;
-        //             let start_base_index = 5 - 7;
-        //             DerivationRequestWithRange::new(
-        //                 request_with_range_without_abundance.factor_source_id,
-        //                 request_with_range_without_abundance.network_id,
-        //                 request_with_range_without_abundance.entity_kind,
-        //                 request_with_range_without_abundance.key_kind,
-        //                 request_with_range_without_abundance.key_space,
-        //                 quantity,
-        //                 start_base_index,
-        //             )
-        //         };
-
-        //         requests_with_ranges_with_abundance
-        //             .insert(request_with_range_with_abundance.clone());
-
-        //         requests_to_satisfy_with_ranges.swap_remove(request_with_range_without_abundance);
-        //     } else {
-        //         let next = next_index_assigner.next(x.clone().into());
-        //         let request_with_range_with_abundance =
-        //             DerivationRequestWithRange::from((x.clone(), next));
-        //         requests_with_ranges_with_abundance.insert(request_with_range_with_abundance);
-        //     }
-        // }
-
         requests_with_ranges_with_abundance
             .into_iter()
             .into_group_map_by(|x| x.factor_source_id)
@@ -225,8 +192,6 @@ impl FactorInstancesProvider {
             requests_to_satisfy_request.clone(),
             purpose.clone(),
         );
-
-        println!("🚀 deriving more, derivation_paths: {:?}", derivation_paths);
 
         let keys_collector = KeysCollector::new(
             purpose.factor_sources(),
@@ -259,16 +224,9 @@ impl FactorInstancesProvider {
 
                     let to_cache = to_cache.into_iter().cloned().collect::<FactorInstances>();
 
-                    println!(
-                        "🍬⭐️ purpose: {:?}, using directly: {:?}, caching: {:?}",
-                        purpose.clone(),
-                        to_use_directly,
-                        to_cache
-                    );
                     NewlyDerived::maybe_some_to_use_directly(k, to_cache, to_use_directly)
                 } else {
                     let to_cache = v.into_iter().collect::<FactorInstances>();
-                    println!("🍬🤷‍♀️ Caching #{} instances", to_cache.len());
                     NewlyDerived::cache_all(k, to_cache)
                 }
             })
@@ -413,7 +371,6 @@ mod tests {
         }
 
         pub fn clear_cache(&self) {
-            println!("💣 clearing cache!!!");
             *self.cache.try_write().unwrap() = PreDerivedKeysCache::default();
         }
 
@@ -439,11 +396,6 @@ mod tests {
             network: NetworkID,
             name: impl AsRef<str>,
         ) -> Result<(Account, DidDeriveNewFactorInstances)> {
-            println!(
-                "🔮 ADDING ACCOUNT: '{}', number of accounts in profile: #{}",
-                name.as_ref(),
-                self.profile_snapshot().accounts.len()
-            );
             let interactors: Arc<dyn KeysDerivationInteractors> =
                 Arc::new(TestDerivationInteractors::default());
 
@@ -676,14 +628,6 @@ mod tests {
         let free_factor_instances_after_account_creation =
             os.cache_snapshot().all_factor_instances();
 
-        println!(
-            "🐳 DEBUG printing cache: #{}",
-            os.cache_snapshot().all_factor_instances().len()
-        );
-        println!(
-            "🐳🐳🐳 DEBUG printing cache: {:?}",
-            os.cache_snapshot().all_factor_instances()
-        );
         assert_eq!(
                    free_factor_instances_after_account_creation.len(),
                    (DerivationRequestQuantitySelector::FILL_CACHE_QUANTITY * 6 ) - 1,
