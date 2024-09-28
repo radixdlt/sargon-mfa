@@ -1329,6 +1329,7 @@ pub trait IsEntity: Into<AccountOrPersona> + TryFrom<AccountOrPersona> + Clone {
         name: impl AsRef<str>,
         address: Self::Address,
         security_state: impl Into<EntitySecurityState>,
+        third_party_deposit: impl Into<Option<ThirdPartyDepositPreference>>,
     ) -> Self;
 
     fn unsecurified_mainnet(
@@ -1343,6 +1344,7 @@ pub trait IsEntity: Into<AccountOrPersona> + TryFrom<AccountOrPersona> + Clone {
             name,
             address,
             EntitySecurityState::Unsecured(genesis_factor_instance),
+            ThirdPartyDepositPreference::default(),
         )
     }
 
@@ -1365,6 +1367,7 @@ pub trait IsEntity: Into<AccountOrPersona> + TryFrom<AccountOrPersona> + Clone {
                 access_controller,
                 None, // TODO add this as a parameter to this ctor
             )),
+            ThirdPartyDepositPreference::default(),
         )
     }
 
@@ -1399,6 +1402,7 @@ pub trait IsEntity: Into<AccountOrPersona> + TryFrom<AccountOrPersona> + Clone {
     fn entity_address(&self) -> Self::Address;
 
     fn name(&self) -> String;
+    fn third_party_deposit(&self) -> ThirdPartyDepositPreference;
     fn kind() -> CAP26EntityKind {
         Self::Address::entity_kind()
     }
@@ -1422,6 +1426,7 @@ pub struct AbstractEntity<A: Clone + Into<AddressOfAccountOrPersona> + EntityKin
     address: A,
     pub name: String,
     pub security_state: EntitySecurityState,
+    pub third_party_deposit: ThirdPartyDepositPreference,
 }
 pub type Account = AbstractEntity<AccountAddress>;
 
@@ -1456,11 +1461,13 @@ impl IsEntity for Account {
         name: impl AsRef<str>,
         address: Self::Address,
         security_state: impl Into<EntitySecurityState>,
+        third_party_deposit: impl Into<Option<ThirdPartyDepositPreference>>,
     ) -> Self {
         Self {
             name: name.as_ref().to_owned(),
             address,
             security_state: security_state.into(),
+            third_party_deposit: third_party_deposit.into().unwrap_or_default(),
         }
     }
     fn name(&self) -> String {
@@ -1472,6 +1479,9 @@ impl IsEntity for Account {
     }
     fn entity_address(&self) -> Self::Address {
         self.address.clone()
+    }
+    fn third_party_deposit(&self) -> ThirdPartyDepositPreference {
+        self.third_party_deposit
     }
     fn e0() -> Self {
         Self::a0()
@@ -1505,11 +1515,13 @@ impl IsEntity for Persona {
         name: impl AsRef<str>,
         address: IdentityAddress,
         security_state: impl Into<EntitySecurityState>,
+        third_party_deposit: impl Into<Option<ThirdPartyDepositPreference>>,
     ) -> Self {
         Self {
             name: name.as_ref().to_owned(),
             address,
             security_state: security_state.into(),
+            third_party_deposit: third_party_deposit.into().unwrap_or_default(),
         }
     }
     type Address = IdentityAddress;
@@ -1518,6 +1530,9 @@ impl IsEntity for Persona {
     }
     fn name(&self) -> String {
         self.name.clone()
+    }
+    fn third_party_deposit(&self) -> ThirdPartyDepositPreference {
+        self.third_party_deposit
     }
     fn entity_address(&self) -> Self::Address {
         self.address.clone()
@@ -2106,6 +2121,14 @@ impl Profile {
         Ok(())
     }
 
+    pub fn update_account(&mut self, account: &Account) -> Result<()> {
+        assert!(self
+            .accounts
+            .insert(account.entity_address(), account.clone())
+            .is_some());
+        Ok(())
+    }
+
     pub fn add_persona(&mut self, persona: &Persona) -> Result<()> {
         self.personas
             .insert(persona.entity_address(), persona.clone());
@@ -2261,8 +2284,14 @@ pub enum CommonError {
     #[error("FactorInstances does not satisfy derivation requests")]
     FactorInstancesDoesNotSatisfyDerivationRequests,
 
-    #[error("Next Derivatin Entity Index From Profile Analyser not present, but required")]
+    #[error("Next Derivation Entity Index From Profile Analyser not present, but required")]
     ProfileIndexAssignerNotPresent,
+
+    #[error("Wrong network")]
+    WrongNetwork,
+
+    #[error("Empty collection")]
+    EmptyCollection,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -2515,12 +2544,21 @@ impl HasSampleValues for ComponentMetadata {
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct AccessController {
     pub address: AccessControllerAddress,
-    pub metadata: ComponentMetadata,
+    pub metadata: Option<ComponentMetadata>,
 }
 
 impl AccessController {
-    pub fn new(address: AccessControllerAddress, metadata: ComponentMetadata) -> Self {
-        Self { address, metadata }
+    pub fn new(
+        address: AccessControllerAddress,
+        metadata: impl Into<Option<ComponentMetadata>>,
+    ) -> Self {
+        Self {
+            address,
+            metadata: metadata.into(),
+        }
+    }
+    pub fn from_unsecurified_address<E: IsEntityAddress>(entity_address: E) -> Self {
+        Self::new(AccessControllerAddress::new(entity_address), None)
     }
 }
 

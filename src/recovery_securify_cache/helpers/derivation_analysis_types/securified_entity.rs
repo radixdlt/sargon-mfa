@@ -4,6 +4,7 @@ use crate::prelude::*;
 /// Securified entity.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct SecurifiedAccount {
+    name: String,
     /// The address which is verified to match the `veci`
     account_address: AccountAddress,
 
@@ -16,8 +17,33 @@ pub struct SecurifiedAccount {
 }
 
 impl SecurifiedAccount {
+    pub fn new(
+        name: String,
+        address: AccountAddress,
+        securified_entity_control: SecurifiedEntityControl,
+        third_party_deposit: impl Into<Option<ThirdPartyDepositPreference>>,
+    ) -> Self {
+        Self {
+            name,
+            account_address: address,
+            securified_entity_control,
+            third_party_deposit: third_party_deposit.into(),
+        }
+    }
+    pub fn account(&self) -> Account {
+        Account::new(
+            self.name.clone(),
+            self.address(),
+            EntitySecurityState::Securified(self.securified_entity_control()),
+            self.third_party_deposit,
+        )
+    }
     pub fn address(&self) -> AccountAddress {
         self.account_address.clone()
+    }
+
+    pub fn network_id(&self) -> NetworkID {
+        self.address().network_id()
     }
 
     pub fn securified_entity_control(&self) -> SecurifiedEntityControl {
@@ -97,9 +123,21 @@ impl From<SecurifiedEntity> for AccountOrPersona {
         let security_state = EntitySecurityState::Securified(value.securified_entity_control());
 
         if let Ok(account_address) = address.clone().into_account() {
-            Account::new(name, account_address, security_state).into()
+            Account::new(
+                name,
+                account_address,
+                security_state,
+                value.third_party_deposit(),
+            )
+            .into()
         } else if let Ok(identity_address) = address.clone().into_identity() {
-            Persona::new(name, identity_address, security_state).into()
+            Persona::new(
+                name,
+                identity_address,
+                security_state,
+                value.third_party_deposit(),
+            )
+            .into()
         } else {
             unreachable!("Either account or persona.")
         }

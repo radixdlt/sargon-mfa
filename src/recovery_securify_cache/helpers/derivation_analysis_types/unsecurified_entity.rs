@@ -102,7 +102,7 @@ impl From<UnsecurifiedEntity> for Account {
         let security_state = EntitySecurityState::Unsecured(value.factor_instance());
 
         if let Ok(account_address) = address.clone().into_account() {
-            Account::new(name, account_address, security_state)
+            Account::new(name, account_address, security_state, None)
         } else {
             panic!("Not an AccountAddress")
         }
@@ -115,9 +115,9 @@ impl From<UnsecurifiedEntity> for AccountOrPersona {
         let security_state = EntitySecurityState::Unsecured(value.factor_instance());
 
         if let Ok(account_address) = address.clone().into_account() {
-            Account::new(name, account_address, security_state).into()
+            Account::new(name, account_address, security_state, None).into()
         } else if let Ok(identity_address) = address.clone().into_identity() {
-            Persona::new(name, identity_address, security_state).into()
+            Persona::new(name, identity_address, security_state, None).into()
         } else {
             unreachable!("Either account or persona.")
         }
