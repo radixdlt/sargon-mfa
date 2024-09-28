@@ -32,8 +32,10 @@ pub enum LoadFromCacheOutcome {
         number_of_instances_needed_to_fully_satisfy_request: usize,
     },
 
-    /// The cache countained no FactorInstances for the single request.
-    CacheIsEmpty,
+    /// The cache contained no FactorInstances for the single request.
+    CacheIsEmpty {
+        number_of_instances_needed_to_fully_satisfy_request: usize,
+    },
 }
 
 impl LoadFromCacheOutcome {
@@ -46,7 +48,7 @@ impl LoadFromCacheOutcome {
             LoadFromCacheOutcome::PartiallySatisfied {
                 partial_from_cache, ..
             } => Some(partial_from_cache.clone()),
-            LoadFromCacheOutcome::CacheIsEmpty => None,
+            LoadFromCacheOutcome::CacheIsEmpty { .. } => None,
         }
     }
 }
@@ -114,7 +116,11 @@ impl LoadFromCacheOutcomeForSingleRequest {
                     number_of_instances_needed_to_fully_satisfy_request,
                 }
             }
-            LoadFromCacheOutcome::CacheIsEmpty => Action::CacheIsEmpty,
+            LoadFromCacheOutcome::CacheIsEmpty {
+                number_of_instances_needed_to_fully_satisfy_request,
+            } => Action::CacheIsEmpty {
+                number_of_instances_needed_to_fully_satisfy_request,
+            },
         }
     }
 }
@@ -127,7 +133,9 @@ pub enum Action {
         derive_more: DerivationRequestWithRange,
         number_of_instances_needed_to_fully_satisfy_request: usize,
     },
-    CacheIsEmpty,
+    CacheIsEmpty {
+        number_of_instances_needed_to_fully_satisfy_request: usize,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

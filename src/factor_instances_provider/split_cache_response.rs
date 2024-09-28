@@ -50,8 +50,13 @@ pub(super) fn split_cache_response(
                     ),
                 });
             }
-            Action::CacheIsEmpty => {
-                derive_more_requests.insert(DeriveMore::WithoutKnownLastIndex(outcome.request));
+            Action::CacheIsEmpty {
+                number_of_instances_needed_to_fully_satisfy_request,
+            } => {
+                derive_more_requests.insert(DeriveMore::WithoutKnownLastIndex {
+                    request: outcome.request,
+                    number_of_instances_needed_to_fully_satisfy_request,
+                });
             }
         }
     }

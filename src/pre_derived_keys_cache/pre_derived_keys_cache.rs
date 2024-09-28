@@ -164,12 +164,14 @@ impl PreDerivedKeysCache {
         request: &QuantifiedUnindexDerivationRequest,
     ) -> Result<LoadFromCacheOutcome> {
         let cached = self.consume(request.clone())?;
+        let requested_quantity = request.requested_quantity();
         match cached {
             Some(cached) => {
                 if cached.is_empty() {
-                    return Ok(LoadFromCacheOutcome::CacheIsEmpty);
+                    return Ok(LoadFromCacheOutcome::CacheIsEmpty {
+                        number_of_instances_needed_to_fully_satisfy_request: requested_quantity,
+                    });
                 }
-                let requested_quantity = request.requested_quantity();
                 match cached.len().cmp(&requested_quantity) {
                     Ordering::Equal => Ok(LoadFromCacheOutcome::FullySatisfiedWithoutSpare(
                         cached.clone(),
@@ -197,7 +199,9 @@ impl PreDerivedKeysCache {
                     }
                 }
             }
-            None => Ok(LoadFromCacheOutcome::CacheIsEmpty),
+            None => Ok(LoadFromCacheOutcome::CacheIsEmpty {
+                number_of_instances_needed_to_fully_satisfy_request: requested_quantity,
+            }),
         }
     }
 

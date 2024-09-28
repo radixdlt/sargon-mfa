@@ -50,7 +50,7 @@ impl DerivationRequestWithRange {
     pub fn range(&self) -> Range<HDPathValue> {
         self.start_base_index..(self.start_base_index + self.quantity as u32)
     }
-    fn new(
+    pub fn new(
         factor_source_id: FactorSourceIDFromHash,
         network_id: NetworkID,
         entity_kind: CAP26EntityKind,
@@ -147,8 +147,11 @@ pub enum DerivationRequestQuantitySelector {
     Poly { count: usize },
 }
 impl DerivationRequestQuantitySelector {
+    pub const FILL_CACHE_QUANTITY: usize = 3;
     pub fn fill_cache_if_needed() -> Self {
-        DerivationRequestQuantitySelector::Poly { count: 30 }
+        DerivationRequestQuantitySelector::Poly {
+            count: Self::FILL_CACHE_QUANTITY,
+        }
     }
 }
 
@@ -187,7 +190,7 @@ impl QuantifiedUnindexDerivationRequest {
             quantity,
         )
     }
-    fn new(
+    pub fn new(
         factor_source_id: FactorSourceIDFromHash,
         network_id: NetworkID,
         entity_kind: CAP26EntityKind,

@@ -6,26 +6,51 @@ pub enum DeriveMore {
         with_start_index: DerivationRequestWithRange,
         number_of_instances_needed_to_fully_satisfy_request: Option<usize>,
     },
-    WithoutKnownLastIndex(QuantifiedUnindexDerivationRequest),
+    WithoutKnownLastIndex {
+        request: QuantifiedUnindexDerivationRequest,
+        number_of_instances_needed_to_fully_satisfy_request: usize,
+    },
 }
 impl DeriveMore {
-    /// `None` for `WithoutKnownLastIndex`, only `Some` for `WithKnownStartIndex`
-    ///  where `if_partial_how_many_to_use_directly` is `Some`
-    pub fn number_of_instances_needed_to_fully_satisfy_request(&self) -> Option<usize> {
+    pub fn number_of_instances_to_use_directly(
+        &self,
+        original_purpose: FactorInstancesRequestPurpose,
+    ) -> usize {
+        match original_purpose {
+            FactorInstancesRequestPurpose::MARS { .. } => {
+                DerivationRequestQuantitySelector::FILL_CACHE_QUANTITY
+            }
+            FactorInstancesRequestPurpose::OARS { .. } => {
+                DerivationRequestQuantitySelector::FILL_CACHE_QUANTITY
+            }
+            FactorInstancesRequestPurpose::UpdateOrSetSecurityShieldForAccounts {
+                accounts,
+                ..
+            } => accounts.len(),
+            FactorInstancesRequestPurpose::PreDeriveInstancesForNewFactorSource { .. } => 0,
+            FactorInstancesRequestPurpose::NewVirtualUnsecurifiedAccount { .. } => 1,
+        }
+    }
+
+    fn _number_of_instances_needed_to_fully_satisfy_request(&self) -> Option<usize> {
         match self {
             Self::WithKnownStartIndex {
                 number_of_instances_needed_to_fully_satisfy_request,
                 ..
             } => *number_of_instances_needed_to_fully_satisfy_request,
-            Self::WithoutKnownLastIndex(_) => None,
+            Self::WithoutKnownLastIndex {
+                number_of_instances_needed_to_fully_satisfy_request,
+                ..
+            } => Some(*number_of_instances_needed_to_fully_satisfy_request),
         }
     }
+
     pub fn unquantified(&self) -> UnquantifiedUnindexDerivationRequest {
         match self {
             Self::WithKnownStartIndex {
                 with_start_index, ..
             } => with_start_index.clone().into(),
-            Self::WithoutKnownLastIndex(request) => request.clone().into(),
+            Self::WithoutKnownLastIndex { request, .. } => request.clone().into(),
         }
     }
 }
@@ -43,15 +68,14 @@ impl NewlyDerived {
         Self::new(key, to_cache, FactorInstances::default())
     }
 
-    /// # Panics if `to_cache` or to `to_use_directly` is empty.
-    pub fn some_to_use_directly(
+    pub fn maybe_some_to_use_directly(
         key: UnquantifiedUnindexDerivationRequest,
         to_cache: FactorInstances,
         to_use_directly: FactorInstances,
     ) -> Self {
-        assert!(!to_use_directly.is_empty());
         Self::new(key, to_cache, to_use_directly)
     }
+
     /// # Panics
     /// Panics if `to_cache` is empty.
     /// Also panics if any FactorInstances does not match the key.
