@@ -658,5 +658,61 @@ mod tests {
             )
         );
         assert_eq!(carol_veci.factor_source_id, bdfs.factor_source_id());
+
+        // Should be possible to derive fourth account, using cache, and the derivation index should be 3
+
+        let (diana, did_derive_new_factor_instances) =
+            os.new_mainnet_account_with_bdfs("Diana").await.unwrap();
+
+        assert!(!did_derive_new_factor_instances.0, "should have used cache");
+        assert_ne!(diana.address(), carol.address());
+
+        let free_factor_instances_after_account_creation =
+            os.cache_snapshot().all_factor_instances();
+
+        assert_eq!(
+            free_factor_instances_after_account_creation.len(),
+            (DerivationRequestQuantitySelector::FILL_CACHE_QUANTITY * 6 ) - 2,
+            "BatchOfNew.count - 2, we cleared cached and then derived many and directly used one for Carol, and now one more for Diana, thus - 2"
+        );
+
+        let diana_veci = diana.clone().as_unsecurified().unwrap().factor_instance();
+        assert_eq!(
+            diana_veci.derivation_path(),
+            DerivationPath::new(
+                NetworkID::Mainnet,
+                CAP26EntityKind::Account,
+                CAP26KeyKind::TransactionSigning,
+                HDPathComponent::unsecurified_hardening_base_index(3),
+            )
+        );
+        assert_eq!(diana_veci.factor_source_id, bdfs.factor_source_id());
+
+        let expected_start = 4; // Diana used 3, so next should be 4
+        let count = 6;
+        let mut derivation_entity_indices = IndexSet::<HDPathComponent>::new();
+
+        for i in 0..count {
+            let (account, did_derive_new_factor_instances) = os
+                .new_mainnet_account_with_bdfs("some account")
+                .await
+                .unwrap();
+            assert!(!did_derive_new_factor_instances.0, "should have used cache");
+            derivation_entity_indices.insert(
+                account
+                    .as_unsecurified()
+                    .unwrap()
+                    .veci()
+                    .factor_instance()
+                    .derivation_entity_index(),
+            );
+        }
+        assert_eq!(
+            derivation_entity_indices
+                .into_iter()
+                .map(|x| x.to_string())
+                .collect_vec(),
+            vec!["4'", "5'", "6'", "7'", "8'", "9'"]
+        );
     }
 }
