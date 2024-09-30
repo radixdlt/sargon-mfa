@@ -172,4 +172,59 @@ mod tests {
         let does_have_internet = sut.has_internet_connection().await;
         assert_eq!(does_have_internet, has_internet_connection);
     }
+
+    #[actix_rt::test]
+    async fn test_set_securified_account() {
+        let sut = Sut::new(true);
+        let address = AccountAddress::sample();
+        let value = SecurifiedEntityControl::sample();
+        sut.set_securified_account(value.clone(), &address)
+            .await
+            .unwrap();
+        let on_chain = sut.get_on_chain_account(&address).await.unwrap();
+        let is_securified = sut.is_securified(address.clone().into()).await.unwrap();
+        assert!(is_securified);
+        assert_eq!(
+            on_chain
+                .unwrap()
+                .access_controller
+                .unwrap()
+                .metadata
+                .unwrap()
+                .scrypto_access_rules,
+            ScryptoAccessRule::from(value.matrix)
+        );
+        let is_pub_key_known = sut
+            .query_public_key_hash_is_known(IndexSet::just(address.public_key_hash()))
+            .await
+            .unwrap();
+        assert_eq!(
+            is_pub_key_known.get(&address.public_key_hash()).unwrap(),
+            &false // veci is not retained...
+        );
+    }
+
+    #[actix_rt::test]
+    async fn test_set_securified_persona() {
+        let sut = Sut::new(true);
+        let address = IdentityAddress::sample();
+        let value = SecurifiedEntityControl::sample();
+        sut.set_securified_persona(value.clone(), &address)
+            .await
+            .unwrap();
+        let on_chain = sut
+            .get_on_chain_entity(AddressOfAccountOrPersona::Identity(address.clone()))
+            .await
+            .unwrap();
+        assert_eq!(
+            on_chain
+                .unwrap()
+                .access_controller
+                .unwrap()
+                .metadata
+                .unwrap()
+                .scrypto_access_rules,
+            ScryptoAccessRule::from(value.matrix)
+        );
+    }
 }
