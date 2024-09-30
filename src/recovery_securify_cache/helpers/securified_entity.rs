@@ -105,4 +105,19 @@ mod tests {
     fn inequality() {
         assert_ne!(Sut::sample(), Sut::sample_other());
     }
+
+    #[test]
+    fn third_party_dep() {
+        let test = |dep: ThirdPartyDepositPreference| {
+            let sut = Sut::new(
+                AddressOfAccountOrPersona::sample(),
+                SecurifiedEntityControl::sample(),
+                dep,
+            );
+            assert_eq!(sut.third_party_deposit(), Some(dep));
+        };
+        test(ThirdPartyDepositPreference::DenyAll);
+        test(ThirdPartyDepositPreference::AllowAll);
+        test(ThirdPartyDepositPreference::AllowKnown);
+    }
 }

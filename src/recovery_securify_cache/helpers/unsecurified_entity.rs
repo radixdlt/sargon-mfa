@@ -124,4 +124,22 @@ mod tests {
         let sut = Sut::sample();
         assert!(AccountOrPersona::from(sut).is_account_entity());
     }
+
+    #[test]
+    fn network_id() {
+        assert_eq!(Sut::sample_other().network_id(), NetworkID::Stokenet);
+    }
+
+    #[test]
+    fn third_party_dep() {
+        let test = |dep: ThirdPartyDepositPreference| {
+            let veci = HierarchicalDeterministicFactorInstance::sample();
+            let address = AccountAddress::new(NetworkID::Mainnet, veci.public_key_hash());
+            let sut = Sut::new(address.into(), veci, dep);
+            assert_eq!(sut.third_party_deposit(), Some(dep));
+        };
+        test(ThirdPartyDepositPreference::DenyAll);
+        test(ThirdPartyDepositPreference::AllowAll);
+        test(ThirdPartyDepositPreference::AllowKnown);
+    }
 }
