@@ -80,7 +80,11 @@ mod tests {
 
     #[test]
     fn ok_new() {
-        let sut = Sut::new(NetworkID::Mainnet, IndexSet::just(Item::sample())).unwrap();
+        let network_id = NetworkID::Mainnet;
+        let sut = Sut::new(network_id, IndexSet::just(Item::sample())).unwrap();
         assert!(!sut.is_empty());
+        assert_eq!(sut.len(), 1);
+        assert!(!sut.is_empty());
+        assert_eq!(sut.network_id(), network_id);
     }
 }
