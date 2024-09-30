@@ -8,7 +8,6 @@ mod securified_accounts;
 mod securified_entity;
 mod unindex_derivation_request;
 mod unindex_derivation_requests;
-mod unsecurified_account;
 mod unsecurified_entity;
 mod virtual_entity_creating_instances;
 
@@ -22,6 +21,5 @@ pub use securified_accounts::*;
 pub use securified_entity::*;
 pub use unindex_derivation_request::*;
 pub use unindex_derivation_requests::*;
-pub use unsecurified_account::*;
 pub use unsecurified_entity::*;
 pub use virtual_entity_creating_instances::*;
