@@ -55,16 +55,6 @@ impl UnsecurifiedEntity {
     }
 }
 
-impl TryFrom<UnsecurifiedEntity> for AccountAddress {
-    type Error = CommonError;
-    fn try_from(value: UnsecurifiedEntity) -> Result<Self> {
-        value
-            .address()
-            .into_account()
-            .map_err(|_| CommonError::AddressConversionError)
-    }
-}
-
 impl From<UnsecurifiedEntity> for AccountOrPersona {
     fn from(value: UnsecurifiedEntity) -> Self {
         let address = value.address();
