@@ -348,7 +348,6 @@ mod tests {
         cache: Arc<RwLock<PreDerivedKeysCache>>,
         gateway: RwLock<TestGateway>,
         profile: RwLock<Profile>,
-        interactors: Arc<dyn KeysDerivationInteractors>,
     }
 
     impl SargonOS {
@@ -356,13 +355,11 @@ mod tests {
             self.profile.try_read().unwrap().clone()
         }
         pub fn new() -> Self {
-            let interactors: Arc<dyn KeysDerivationInteractors> =
-                Arc::new(TestDerivationInteractors::default());
+            Arc::new(TestDerivationInteractors::default());
             Self {
                 cache: Arc::new(RwLock::new(PreDerivedKeysCache::default())),
                 gateway: RwLock::new(TestGateway::default()),
                 profile: RwLock::new(Profile::default()),
-                interactors,
             }
         }
         pub async fn with_bdfs() -> (Self, HDFactorSource) {
