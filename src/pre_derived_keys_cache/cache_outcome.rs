@@ -59,6 +59,7 @@ pub struct LoadFromCacheOutcomeForSingleRequest {
     pub request: QuantifiedUnindexDerivationRequest,
     outcome: LoadFromCacheOutcome,
 }
+
 impl LoadFromCacheOutcomeForSingleRequest {
     /// # Panics
     /// If FactorInstances is NOT empty inside the outcome, this ctor
@@ -84,12 +85,14 @@ impl LoadFromCacheOutcomeForSingleRequest {
             outcome,
         }
     }
+
     fn last_index_of(instances: &FactorInstances) -> HDPathValue {
         assert!(!instances.is_empty());
         let mut instances = instances.factor_instances().into_iter().collect_vec();
         instances.sort_by_key(|instance| instance.derivation_entity_base_index());
         instances.last().unwrap().derivation_entity_base_index()
     }
+
     pub fn action(&self) -> Action {
         match self.outcome {
             LoadFromCacheOutcome::FullySatisfiedWithSpare(ref from_cache) => {
@@ -143,6 +146,7 @@ pub struct FactorInstancesFromCache {
     hidden: HiddenConstructor,
     outcomes: Vec<LoadFromCacheOutcomeForSingleRequest>,
 }
+
 impl FactorInstancesFromCache {
     pub fn new(iter: impl IntoIterator<Item = LoadFromCacheOutcomeForSingleRequest>) -> Self {
         Self {
@@ -154,6 +158,7 @@ impl FactorInstancesFromCache {
                 .collect(),
         }
     }
+
     pub fn outcomes(&self) -> IndexSet<LoadFromCacheOutcomeForSingleRequest> {
         self.outcomes.clone().into_iter().collect()
     }
