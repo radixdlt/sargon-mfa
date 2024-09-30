@@ -44,11 +44,52 @@ impl Accounts {
         self.accounts.len()
     }
 
+    /// Should never be true, since we do not allow empty.
     pub fn is_empty(&self) -> bool {
         self.accounts.is_empty()
     }
 
     pub fn network_id(&self) -> NetworkID {
         self.network_id
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    type Sut = Accounts;
+
+    #[test]
+    fn empty_throws() {
+        assert!(matches!(
+            Sut::new(NetworkID::Mainnet, IndexSet::new()),
+            Err(CommonError::EmptyCollection)
+        ));
+    }
+
+    #[test]
+    fn wrong_network_single() {
+        assert!(matches!(
+            Sut::new(NetworkID::Stokenet, IndexSet::just(Account::sample())),
+            Err(CommonError::WrongNetwork)
+        ));
+    }
+
+    #[test]
+    fn wrong_network_two() {
+        assert!(matches!(
+            Sut::new(
+                NetworkID::Stokenet,
+                IndexSet::from_iter([Account::sample_other(), Account::sample(),])
+            ),
+            Err(CommonError::WrongNetwork)
+        ));
+    }
+
+    #[test]
+    fn ok_new() {
+        let sut = Sut::new(NetworkID::Mainnet, IndexSet::just(Account::sample())).unwrap();
+        assert!(!sut.is_empty());
     }
 }

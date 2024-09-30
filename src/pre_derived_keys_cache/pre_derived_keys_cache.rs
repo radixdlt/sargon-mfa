@@ -87,6 +87,7 @@ impl PreDerivedKeysCache {
         Self {
             probably_free_factor_instances: RwLock::new(
                 probably_free_factor_instances
+                    .0
                     .into_iter()
                     .into_group_map_by(|x| UnquantifiedUnindexDerivationRequest::from(x.clone()))
                     .into_iter()
