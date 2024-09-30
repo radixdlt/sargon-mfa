@@ -3,61 +3,6 @@ use crate::prelude::*;
 /// The `SecurifiedEntityControl`, address and possibly third party deposit state of some
 /// Securified entity.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct SecurifiedAccount {
-    name: String,
-    /// The address which is verified to match the `veci`
-    account_address: AccountAddress,
-
-    securified_entity_control: SecurifiedEntityControl,
-
-    /// If we found this UnsecurifiedEntity while scanning OnChain using
-    /// Gateway, we might have been able to read out the third party deposit
-    /// settings.
-    third_party_deposit: Option<ThirdPartyDepositPreference>,
-}
-
-impl SecurifiedAccount {
-    pub fn new(
-        name: String,
-        address: AccountAddress,
-        securified_entity_control: SecurifiedEntityControl,
-        third_party_deposit: impl Into<Option<ThirdPartyDepositPreference>>,
-    ) -> Self {
-        Self {
-            name,
-            account_address: address,
-            securified_entity_control,
-            third_party_deposit: third_party_deposit.into(),
-        }
-    }
-    pub fn account(&self) -> Account {
-        Account::new(
-            self.name.clone(),
-            self.address(),
-            EntitySecurityState::Securified(self.securified_entity_control()),
-            self.third_party_deposit,
-        )
-    }
-    pub fn address(&self) -> AccountAddress {
-        self.account_address.clone()
-    }
-
-    pub fn network_id(&self) -> NetworkID {
-        self.address().network_id()
-    }
-
-    pub fn securified_entity_control(&self) -> SecurifiedEntityControl {
-        self.securified_entity_control.clone()
-    }
-
-    pub fn third_party_deposit(&self) -> Option<ThirdPartyDepositPreference> {
-        self.third_party_deposit
-    }
-}
-
-/// The `SecurifiedEntityControl`, address and possibly third party deposit state of some
-/// Securified entity.
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct SecurifiedEntity {
     /// The address which is verified to match the `veci`
     address: AddressOfAccountOrPersona,
