@@ -49,16 +49,14 @@ impl FromIterator<HierarchicalDeterministicFactorInstance> for FactorInstances {
     }
 }
 
-impl IsFactorInstanceCollectionBase for FactorInstances {
-    fn factor_instances(&self) -> IndexSet<HierarchicalDeterministicFactorInstance> {
-        self.factor_instances.iter().cloned().collect()
-    }
-}
-impl IsFactorInstanceCollection for FactorInstances {
-    fn new(instances: IndexSet<HierarchicalDeterministicFactorInstance>) -> Self {
+impl FactorInstances {
+    pub fn new(instances: IndexSet<HierarchicalDeterministicFactorInstance>) -> Self {
         Self {
             factor_instances: instances.into_iter().collect(),
         }
+    }
+    pub fn factor_instances(&self) -> IndexSet<HierarchicalDeterministicFactorInstance> {
+        self.factor_instances.iter().cloned().collect()
     }
 }
 

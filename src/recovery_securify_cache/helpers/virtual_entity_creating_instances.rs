@@ -134,10 +134,8 @@ impl VirtualEntityCreatingInstances {
     pub fn merge(self, other: Self) -> Self {
         Self::new(self.vecis().union(&other.vecis()).cloned().collect())
     }
-}
 
-impl IsFactorInstanceCollectionBase for VirtualEntityCreatingInstances {
-    fn factor_instances(&self) -> IndexSet<HierarchicalDeterministicFactorInstance> {
+    pub fn factor_instances(&self) -> IndexSet<HierarchicalDeterministicFactorInstance> {
         self.vecis()
             .into_iter()
             .map(|x| x.factor_instance())
