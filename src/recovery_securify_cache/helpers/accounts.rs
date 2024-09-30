@@ -59,6 +59,7 @@ mod tests {
     use super::*;
 
     type Sut = Accounts;
+    type Item = Account;
 
     #[test]
     fn empty_throws() {
@@ -71,7 +72,7 @@ mod tests {
     #[test]
     fn wrong_network_single() {
         assert!(matches!(
-            Sut::new(NetworkID::Stokenet, IndexSet::just(Account::sample())),
+            Sut::new(NetworkID::Stokenet, IndexSet::just(Item::sample())),
             Err(CommonError::WrongNetwork)
         ));
     }
@@ -81,7 +82,7 @@ mod tests {
         assert!(matches!(
             Sut::new(
                 NetworkID::Stokenet,
-                IndexSet::from_iter([Account::sample_other(), Account::sample(),])
+                IndexSet::from_iter([Account::sample_other(), Item::sample(),])
             ),
             Err(CommonError::WrongNetwork)
         ));
@@ -89,7 +90,7 @@ mod tests {
 
     #[test]
     fn ok_new() {
-        let sut = Sut::new(NetworkID::Mainnet, IndexSet::just(Account::sample())).unwrap();
+        let sut = Sut::new(NetworkID::Mainnet, IndexSet::just(Item::sample())).unwrap();
         assert!(!sut.is_empty());
     }
 }

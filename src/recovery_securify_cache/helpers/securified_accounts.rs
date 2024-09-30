@@ -30,13 +30,57 @@ impl SecurifiedAccounts {
             accounts,
         })
     }
+
     pub fn network_id(&self) -> NetworkID {
         self.network_id
     }
+
     pub fn len(&self) -> usize {
         self.accounts.len()
     }
+
     pub fn is_empty(&self) -> bool {
         self.accounts.is_empty()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    type Sut = SecurifiedAccounts;
+    type Item = SecurifiedAccount;
+
+    #[test]
+    fn empty_throws() {
+        assert!(matches!(
+            Sut::new(NetworkID::Mainnet, IndexSet::new()),
+            Err(CommonError::EmptyCollection)
+        ));
+    }
+
+    #[test]
+    fn wrong_network_single() {
+        assert!(matches!(
+            Sut::new(NetworkID::Stokenet, IndexSet::just(Item::sample())),
+            Err(CommonError::WrongNetwork)
+        ));
+    }
+
+    #[test]
+    fn wrong_network_two() {
+        assert!(matches!(
+            Sut::new(
+                NetworkID::Stokenet,
+                IndexSet::from_iter([Item::sample_other(), Item::sample(),])
+            ),
+            Err(CommonError::WrongNetwork)
+        ));
+    }
+
+    #[test]
+    fn ok_new() {
+        let sut = Sut::new(NetworkID::Mainnet, IndexSet::just(Item::sample())).unwrap();
+        assert!(!sut.is_empty());
     }
 }
