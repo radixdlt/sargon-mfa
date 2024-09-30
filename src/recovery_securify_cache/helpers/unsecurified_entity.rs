@@ -12,30 +12,7 @@ pub struct UnsecurifiedEntity {
     third_party_deposit: Option<ThirdPartyDepositPreference>,
 }
 
-impl TryFrom<UnsecurifiedEntity> for AccountAddress {
-    type Error = CommonError;
-    fn try_from(value: UnsecurifiedEntity) -> Result<Self> {
-        value
-            .address()
-            .into_account()
-            .map_err(|_| CommonError::AddressConversionError)
-    }
-}
-
 impl UnsecurifiedEntity {
-    pub fn network_id(&self) -> NetworkID {
-        self.address().network_id()
-    }
-    pub fn with_veci(
-        veci: VirtualEntityCreatingInstance,
-        third_party_deposit: impl Into<Option<ThirdPartyDepositPreference>>,
-    ) -> Self {
-        Self {
-            veci,
-            third_party_deposit: third_party_deposit.into(),
-        }
-    }
-
     /// # Panics
     /// Panics if address does not match `factor_instance`
     pub fn new(
@@ -45,6 +22,20 @@ impl UnsecurifiedEntity {
     ) -> Self {
         let veci = VirtualEntityCreatingInstance::new(factor_instance, address);
         Self::with_veci(veci, third_party_deposit)
+    }
+
+    pub fn network_id(&self) -> NetworkID {
+        self.address().network_id()
+    }
+
+    pub fn with_veci(
+        veci: VirtualEntityCreatingInstance,
+        third_party_deposit: impl Into<Option<ThirdPartyDepositPreference>>,
+    ) -> Self {
+        Self {
+            veci,
+            third_party_deposit: third_party_deposit.into(),
+        }
     }
 
     pub fn address(&self) -> AddressOfAccountOrPersona {
@@ -64,19 +55,16 @@ impl UnsecurifiedEntity {
     }
 }
 
-impl From<UnsecurifiedEntity> for Account {
-    fn from(value: UnsecurifiedEntity) -> Self {
-        let address = value.address();
-        let name = "Recovered";
-        let security_state = EntitySecurityState::Unsecured(value.factor_instance());
-
-        if let Ok(account_address) = address.clone().into_account() {
-            Account::new(name, account_address, security_state, None)
-        } else {
-            panic!("Not an AccountAddress")
-        }
+impl TryFrom<UnsecurifiedEntity> for AccountAddress {
+    type Error = CommonError;
+    fn try_from(value: UnsecurifiedEntity) -> Result<Self> {
+        value
+            .address()
+            .into_account()
+            .map_err(|_| CommonError::AddressConversionError)
     }
 }
+
 impl From<UnsecurifiedEntity> for AccountOrPersona {
     fn from(value: UnsecurifiedEntity) -> Self {
         let address = value.address();
@@ -123,5 +111,17 @@ mod tests {
     #[test]
     fn inequality() {
         assert_ne!(Sut::sample(), Sut::sample_other());
+    }
+
+    #[test]
+    fn unsecurified_persona_into_tagged_union() {
+        let sut = Sut::sample_other();
+        assert!(AccountOrPersona::from(sut).is_persona_entity());
+    }
+
+    #[test]
+    fn unsecurified_account_into_tagged_union() {
+        let sut = Sut::sample();
+        assert!(AccountOrPersona::from(sut).is_account_entity());
     }
 }
