@@ -1,4 +1,5 @@
 use crate::prelude::*;
+
 /// A NonEmpty collection of Accounts all on the SAME Network
 /// but mixed if they are securified or unsecurified.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -14,6 +15,7 @@ impl Accounts {
             accounts: IndexSet::just(account),
         }
     }
+
     pub fn new(network_id: NetworkID, accounts: IndexSet<Account>) -> Result<Self> {
         if accounts.is_empty() {
             return Err(CommonError::EmptyCollection);
@@ -36,13 +38,16 @@ impl IntoIterator for Accounts {
         self.accounts.clone().into_iter()
     }
 }
+
 impl Accounts {
     pub fn len(&self) -> usize {
         self.accounts.len()
     }
+
     pub fn is_empty(&self) -> bool {
         self.accounts.is_empty()
     }
+
     pub fn network_id(&self) -> NetworkID {
         self.network_id
     }

@@ -21,6 +21,7 @@ impl TryFrom<UnsecurifiedEntity> for AccountAddress {
             .map_err(|_| CommonError::AddressConversionError)
     }
 }
+
 impl UnsecurifiedEntity {
     pub fn network_id(&self) -> NetworkID {
         self.address().network_id()
