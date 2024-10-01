@@ -101,6 +101,15 @@ impl EphemeralLocalIndexOffsets {
         *entry += 1;
         next
     }
+
+    fn increase_offset(&self, with_range: &DerivationRequestWithRange) {
+        let mut write = self.local_offsets.try_write().unwrap();
+        let key = UnquantifiedUnindexDerivationRequest::from(with_range.clone());
+        let entry = write.entry(key.clone()).or_insert(0);
+        let offset = with_range.end_base_index() as usize;
+        println!("🐥👻 set offset to: {}, for request: {:?}", offset, key);
+        *entry = offset;
+    }
 }
 
 pub struct NextIndexAssignerWithEphemeralLocalOffsets {
@@ -119,6 +128,10 @@ impl NextIndexAssignerWithEphemeralLocalOffsets {
         }
     }
 
+    pub fn increase_local_offset(&self, with_range: &DerivationRequestWithRange) {
+        self.ephemeral_local_offsets.increase_offset(with_range)
+    }
+
     pub fn next(&self, unindexed_request: UnquantifiedUnindexDerivationRequest) -> HDPathComponent {
         let default = match unindexed_request.key_space {
             KeySpace::Securified => HDPathComponent::securifying_base_index(0),
@@ -130,8 +143,15 @@ impl NextIndexAssignerWithEphemeralLocalOffsets {
             .and_then(|p| p.read_next(unindexed_request.clone()))
             .unwrap_or(default);
 
-        let from_local = self.ephemeral_local_offsets.write_next(unindexed_request);
+        let from_local = self
+            .ephemeral_local_offsets
+            .write_next(unindexed_request.clone());
 
-        from_profile.add_n(from_local as HDPathValue)
+        let next = from_profile.add_n(from_local as HDPathValue);
+        println!(
+            "🐥 next: {:?}, for request: {:?}, local: {}, from_profile: {}",
+            next, unindexed_request, from_local, from_profile
+        );
+        next
     }
 }

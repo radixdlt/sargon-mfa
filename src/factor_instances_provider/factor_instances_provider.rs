@@ -81,57 +81,8 @@ impl FactorInstancesProvider {
         let fill_cache_for_all_referenced_factor_source =
             fill_cache_for_every_factor_source_in(original_purpose);
 
-        let fill_cache = fill_cache_for_all_referenced_factor_source
-            .into_iter()
-            .filter(|x| {
-                if cache.is_saturated_for(x) {
-                    return false;
-                }
-
-                let original_contains_matching =
-                    requests_to_satisfy_request
-                        .iter()
-                        .any(|haystack| match haystack {
-                            DeriveMore::WithKnownStartIndex {
-                                with_start_index, ..
-                            } => {
-                                let h = UnquantifiedUnindexDerivationRequest::from(
-                                    with_start_index.clone(),
-                                );
-                                UnquantifiedUnindexDerivationRequest::from(x.clone()) == h
-                            }
-                            DeriveMore::WithoutKnownLastIndex { ref request, .. } => {
-                                let h = UnquantifiedUnindexDerivationRequest::from(request.clone());
-                                UnquantifiedUnindexDerivationRequest::from(x.clone()) == h
-                            }
-                        });
-                /// we don't want to fill the cache with the same thing we are trying to satisfy,
-                /// instead we need to retain the original request with possible known start index,
-                /// and we are instead going to change the number of derived factors to
-                /// match filling cache quantity.
-                !original_contains_matching
-            })
-            .map(|x| {
-                DerivationRequestWithRange::new(
-                    x.factor_source_id,
-                    x.network_id,
-                    x.entity_kind,
-                    x.key_kind,
-                    x.key_space,
-                    DerivationRequestQuantitySelector::FILL_CACHE_QUANTITY,
-                    // safe to use next_index_assigner here, before we map
-                    // `requests_to_satisfy_request`, since we have filtered out
-                    // any matching request above, thus the ordering does not
-                    // matter. MEANING: below with `requests_to_satisfy_request`,
-                    // some of the requests have KNOWN start indices, and we would
-                    // not wanna mess up the state of the `next_index_assigner`
-                    // by using it before we have filtered out the matching requests.
-                    next_index_assigner.next(x.clone().into()).base_index(),
-                )
-            })
-            .collect::<IndexSet<DerivationRequestWithRange>>();
-
         let mut requests_to_satisfy_with_ranges = requests_to_satisfy_request
+            .clone()
             .into_iter()
             .map(|x| {
                 /// Always fill cache!
@@ -141,17 +92,22 @@ impl FactorInstancesProvider {
                     DeriveMore::WithKnownStartIndex {
                         with_start_index: z,
                         ..
-                    } => DerivationRequestWithRange::new(
-                        z.factor_source_id,
-                        z.network_id,
-                        z.entity_kind,
-                        z.key_kind,
-                        z.key_space,
-                        quantity,
-                        z.start_base_index,
-                    ),
+                    } => {
+                        let with_range = DerivationRequestWithRange::new(
+                            z.factor_source_id,
+                            z.network_id,
+                            z.entity_kind,
+                            z.key_kind,
+                            z.key_space,
+                            quantity,
+                            z.start_base_index,
+                        );
+                        next_index_assigner.increase_local_offset(&with_range);
+                        with_range
+                    }
                     DeriveMore::WithoutKnownLastIndex { ref request, .. } => {
                         let next = next_index_assigner.next(request.clone().into());
+                        println!("🌴🔵 next: {}", next);
                         DerivationRequestWithRange::new(
                             request.factor_source_id,
                             request.network_id,
@@ -166,8 +122,78 @@ impl FactorInstancesProvider {
             })
             .collect::<IndexSet<DerivationRequestWithRange>>();
 
+        let fill_cache = fill_cache_for_all_referenced_factor_source
+            .into_iter()
+            .filter(|x| {
+                if cache.is_saturated_for(x) {
+                    println!("🦐 is saturated!");
+                    return false;
+                }
+
+                let original_contains_matching =
+                    requests_to_satisfy_request
+                        .iter()
+                        .any(|haystack| match haystack {
+                            DeriveMore::WithKnownStartIndex {
+                                with_start_index, ..
+                            } => {
+                                println!("🐯 with_start_index: {:?}", with_start_index);
+                                let h = UnquantifiedUnindexDerivationRequest::from(
+                                    with_start_index.clone(),
+                                );
+                                UnquantifiedUnindexDerivationRequest::from(x.clone()) == h
+                            }
+                            DeriveMore::WithoutKnownLastIndex { ref request, .. } => {
+                                println!("🐯 without_known_last: {:?}", request);
+
+                                let h = UnquantifiedUnindexDerivationRequest::from(request.clone());
+                                UnquantifiedUnindexDerivationRequest::from(x.clone()) == h
+                            }
+                        });
+                /// we don't want to fill the cache with the same thing we are trying to satisfy,
+                /// instead we need to retain the original request with possible known start index,
+                /// and we are instead going to change the number of derived factors to
+                /// match filling cache quantity.
+                !original_contains_matching
+            })
+            .map(|x| {
+                let next = if let Some(index_of_last) = cache.peek_index_of_last(x.clone()) {
+                    let next = index_of_last.add_one();
+                    println!("🌴🐸🔶 next: {}, for request: {:?}", next, x);
+                    next.base_index()
+                } else {
+                    let next = next_index_assigner.next(x.clone().into()).base_index();
+                    println!("🌴🦆🔶 next: {}, for request: {:?}", next, x);
+                    next
+                };
+
+                println!("🌴🔶🌴🔶 next: {}, for request: {:?}", next, x);
+                DerivationRequestWithRange::new(
+                    x.factor_source_id,
+                    x.network_id,
+                    x.entity_kind,
+                    x.key_kind,
+                    x.key_space,
+                    DerivationRequestQuantitySelector::FILL_CACHE_QUANTITY,
+                    // safe to use next_index_assigner here, before we map
+                    // `requests_to_satisfy_request`, since we have filtered out
+                    // any matching request above, thus the ordering does not
+                    // matter. MEANING: below with `requests_to_satisfy_request`,
+                    // some of the requests have KNOWN start indices, and we would
+                    // not wanna mess up the state of the `next_index_assigner`
+                    // by using it before we have filtered out the matching requests.
+                    next,
+                )
+            })
+            .collect::<IndexSet<DerivationRequestWithRange>>();
+
         let mut requests_with_ranges_with_abundance = IndexSet::<DerivationRequestWithRange>::new();
 
+        println!(
+            "🦄 requests_to_satisfy_with_ranges: {:?}",
+            requests_to_satisfy_with_ranges
+        );
+        println!("🦄 fill_cache: {:?}", fill_cache);
         requests_with_ranges_with_abundance.extend(requests_to_satisfy_with_ranges);
         requests_with_ranges_with_abundance.extend(fill_cache);
 
@@ -224,19 +250,21 @@ impl FactorInstancesProvider {
                     let (to_use_directly, to_cache) =
                         v.split_at(number_of_instances_to_use_directly);
 
-                    let to_use_directly =
-                        to_use_directly.iter().cloned().collect::<FactorInstances>();
-
-                    let to_cache = to_cache.iter().cloned().collect::<FactorInstances>();
                     println!(
-                        "🍭 to_cache: #{}, to_use_directly: #{}",
+                        "🍭 to_use_directly: #{}, to_cache: #{}, original: {:?}",
+                        to_use_directly.len(),
                         to_cache.len(),
-                        to_use_directly.len()
+                        original
                     );
+                    let to_use_directly =
+                        ToUseDirectly(to_use_directly.iter().cloned().collect::<FactorInstances>());
+
+                    let to_cache = ToCache(to_cache.iter().cloned().collect::<FactorInstances>());
                     NewlyDerived::maybe_some_to_use_directly(k, to_cache, to_use_directly)
                 } else {
                     let to_cache = v.into_iter().collect::<FactorInstances>();
-                    NewlyDerived::cache_all(k, to_cache)
+                    println!("🦋 to_cache: {:?}", to_cache);
+                    NewlyDerived::cache_all(k, ToCache(to_cache))
                 }
             })
             .collect::<IndexSet<NewlyDerived>>();
@@ -261,6 +289,11 @@ impl FactorInstancesProvider {
 
         let mut factor_instances_to_use_directly = split.satisfied_by_cache();
 
+        println!(
+            "🐓🦩 factor_instances_to_use_directly with: {:?}",
+            factor_instances_to_use_directly,
+        );
+
         let mut did_derive_new_instances = false;
         if let Some(derive_more_requests) = split.derive_more_requests() {
             let mut newly_derived_to_be_used_directly =
@@ -278,16 +311,39 @@ impl FactorInstancesProvider {
             for _newly_derived in newly_derived.into_iter() {
                 let (key, to_cache) = _newly_derived.key_value_for_cache();
                 cache.put(key, to_cache)?;
-
-                newly_derived_to_be_used_directly.extend(_newly_derived.to_use_directly);
+                println!(
+                    "🐓🦩 extending 'newly_derived_to_be_used_directly' with: {:?}",
+                    _newly_derived.to_use_directly,
+                );
+                newly_derived_to_be_used_directly.extend(_newly_derived.to_use_directly.0);
             }
 
             did_derive_new_instances = true;
+            println!("🌟 factor_instances_to_use_directly in total: #{}, of which #{} was from cache, and of which: #{} was NEWLY derive", factor_instances_to_use_directly.len() + newly_derived_to_be_used_directly.len(), factor_instances_to_use_directly.len(), newly_derived_to_be_used_directly.len());
+
+            let intersection = factor_instances_to_use_directly
+                .intersection(&newly_derived_to_be_used_directly)
+                .collect_vec();
+            if !intersection.is_empty() {
+                panic!("❌ duplicates found: {:?}", intersection);
+            }
+
             factor_instances_to_use_directly.extend(newly_derived_to_be_used_directly);
         }
 
+        println!(
+            "🌟🌟 factor_instances_to_use_directly in total: #{}",
+            factor_instances_to_use_directly.len()
+        );
+        let all_factor_instances = FactorInstances::from(factor_instances_to_use_directly);
+
+        println!(
+            "🌟🌟🌟 factor_instances_to_use_directly in total: #{}",
+            all_factor_instances.len()
+        );
+
         Ok((
-            FactorInstances::from(factor_instances_to_use_directly),
+            all_factor_instances,
             cache,
             DidDeriveNewFactorInstances(did_derive_new_instances),
         ))
@@ -404,7 +460,6 @@ mod tests {
             network: NetworkID,
             name: impl AsRef<str>,
         ) -> Result<(Account, DidDeriveNewFactorInstances)> {
-            println!("🔮 Creating account: '{}'", name.as_ref());
             let interactors: Arc<dyn KeysDerivationInteractors> =
                 Arc::new(TestDerivationInteractors::default());
 
@@ -423,6 +478,11 @@ mod tests {
 
             assert_eq!(instances.len(), 1);
             let instance = instances.into_iter().next().unwrap();
+            println!(
+                "🔮 Created account: '{}' with veci.index: {}",
+                name.as_ref(),
+                instance.derivation_entity_index()
+            );
 
             let address = AccountAddress::new(network, instance.public_key_hash());
             let account = Account::new(
@@ -461,6 +521,12 @@ mod tests {
                 .await?;
             let mut instances = instances.factor_instances();
 
+            println!(
+                "🧵🎉 securfying: #{} accounts, got: #{} factor instances",
+                accounts.len(),
+                instances.len()
+            );
+
             // Now we need to map the flat set of instances into many MatrixOfFactorInstances, and assign
             // one to each account
             let updated_accounts = accounts
@@ -473,6 +539,7 @@ mod tests {
                         shield.clone(),
                     )
                     .unwrap();
+                println!("🦆👻 removing: #{} instances used by Matrix from instances: #{} => left is #{}", matrix_of_instances.all_factors().len(), instances.len(), instances.len() - matrix_of_instances.all_factors().len());
                     for used_instance in matrix_of_instances.all_factors() {
                         instances.shift_remove(&used_instance);
                     }
@@ -504,7 +571,11 @@ mod tests {
                     .unwrap()
                     .update_account(&account.account());
             }
-            assert!(instances.is_empty(), "should have used all instances");
+            assert!(
+                instances.is_empty(),
+                "should have used all instances, but have unused instances: {:?}",
+                instances
+            );
             SecurifiedAccounts::new(accounts.network_id(), updated_accounts)
                 .map(|x| (x, did_derive_new))
         }
@@ -1045,5 +1116,120 @@ mod tests {
                 HDPathComponent::securifying_base_index(1) // Carol used `0`.
             ]
         );
+    }
+
+    #[actix_rt::test]
+    async fn test_partial_sec() {
+        let (os, bdfs) = SargonOS::with_bdfs().await;
+
+        let ledger = HDFactorSource::ledger();
+        let arculus = HDFactorSource::arculus();
+        let yubikey = HDFactorSource::yubikey();
+        os.add_factor_source(ledger.clone()).await.unwrap();
+        os.add_factor_source(arculus.clone()).await.unwrap();
+        os.add_factor_source(yubikey.clone()).await.unwrap();
+
+        let factor_sources = os.profile_snapshot().factor_sources.clone();
+        assert_eq!(
+            factor_sources.clone().into_iter().collect_vec(),
+            vec![
+                bdfs.clone(),
+                ledger.clone(),
+                arculus.clone(),
+                yubikey.clone(),
+            ]
+        );
+
+        let n = DerivationRequestQuantitySelector::FILL_CACHE_QUANTITY / 2;
+
+        for i in 0..3 * n {
+            let (account, did_derive_new_factor_instances) = os
+                .new_mainnet_account_with_bdfs(format!("Acco: {}", i))
+                .await
+                .unwrap();
+        }
+
+        let shield_0 =
+            MatrixOfFactorSources::new([bdfs.clone(), ledger.clone(), arculus.clone()], 2, []);
+
+        let all_accounts = os
+            .profile_snapshot()
+            .get_accounts()
+            .into_iter()
+            .collect_vec();
+
+        let first_half_of_accounts = all_accounts.clone()[0..n]
+            .into_iter()
+            .cloned()
+            .collect::<IndexSet<Account>>();
+
+        let second_half_of_accounts = all_accounts.clone()[n..3 * n]
+            .into_iter()
+            .cloned()
+            .collect::<IndexSet<Account>>();
+
+        assert_eq!(
+            first_half_of_accounts.len() + second_half_of_accounts.len(),
+            3 * n
+        );
+
+        let (first_half_securified_accounts, did_derive_new) = os
+            .securify(
+                Accounts::new(NetworkID::Mainnet, first_half_of_accounts).unwrap(),
+                shield_0.clone(),
+            )
+            .await
+            .unwrap();
+
+        assert!(!did_derive_new.0, "should have used cache");
+
+        let (second_half_securified_accounts, did_derive_new) = os
+            .securify(
+                Accounts::new(NetworkID::Mainnet, second_half_of_accounts).unwrap(),
+                shield_0,
+            )
+            .await
+            .unwrap();
+
+        assert!(did_derive_new.0, "should have derived more");
+
+        // let alice_sec = securified_accounts
+        //     .clone()
+        //     .into_iter()
+        //     .find(|x| x.address() == alice.entity_address())
+        //     .unwrap();
+
+        // assert_eq!(
+        //     alice_sec.securified_entity_control().veci.unwrap().clone(),
+        //     alice.as_unsecurified().unwrap().veci().factor_instance()
+        // );
+        // let alice_matrix = alice_sec.securified_entity_control().matrix.clone();
+        // assert_eq!(alice_matrix.threshold, 2);
+
+        // assert_eq!(
+        //     alice_matrix
+        //         .all_factors()
+        //         .into_iter()
+        //         .map(|f| f.factor_source_id())
+        //         .collect_vec(),
+        //     [
+        //         bdfs.factor_source_id(),
+        //         ledger.factor_source_id(),
+        //         arculus.factor_source_id()
+        //     ]
+        // );
+
+        // assert_eq!(
+        //     alice_matrix
+        //         .all_factors()
+        //         .into_iter()
+        //         .map(|f| f.derivation_entity_index())
+        //         .collect_vec(),
+        //     [
+        //         HDPathComponent::securifying_base_index(0),
+        //         HDPathComponent::securifying_base_index(0),
+        //         HDPathComponent::securifying_base_index(0)
+        //     ]
+        // );
     }
 }

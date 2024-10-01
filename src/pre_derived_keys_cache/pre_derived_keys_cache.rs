@@ -117,8 +117,18 @@ impl PreDerivedKeysCache {
                 .factor_instances()
                 .is_disjoint(&to_append.factor_instances()),
             "Non disjoin sets, \n🔵 existing values: {:?}\n 💙,\n\n🟢 to_append: {:?}\n💚\n",
-            values.factor_instances(),
-            to_append.factor_instances()
+            values
+                .factor_instances()
+                .clone()
+                .into_iter()
+                .map(|f| format!("{}: {}", f.factor_source_id(), f.derivation_path()))
+                .collect_vec(),
+            to_append
+                .factor_instances()
+                .clone()
+                .into_iter()
+                .map(|f| format!("{}: {}", f.factor_source_id(), f.derivation_path()))
+                .collect_vec()
         );
 
         values.append(to_append);
@@ -147,6 +157,21 @@ impl PreDerivedKeysCache {
     ) -> Result<Option<FactorInstances>> {
         let key = key.into();
         self.read(|c| c.get(&key).cloned())
+    }
+
+    pub fn peek_index_of_last(
+        &self,
+        key: impl Into<UnquantifiedUnindexDerivationRequest>,
+    ) -> Option<HDPathComponent> {
+        if let Ok(Some(instances)) = self.peek(key) {
+            if let Some(last) = instances.into_iter().last() {
+                Some(last.derivation_entity_index())
+            } else {
+                None
+            }
+        } else {
+            None
+        }
     }
 
     fn consume(

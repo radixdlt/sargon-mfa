@@ -24,12 +24,13 @@ impl DerivationRequestWithRange {
     pub fn derivation_paths(&self) -> IndexSet<DerivationPath> {
         let mut paths = IndexSet::<DerivationPath>::new();
         for i in self.range().clone() {
-            paths.insert(DerivationPath::new(
+            let path = DerivationPath::new(
                 self.network_id,
                 self.entity_kind,
                 self.key_kind,
                 HDPathComponent::with_base_index_in_key_space(i, self.key_space),
-            ));
+            );
+            paths.insert(path);
         }
         paths
     }
@@ -47,8 +48,12 @@ pub struct DerivationRequestWithRange {
     pub start_base_index: HDPathValue,
 }
 impl DerivationRequestWithRange {
+    pub fn end_base_index(&self) -> HDPathValue {
+        self.start_base_index + self.quantity as u32
+    }
+
     pub fn range(&self) -> Range<HDPathValue> {
-        self.start_base_index..(self.start_base_index + self.quantity as u32)
+        self.start_base_index..self.end_base_index()
     }
     pub fn new(
         factor_source_id: FactorSourceIDFromHash,

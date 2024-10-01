@@ -1763,6 +1763,8 @@ impl MatrixOfFactorInstances {
     ) -> Result<Self> {
         let instances = instances.into_iter().collect_vec();
 
+        println!("🐛 instances: #{:?}", instances.len());
+
         let get_factors =
             |required: Vec<HDFactorSource>| -> Result<Vec<HierarchicalDeterministicFactorInstance>> {
                 required
@@ -1773,6 +1775,7 @@ impl MatrixOfFactorInstances {
                             .find(|i| i.factor_source_id() == f.factor_source_id())
                             .cloned()
                             .ok_or(CommonError::MissingFactorMappingInstancesIntoMatrix)
+                            .inspect_err(|e| println!("🙅‍♀️ error {:?}, instances did not contain required factor with ID: {}", e, f.factor_source_id()))
                         })
                     .collect::<Result<Vec<HierarchicalDeterministicFactorInstance>>>()
             };
@@ -1925,8 +1928,8 @@ impl ManifestSummary {
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct Profile {
     pub factor_sources: IndexSet<HDFactorSource>,
-    pub accounts: HashMap<AccountAddress, Account>,
-    pub personas: HashMap<IdentityAddress, Persona>,
+    pub accounts: IndexMap<AccountAddress, Account>,
+    pub personas: IndexMap<IdentityAddress, Persona>,
     pub current_network: NetworkID,
 }
 
@@ -1934,8 +1937,8 @@ impl Default for Profile {
     fn default() -> Self {
         Self {
             factor_sources: IndexSet::new(),
-            accounts: HashMap::new(),
-            personas: HashMap::new(),
+            accounts: IndexMap::new(),
+            personas: IndexMap::new(),
             current_network: NetworkID::Mainnet,
         }
     }
@@ -1954,17 +1957,21 @@ impl Profile {
             .expect("a Device FactorSource")
             .clone()
     }
+
     pub fn current_network(&self) -> NetworkID {
         self.current_network
     }
+
     pub fn contains_accounts(&self, accounts: impl Into<Accounts>) -> bool {
         let accounts = accounts.into();
         accounts.into_iter().all(|x| self.contains_account(x))
     }
+
     pub fn contains_account(&self, address: impl Into<AccountAddress>) -> bool {
         let address = address.into();
         self.accounts.contains_key(&address)
     }
+
     pub fn get_entities_erased(&self, entity_kind: CAP26EntityKind) -> IndexSet<AccountOrPersona> {
         match entity_kind {
             CAP26EntityKind::Account => self
@@ -2050,6 +2057,7 @@ impl Profile {
     pub fn get_accounts(&self) -> IndexSet<Account> {
         self.get_entities()
     }
+
     pub fn new<'a, 'p>(
         factor_sources: impl IntoIterator<Item = HDFactorSource>,
         accounts: impl IntoIterator<Item = &'a Account>,
@@ -2061,11 +2069,11 @@ impl Profile {
             accounts: accounts
                 .into_iter()
                 .map(|a| (a.entity_address(), a.clone()))
-                .collect::<HashMap<_, _>>(),
+                .collect::<IndexMap<_, _>>(),
             personas: personas
                 .into_iter()
                 .map(|p| (p.entity_address(), p.clone()))
-                .collect::<HashMap<_, _>>(),
+                .collect::<IndexMap<_, _>>(),
             current_network: NetworkID::Mainnet,
         }
     }

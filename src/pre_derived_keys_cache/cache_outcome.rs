@@ -100,21 +100,23 @@ impl LoadFromCacheOutcomeForSingleRequest {
             }
             LoadFromCacheOutcome::FullySatisfiedWithoutSpare(ref from_cache) => {
                 let last_index = Self::last_index_of(from_cache);
-                Action::FullySatisfiedWithoutSpare(
-                    from_cache.clone(),
-                    DerivationRequestWithRange::from((self.request.clone(), last_index)),
-                )
+                let next = last_index + 1;
+                Action::FullySatisfiedWithoutSpare {
+                    from_cache: from_cache.clone(),
+                    next: DerivationRequestWithRange::from((self.request.clone(), next)),
+                }
             }
             LoadFromCacheOutcome::PartiallySatisfied {
                 ref partial_from_cache,
                 number_of_instances_needed_to_fully_satisfy_request,
             } => {
                 let last_index = Self::last_index_of(partial_from_cache);
+                let next_index = last_index + 1; // TODO: Correct to add one here?
                 Action::PartiallySatisfied {
                     partial_from_cache: partial_from_cache.clone(),
                     derive_more: DerivationRequestWithRange::from((
                         self.request.clone(),
-                        last_index,
+                        next_index,
                     )),
                     number_of_instances_needed_to_fully_satisfy_request,
                 }
@@ -130,7 +132,10 @@ impl LoadFromCacheOutcomeForSingleRequest {
 
 pub enum Action {
     FullySatisfiedWithSpare(FactorInstances),
-    FullySatisfiedWithoutSpare(FactorInstances, DerivationRequestWithRange),
+    FullySatisfiedWithoutSpare {
+        from_cache: FactorInstances,
+        next: DerivationRequestWithRange,
+    },
     PartiallySatisfied {
         partial_from_cache: FactorInstances,
         derive_more: DerivationRequestWithRange,

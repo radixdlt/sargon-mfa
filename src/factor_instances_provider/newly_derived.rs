@@ -1,22 +1,28 @@
 use crate::prelude::*;
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct ToUseDirectly(pub FactorInstances);
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct ToCache(pub FactorInstances);
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct NewlyDerived {
     key: UnquantifiedUnindexDerivationRequest,
     /// never empty
-    to_cache: FactorInstances,
+    to_cache: ToCache,
     /// can be empty
-    pub to_use_directly: FactorInstances,
+    pub to_use_directly: ToUseDirectly,
 }
 impl NewlyDerived {
-    pub fn cache_all(key: UnquantifiedUnindexDerivationRequest, to_cache: FactorInstances) -> Self {
-        Self::new(key, to_cache, FactorInstances::default())
+    pub fn cache_all(key: UnquantifiedUnindexDerivationRequest, to_cache: ToCache) -> Self {
+        Self::new(key, to_cache, ToUseDirectly(FactorInstances::default()))
     }
 
     pub fn maybe_some_to_use_directly(
         key: UnquantifiedUnindexDerivationRequest,
-        to_cache: FactorInstances,
-        to_use_directly: FactorInstances,
+        to_cache: ToCache,
+        to_use_directly: ToUseDirectly,
     ) -> Self {
         Self::new(key, to_cache, to_use_directly)
     }
@@ -26,15 +32,17 @@ impl NewlyDerived {
     /// Also panics if any FactorInstances does not match the key.
     fn new(
         key: UnquantifiedUnindexDerivationRequest,
-        to_cache: FactorInstances,
-        to_use_directly: FactorInstances,
+        to_cache: ToCache,
+        to_use_directly: ToUseDirectly,
     ) -> Self {
         assert!(to_cache
+            .0
             .factor_instances()
             .iter()
             .all(|factor_instance| { factor_instance.satisfies(key.clone()) }));
 
         assert!(to_use_directly
+            .0
             .factor_instances()
             .iter()
             .all(|factor_instance| { factor_instance.satisfies(key.clone()) }));
@@ -46,7 +54,7 @@ impl NewlyDerived {
         }
     }
     pub fn key_value_for_cache(&self) -> (UnquantifiedUnindexDerivationRequest, FactorInstances) {
-        (self.key.clone(), self.to_cache.clone())
+        (self.key.clone(), self.to_cache.0.clone())
     }
 }
 

@@ -27,7 +27,16 @@ impl DeriveMore {
             FactorInstancesRequestPurpose::UpdateOrSetSecurityShieldForAccounts {
                 accounts,
                 ..
-            } => accounts.len(),
+            } => match self {
+                Self::WithKnownStartIndex {
+                    number_of_instances_needed_to_fully_satisfy_request,
+                    ..
+                } => number_of_instances_needed_to_fully_satisfy_request.unwrap_or(accounts.len()),
+                Self::WithoutKnownLastIndex {
+                    number_of_instances_needed_to_fully_satisfy_request,
+                    ..
+                } => *number_of_instances_needed_to_fully_satisfy_request,
+            },
             FactorInstancesRequestPurpose::PreDeriveInstancesForNewFactorSource { .. } => 0,
             FactorInstancesRequestPurpose::NewVirtualUnsecurifiedAccount { .. } => 1,
         }

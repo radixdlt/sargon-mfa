@@ -56,7 +56,17 @@ impl FactorInstances {
         }
     }
     pub fn factor_instances(&self) -> IndexSet<HierarchicalDeterministicFactorInstance> {
-        self.factor_instances.iter().cloned().collect()
+        let instances = self
+            .factor_instances
+            .iter()
+            .cloned()
+            .collect::<IndexSet<_>>();
+        assert_eq!(
+            instances.len(),
+            self.factor_instances.len(),
+            "DUPLICATE FOUND, this is programmer error",
+        );
+        instances
     }
 }
 
