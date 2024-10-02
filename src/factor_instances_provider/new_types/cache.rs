@@ -86,7 +86,7 @@ impl FactorInstancesForSpecificNetworkCache {
 
 impl CollectionsOfFactorInstances {
     pub fn take_first_account_veci(&mut self) -> Option<AccountVeci> {
-        todo!()
+        self.unsecurified_accounts.swap_remove_index(0)
     }
 }
 
