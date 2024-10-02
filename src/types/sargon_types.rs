@@ -2049,6 +2049,18 @@ impl Profile {
         .collect()
     }
 
+    pub fn accounts_on_network(&self, network_id: NetworkID) -> IndexSet<Account> {
+        self.get_accounts()
+            .into_iter()
+            .filter(|a| a.network_id() == network_id)
+            .collect()
+    }
+    pub fn personas_on_network(&self, network_id: NetworkID) -> IndexSet<Persona> {
+        self.get_entities::<Persona>()
+            .into_iter()
+            .filter(|a| a.network_id() == network_id)
+            .collect()
+    }
     pub fn get_accounts(&self) -> IndexSet<Account> {
         self.get_entities()
     }
@@ -2295,6 +2307,24 @@ pub enum CommonError {
 
     #[error("Empty collection")]
     EmptyCollection,
+
+    #[error("Expected Veci")]
+    ExpectedVeci,
+
+    #[error("Network Discrepancy")]
+    NetworkDiscrepancy,
+
+    #[error("FactorSource Discrepancy")]
+    FactorSourceDiscrepancy,
+
+    #[error("EntityKind Discrepancy")]
+    EntityKindDiscrepancy,
+
+    #[error("KeySpace Discrepancy")]
+    KeySpaceDiscrepancy,
+
+    #[error("KeyKind Discrepancy")]
+    KeyKindDiscrepancy,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]

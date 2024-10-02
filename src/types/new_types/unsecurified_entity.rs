@@ -1,6 +1,6 @@
 use crate::prelude::*;
 
-/// The HDFactorInstance, address and possibly third party deposit state of some
+/// The HierarchicalDeterministicFactorInstance, address and possibly third party deposit state of some
 /// unsecurified entity.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct UnsecurifiedEntity {

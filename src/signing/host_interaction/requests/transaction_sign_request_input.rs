@@ -32,7 +32,7 @@ impl TransactionSignRequestInput {
         );
         assert!(owned_factor_instances
             .iter()
-            .all(|f| f.by_factor_source(factor_source_id)), "Discrepancy! Mismatch between FactorSourceID of owned factor instances and specified FactorSourceID, this is a programmer error.");
+            .all(|f| f.by_factor_source(factor_source_id)), "Discrepancy! Mismatch between FactorSourceIDFromHash of owned factor instances and specified FactorSourceIDFromHash, this is a programmer error.");
         Self {
             intent_hash,
             factor_source_id,
@@ -97,7 +97,7 @@ mod tests_batch_req {
 
     #[test]
     #[should_panic(
-        expected = "Discrepancy! Mismatch between FactorSourceID of owned factor instances and specified FactorSourceID, this is a programmer error."
+        expected = "Discrepancy! Mismatch between FactorSourceIDFromHash of owned factor instances and specified FactorSourceIDFromHash, this is a programmer error."
     )]
     fn panics_mismatch_factor_source_id() {
         Sut::new(

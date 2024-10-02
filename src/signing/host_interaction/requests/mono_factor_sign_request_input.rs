@@ -28,7 +28,7 @@ impl MonoFactorSignRequestInput {
 
         assert!(per_transaction
             .iter()
-            .all(|f| f.factor_source_id == factor_source_id), "Discprepancy! Input for one of the transactions has a mismatching FactorSourceID, this is a programmer error.");
+            .all(|f| f.factor_source_id == factor_source_id), "Discprepancy! Input for one of the transactions has a mismatching FactorSourceIDFromHash, this is a programmer error.");
 
         Self {
             factor_source_id,
@@ -85,7 +85,7 @@ mod tests {
 
     #[test]
     #[should_panic(
-        expected = "Discprepancy! Input for one of the transactions has a mismatching FactorSourceID, this is a programmer error."
+        expected = "Discprepancy! Input for one of the transactions has a mismatching FactorSourceIDFromHash, this is a programmer error."
     )]
     fn panics_if_factor_source_mismatch() {
         Sut::new(

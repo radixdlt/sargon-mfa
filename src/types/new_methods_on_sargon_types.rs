@@ -46,6 +46,12 @@ impl KeySpace {
     }
 }
 
+impl DerivationPath {
+    pub fn key_space(&self) -> KeySpace {
+        self.index.key_space()
+    }
+}
+
 #[cfg(test)]
 impl Profile {
     pub fn accounts<'a>(accounts: impl IntoIterator<Item = &'a Account>) -> Self {
