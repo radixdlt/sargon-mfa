@@ -1962,11 +1962,6 @@ impl Profile {
         self.current_network
     }
 
-    pub fn contains_accounts(&self, accounts: impl Into<Accounts>) -> bool {
-        let accounts = accounts.into();
-        accounts.into_iter().all(|x| self.contains_account(x))
-    }
-
     pub fn contains_account(&self, address: impl Into<AccountAddress>) -> bool {
         let address = address.into();
         self.accounts.contains_key(&address)
