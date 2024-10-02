@@ -80,7 +80,8 @@ impl FactorInstancesForSpecificNetworkCache {
         &self,
         factor_source_id: FactorSourceIDFromHash,
     ) -> Option<CollectionsOfFactorInstances> {
-        todo!()
+        let binding = self.per_factor_source.write().unwrap();
+        binding.get(&factor_source_id).cloned()
     }
 }
 

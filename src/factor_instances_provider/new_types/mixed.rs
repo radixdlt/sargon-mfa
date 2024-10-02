@@ -87,6 +87,41 @@ impl IsHDFactorInstance for IdentityVeci {
     }
 }
 
+/// A FactorInstance with a derivation path that is used for
+/// Account, Securified, TransactionSigning
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct AccountMfaFactorInstance {
+    #[allow(dead_code)]
+    hidden_constructor: HiddenConstructor,
+    instance: HierarchicalDeterministicFactorInstance,
+}
+impl AccountMfaFactorInstance {
+    pub fn new(instance: HierarchicalDeterministicFactorInstance) -> Result<Self> {
+        let derivation_path = instance.derivation_path();
+        if derivation_path.entity_kind != CAP26EntityKind::Account {
+            return Err(CommonError::EntityKindDiscrepancy);
+        }
+
+        if derivation_path.key_space() != KeySpace::Securified {
+            return Err(CommonError::KeySpaceDiscrepancy);
+        }
+
+        if derivation_path.key_kind != CAP26KeyKind::TransactionSigning {
+            return Err(CommonError::KeyKindDiscrepancy);
+        }
+
+        Ok(Self {
+            hidden_constructor: HiddenConstructor,
+            instance,
+        })
+    }
+}
+impl IsHDFactorInstance for AccountMfaFactorInstance {
+    fn instance(&self) -> HierarchicalDeterministicFactorInstance {
+        self.instance.clone()
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum DerivationTemplate {
     /// Account, Unsecurified, TransactionSigning,
@@ -119,10 +154,18 @@ pub struct CollectionsOfFactorInstances {
     pub factor_source_id: FactorSourceIDFromHash,
     pub unsecurified_accounts: IndexSet<AccountVeci>,
     pub unsecurified_identities: IndexSet<IdentityVeci>,
+    pub securified_accounts: IndexSet<AccountMfaFactorInstance>,
 }
 impl CollectionsOfFactorInstances {
     pub fn empty(network: NetworkID, factor_source_id: FactorSourceIDFromHash) -> Self {
-        Self::new(network, factor_source_id, IndexSet::new(), IndexSet::new()).unwrap()
+        Self::new(
+            network,
+            factor_source_id,
+            IndexSet::new(),
+            IndexSet::new(),
+            IndexSet::new(),
+        )
+        .unwrap()
     }
     pub fn is_full(&self) -> bool {
         self.unsecurified_accounts.len() == CACHE_SIZE as usize
@@ -133,11 +176,15 @@ impl CollectionsOfFactorInstances {
         factor_source_id: FactorSourceIDFromHash,
         unsecurified_accounts: IndexSet<AccountVeci>,
         unsecurified_identities: IndexSet<IdentityVeci>,
+        securified_accounts: IndexSet<AccountMfaFactorInstance>,
     ) -> Result<Self> {
         if !(unsecurified_accounts
             .iter()
             .all(|f| f.network_id() == network)
             && unsecurified_identities
+                .iter()
+                .all(|f| f.network_id() == network)
+            && securified_accounts
                 .iter()
                 .all(|f| f.network_id() == network))
         {
@@ -160,6 +207,7 @@ impl CollectionsOfFactorInstances {
             factor_source_id,
             unsecurified_accounts,
             unsecurified_identities,
+            securified_accounts,
         })
     }
 }

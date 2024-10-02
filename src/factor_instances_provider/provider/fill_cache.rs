@@ -1,3 +1,5 @@
+use std::ops::SubAssign;
+
 use crate::prelude::*;
 
 pub const CACHE_SIZE: u32 = 30;
@@ -34,7 +36,19 @@ impl FillCacheQuantitiesForFactor {
         self,
         existing: impl Into<Option<CollectionsOfFactorInstances>>,
     ) -> Self {
-        todo!()
+        let Some(existing) = existing.into() else {
+            return self;
+        };
+        let mut fill_cache = self;
+        fill_cache
+            .account_vecis
+            .sub_assign(existing.unsecurified_accounts.len() as u32);
+
+        fill_cache
+            .account_mfa
+            .sub_assign(existing.securified_accounts.len() as u32);
+
+        fill_cache
     }
 }
 
