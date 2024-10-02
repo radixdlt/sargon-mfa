@@ -5,6 +5,7 @@ use crate::prelude::*;
 /// On one specific network
 #[derive(Debug)]
 pub struct FactorInstancesForSpecificNetworkCache {
+    #[allow(dead_code)]
     hidden_constructor: HiddenConstructor,
     pub network_id: NetworkID,
     per_factor_source: RwLock<IndexMap<FactorSourceIDFromHash, CollectionsOfFactorInstances>>,
@@ -30,6 +31,7 @@ impl FactorInstancesForSpecificNetworkCache {
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct FactorInstanceFromCache {
+    #[allow(dead_code)]
     hidden_constructor: HiddenConstructor,
     pub instance: HierarchicalDeterministicFactorInstance,
     /// if this was the last instance in the collection of instances, if it is,

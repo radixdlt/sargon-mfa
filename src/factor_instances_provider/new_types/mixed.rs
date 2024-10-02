@@ -20,6 +20,7 @@ pub trait IsHDFactorInstance {
 /// Account, Unsecurified, TransactionSigning
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct AccountVeci {
+    #[allow(dead_code)]
     hidden_constructor: HiddenConstructor,
     instance: HierarchicalDeterministicFactorInstance,
 }
@@ -55,6 +56,7 @@ impl AccountVeci {
 /// Identity, Unsecurified, TransactionSigning
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct IdentityVeci {
+    #[allow(dead_code)]
     hidden_constructor: HiddenConstructor,
     instance: HierarchicalDeterministicFactorInstance,
 }
@@ -111,6 +113,7 @@ pub enum DerivationTemplate {
 /// for different DerivationTemplates.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CollectionsOfFactorInstances {
+    #[allow(dead_code)]
     hidden_constructor: HiddenConstructor,
     pub network: NetworkID,
     pub factor_source_id: FactorSourceIDFromHash,

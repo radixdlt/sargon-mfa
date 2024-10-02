@@ -2,6 +2,7 @@ use crate::prelude::*;
 
 #[derive(Debug)]
 pub struct ProvidedInstances {
+    #[allow(dead_code)]
     hidden_constructor: HiddenConstructor,
 
     /// The caller of FactorInstancesProvider::provide MUST override their

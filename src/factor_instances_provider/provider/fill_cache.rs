@@ -40,6 +40,7 @@ impl FillCacheQuantitiesForFactor {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FillCacheQuantitiesPerFactor {
+    #[allow(dead_code)]
     hidden_constructor: HiddenConstructor,
     pub per_factor_source: IndexMap<FactorSourceIDFromHash, FillCacheQuantitiesForFactor>,
 }
