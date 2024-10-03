@@ -543,11 +543,11 @@ impl Step for HDPathComponent {
 pub type HDBaseIndex = U30;
 
 impl HDPathComponent {
-    pub fn new_with_key_space_and_base_index(
-        _key_space: KeySpace,
-        _base_index: HDBaseIndex,
-    ) -> Self {
-        todo!()
+    pub fn new_with_key_space_and_base_index(key_space: KeySpace, base_index: HDBaseIndex) -> Self {
+        match key_space {
+            KeySpace::Securified => Self::securifying_base_index(base_index.inner),
+            KeySpace::Unsecurified => Self::unsecurified_hardening_base_index(base_index.inner),
+        }
     }
     pub fn new_with_key_space_and_index(key_space: KeySpace, index: u32) -> Result<Self> {
         HDBaseIndex::new(index)
