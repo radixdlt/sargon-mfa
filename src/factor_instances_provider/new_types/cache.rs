@@ -18,14 +18,30 @@ impl FactorInstancesForSpecificNetworkCache {
             per_factor_source: RwLock::new(self.per_factor_source.read().unwrap().clone()),
         }
     }
+    pub fn merge(&mut self, other: Self) {
+        assert_eq!(other.network_id, self.network_id);
+        let other = other.per_factor_source.into_inner().unwrap();
+        for (factor_source_id, instances) in other {
+            self.append_for_factor(factor_source_id, instances).unwrap();
+        }
+    }
     pub fn append_for_factor(
         &self,
         factor_source_id: FactorSourceIDFromHash,
-        instances: ToCache,
+        instances: CollectionsOfFactorInstances,
     ) -> Result<()> {
-        assert_eq!(self.network_id, instances.0.network);
-        assert_eq!(factor_source_id, instances.0.factor_source_id);
-        todo!()
+        assert_eq!(self.network_id, instances.network);
+        assert_eq!(factor_source_id, instances.factor_source_id);
+
+        let mut binding = self.per_factor_source.write().unwrap();
+
+        if let Some(existing) = binding.get_mut(&factor_source_id) {
+            assert_eq!(existing.network, instances.network, "Network mismatch");
+            existing.append(instances);
+        } else {
+            binding.insert(factor_source_id, instances);
+        }
+        Ok(())
     }
 }
 
@@ -95,8 +111,9 @@ impl CollectionsOfFactorInstances {
 pub struct FactorInstancesForEachNetworkCache {
     #[allow(dead_code)]
     hidden_constructor: HiddenConstructor,
-    pub networks: HashMap<NetworkID, FactorInstancesForSpecificNetworkCache>,
+    pub networks: RwLock<HashMap<NetworkID, FactorInstancesForSpecificNetworkCache>>,
 }
+
 impl FactorInstancesForEachNetworkCache {
     pub fn clone_for_network_or_empty(
         &self,
@@ -105,13 +122,25 @@ impl FactorInstancesForEachNetworkCache {
         self.clone_for_network(network_id)
             .unwrap_or(FactorInstancesForSpecificNetworkCache::empty(network_id))
     }
+
     pub fn clone_for_network(
         &self,
         network_id: NetworkID,
     ) -> Option<FactorInstancesForSpecificNetworkCache> {
-        self.networks.get(&network_id).map(|x| x.cloned_snapshot())
+        self.networks
+            .read()
+            .unwrap()
+            .get(&network_id)
+            .map(|x| x.cloned_snapshot())
     }
-    pub fn merge(&self, _on_network: FactorInstancesForSpecificNetworkCache) -> Result<()> {
-        todo!()
+
+    pub fn merge(&self, on_network: FactorInstancesForSpecificNetworkCache) -> Result<()> {
+        let mut binding = self.networks.write().unwrap();
+        if let Some(existing) = binding.get_mut(&on_network.network_id) {
+            existing.merge(on_network)
+        } else {
+            binding.insert(on_network.network_id, on_network);
+        }
+        Ok(())
     }
 }

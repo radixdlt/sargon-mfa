@@ -136,12 +136,56 @@ impl FactorInstancesProvider {
         Ok(outcome)
     }
 
+    fn split_with(
+        network_id: NetworkID,
+        query: InstancesQuery,
+        from_cache: Option<HierarchicalDeterministicFactorInstance>,
+        derived: KeyDerivationOutcome,
+    ) -> (ToUseDirectly, ToCache) {
+        let derived = derived.factors_by_source;
+        match query {
+            InstancesQuery::AccountMfa {
+                number_of_instances_per_factor_source: _,
+                factor_sources: _,
+            } => todo!(),
+            InstancesQuery::AccountVeci { factor_source } => {
+                let derived = derived
+                    .get(&factor_source.factor_source_id())
+                    .unwrap()
+                    .clone();
+                if let Some(from_cache) = from_cache {
+                    (
+                        ToUseDirectly::just(from_cache),
+                        ToCache::from((
+                            network_id,
+                            IndexMap::kv(factor_source.factor_source_id(), derived),
+                        )),
+                    )
+                } else {
+                    let derived = derived.into_iter().collect_vec();
+                    let (head, tail) = derived.split_at(1);
+                    assert_eq!(head.len(), 1);
+                    assert!(!tail.is_empty());
+                    let head = head.first().unwrap().clone();
+                    let tail = tail.iter().cloned().collect::<IndexSet<_>>();
+                    (
+                        ToUseDirectly::just(head),
+                        ToCache::from((
+                            network_id,
+                            IndexMap::kv(factor_source.factor_source_id(), tail),
+                        )),
+                    )
+                }
+            }
+        }
+    }
+
     fn split(
         &self,
-        _from_cache: Option<HierarchicalDeterministicFactorInstance>,
-        _derived: KeyDerivationOutcome,
+        from_cache: Option<HierarchicalDeterministicFactorInstance>,
+        derived: KeyDerivationOutcome,
     ) -> (ToUseDirectly, ToCache) {
-        todo!()
+        Self::split_with(self.network_id, self.query.clone(), from_cache, derived)
     }
 }
 
@@ -165,7 +209,7 @@ impl FactorInstancesProvider {
             .consume_account_veci(factor_source_id);
         let mut maybe_next_index_for_derivation: Option<HDPathComponent> = None;
         let mut veci: Option<HierarchicalDeterministicFactorInstance> = None;
-        let mut to_cache: Option<ToCache> = None;
+        let mut to_cache: Option<CollectionsOfFactorInstances> = None;
         if let Some(cached) = maybe_cached {
             veci = Some(cached.instance.clone());
             if cached.was_last_used {
@@ -208,7 +252,8 @@ impl FactorInstancesProvider {
 
             let derived = self.derive(paths).await?;
             let (split_to_use_directly, split_to_cache) = self.split(veci, derived);
-
+            assert_eq!(split_to_cache.0.len(), 1, "expected single factor");
+            let split_to_cache = split_to_cache.0.values().last().unwrap().clone();
             // unconditionally set `veci`, since `split` should handle logic of it
             // being `None` or not.
             veci = Some(split_to_use_directly.account_veci()?.instance());
@@ -261,6 +306,24 @@ mod tests {
         .await
         .unwrap();
 
+        assert_eq!(
+            outcome.account_veci().unwrap().derivation_entity_index(),
+            HDPathComponent::Hardened(HDPathComponentHardened::Unsecurified(
+                UnsecurifiedIndex::unsecurified_hardening_base_index(0)
+            ))
+        );
+
+        println!(
+            "🤡 peek into cache: {:?}",
+            cache
+                .try_read()
+                .unwrap()
+                .clone_for_network(network)
+                .unwrap()
+                .peek_all_instances_for_factor_source(bdfs.factor_source_id())
+                .unwrap()
+        );
+
         assert!(cache
             .try_read()
             .unwrap()
@@ -269,12 +332,5 @@ mod tests {
             .peek_all_instances_for_factor_source(bdfs.factor_source_id())
             .unwrap()
             .is_full());
-
-        assert_eq!(
-            outcome.account_veci().unwrap().derivation_entity_index(),
-            HDPathComponent::Hardened(HDPathComponentHardened::Unsecurified(
-                UnsecurifiedIndex::unsecurified_hardening_base_index(0)
-            ))
-        );
     }
 }

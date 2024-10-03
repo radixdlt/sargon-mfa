@@ -18,10 +18,14 @@ pub struct ProvidedInstances {
 }
 impl ProvidedInstances {
     pub fn new(
-        _cache: FactorInstancesForSpecificNetworkCache,
-        _to_use_directly: ToUseDirectly,
+        cache: FactorInstancesForSpecificNetworkCache,
+        to_use_directly: ToUseDirectly,
     ) -> Self {
-        todo!()
+        Self {
+            hidden_constructor: HiddenConstructor,
+            cache_to_persist: cache,
+            instances_to_be_used: to_use_directly,
+        }
     }
     pub fn for_account_veci(
         cache: FactorInstancesForSpecificNetworkCache,

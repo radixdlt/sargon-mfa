@@ -179,9 +179,11 @@ pub struct CollectionsOfFactorInstances {
     hidden_constructor: HiddenConstructor,
     pub network: NetworkID,
     pub factor_source_id: FactorSourceIDFromHash,
+
     pub unsecurified_accounts: IndexSet<AccountVeci>,
-    pub unsecurified_identities: IndexSet<IdentityVeci>,
     pub securified_accounts: IndexSet<AccountMfaFactorInstance>,
+
+    pub unsecurified_identities: IndexSet<IdentityVeci>,
 }
 impl CollectionsOfFactorInstances {
     pub fn empty(network: NetworkID, factor_source_id: FactorSourceIDFromHash) -> Self {
@@ -237,6 +239,64 @@ impl CollectionsOfFactorInstances {
             securified_accounts,
         })
     }
+
+    pub fn append(&mut self, other: Self) {
+        assert_eq!(other.network, self.network);
+        assert_eq!(other.factor_source_id, self.factor_source_id);
+
+        // TODO CLEAN UP this repetition mess! Use trait, or local closure...
+        assert!(self
+            .unsecurified_identities
+            .intersection(&other.unsecurified_identities)
+            .next()
+            .is_none());
+        assert!(self
+            .unsecurified_accounts
+            .intersection(&other.unsecurified_accounts)
+            .next()
+            .is_none());
+        assert!(self
+            .securified_accounts
+            .intersection(&other.securified_accounts)
+            .next()
+            .is_none());
+
+        if let Some(last_sec_acc) = self.securified_accounts.last() {
+            if let Some(first_sec_acc) = other.securified_accounts.first() {
+                assert!(
+                    first_sec_acc.derivation_entity_index()
+                        > last_sec_acc.derivation_entity_index(),
+                    "First index of new securified account is not larger than last of existing!"
+                );
+            }
+        }
+
+        if let Some(last_unsec_acc) = self.unsecurified_accounts.last() {
+            if let Some(first_unsec_acc) = other.unsecurified_accounts.first() {
+                assert!(
+                    first_unsec_acc.derivation_entity_index()
+                        > last_unsec_acc.derivation_entity_index(),
+                    "First index of new unsecurified account is not larger than last of existing!"
+                );
+            }
+        }
+
+        if let Some(last_unsec_ident) = self.unsecurified_identities.last() {
+            if let Some(first_unsec_ident) = other.unsecurified_identities.first() {
+                assert!(
+                    first_unsec_ident.derivation_entity_index()
+                        > last_unsec_ident.derivation_entity_index(),
+                    "First index of new unsecurified identity is not larger than last of existing!"
+                );
+            }
+        }
+
+        self.securified_accounts.extend(other.securified_accounts);
+        self.unsecurified_accounts
+            .extend(other.unsecurified_accounts);
+        self.unsecurified_identities
+            .extend(other.unsecurified_identities);
+    }
 }
 
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
@@ -249,7 +309,8 @@ impl ToUseDirectly {
         Self::new(IndexSet::from_iter([factor_instance]))
     }
     pub fn account_veci(self) -> Result<AccountVeci> {
-        todo!()
+        assert_eq!(self.0.len(), 1);
+        AccountVeci::new(self.0.into_iter().next().unwrap())
     }
 }
 
@@ -277,4 +338,69 @@ impl DerivationPathPerFactorSource {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ToCache(pub CollectionsOfFactorInstances);
+pub struct ToCache(pub IndexMap<FactorSourceIDFromHash, CollectionsOfFactorInstances>);
+
+impl From<(NetworkID, KeyDerivationOutcome)> for ToCache {
+    fn from(value: (NetworkID, KeyDerivationOutcome)) -> Self {
+        let (network_id, derivation_outcome) = value;
+        Self::from((network_id, derivation_outcome.factors_by_source))
+    }
+}
+impl
+    From<(
+        NetworkID,
+        IndexMap<FactorSourceIDFromHash, IndexSet<HierarchicalDeterministicFactorInstance>>,
+    )> for ToCache
+{
+    fn from(
+        value: (
+            NetworkID,
+            IndexMap<FactorSourceIDFromHash, IndexSet<HierarchicalDeterministicFactorInstance>>,
+        ),
+    ) -> Self {
+        let (network_id, factors_by_source) = value;
+        let mut set_of_collections =
+            IndexMap::<FactorSourceIDFromHash, CollectionsOfFactorInstances>::new();
+        for (factor_source_id, factors) in factors_by_source {
+            let unsecurified_accounts = factors
+                .clone()
+                .into_iter()
+                .filter_map(|f| AccountVeci::new(f).ok())
+                .collect::<IndexSet<_>>();
+
+            let securified_accounts = factors
+                .clone()
+                .into_iter()
+                .filter_map(|f| AccountMfaFactorInstance::new(f).ok())
+                .collect::<IndexSet<_>>();
+
+            let unsecurified_identities = factors
+                .clone()
+                .into_iter()
+                .filter_map(|f| IdentityVeci::new(f).ok())
+                .collect::<IndexSet<_>>();
+
+            assert_eq!(
+                factors.len(),
+                unsecurified_accounts.len()
+                    + securified_accounts.len()
+                    + unsecurified_identities.len(),
+                "Discrepancy skipped some factors, MFA Identity? ROLA?"
+            );
+
+            let collections_for_factor = CollectionsOfFactorInstances::new(
+                network_id,
+                factor_source_id,
+                unsecurified_accounts,
+                unsecurified_identities,
+                securified_accounts,
+            )
+            .unwrap();
+
+            assert!(set_of_collections
+                .insert(factor_source_id, collections_for_factor)
+                .is_none());
+        }
+        Self(set_of_collections)
+    }
+}
