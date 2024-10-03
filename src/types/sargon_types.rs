@@ -177,6 +177,9 @@ impl Ord for HDFactorSource {
 pub trait Just<Item> {
     fn just(item: Item) -> Self;
 }
+pub trait JustKV<Key, Value> {
+    fn kv(key: Key, value: Value) -> Self;
+}
 impl<T: std::hash::Hash + Eq> Just<T> for IndexSet<T> {
     fn just(item: T) -> Self {
         Self::from_iter([item])
@@ -192,9 +195,19 @@ impl<K: std::hash::Hash + Eq, V> Just<(K, V)> for IndexMap<K, V> {
         Self::from_iter([item])
     }
 }
+impl<K: std::hash::Hash + Eq, V> JustKV<K, V> for IndexMap<K, V> {
+    fn kv(key: K, value: V) -> Self {
+        Self::from_iter([(key, value)])
+    }
+}
 impl<K: std::hash::Hash + Eq, V> Just<(K, V)> for HashMap<K, V> {
     fn just(item: (K, V)) -> Self {
         Self::from_iter([item])
+    }
+}
+impl<K: std::hash::Hash + Eq, V> JustKV<K, V> for HashMap<K, V> {
+    fn kv(key: K, value: V) -> Self {
+        Self::from_iter([(key, value)])
     }
 }
 
@@ -527,17 +540,29 @@ impl Step for HDPathComponent {
     }
 }
 
+pub type HDBaseIndex = U30;
+
 impl HDPathComponent {
-    pub fn new_from_base_index(base_index: HDPathValue) -> Self {
-        if base_index < BIP32_HARDENED {
-            Self::Unhardened(UnhardenedIndex::new(base_index))
-        } else if base_index < BIP32_SECURIFIED_HALF {
+    pub fn new_with_key_space_and_base_index(
+        _key_space: KeySpace,
+        _base_index: HDBaseIndex,
+    ) -> Self {
+        todo!()
+    }
+    pub fn new_with_key_space_and_index(key_space: KeySpace, index: u32) -> Result<Self> {
+        HDBaseIndex::new(index)
+            .map(|base_index| Self::new_with_key_space_and_base_index(key_space, base_index))
+    }
+    pub fn new_from_index(index: HDPathValue) -> Self {
+        if index < BIP32_HARDENED {
+            Self::Unhardened(UnhardenedIndex::new(index))
+        } else if index < BIP32_SECURIFIED_HALF {
             Self::Hardened(HDPathComponentHardened::Unsecurified(
-                UnsecurifiedIndex::new(base_index),
+                UnsecurifiedIndex::new(index),
             ))
         } else {
             Self::Hardened(HDPathComponentHardened::Securified(SecurifiedIndex::new(
-                base_index,
+                index,
             )))
         }
     }
@@ -652,7 +677,7 @@ mod tests_hdpathcomp {
         t(Sut::unsecurified_hardening_base_index(0), 1);
         t(Sut::unsecurified_hardening_base_index(5), 6);
         t(
-            Sut::new_from_base_index(BIP32_SECURIFIED_HALF - 2),
+            Sut::new_from_index(BIP32_SECURIFIED_HALF - 2),
             BIP32_SECURIFIED_HALF - 1,
         );
 
@@ -2339,6 +2364,9 @@ pub enum CommonError {
 
     #[error("KeyKind Discrepancy")]
     KeyKindDiscrepancy,
+
+    #[error("Invalid u30")]
+    Invalid30 { bad_value: u32 },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]

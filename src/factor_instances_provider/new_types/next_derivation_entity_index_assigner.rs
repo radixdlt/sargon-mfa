@@ -146,7 +146,7 @@ impl NextDerivationEntityIndexWithLocalOffsetsForFactorSource {
             .write()
             .unwrap();
         if let Some(existing) = binding.get_mut(&template) {
-            let free = existing.clone();
+            let free = *existing;
             existing.add_assign(1);
             free
         } else {
@@ -214,7 +214,7 @@ impl NextDerivationEntityIndexAssigner {
             .profile_analyzing
             .next_account_veci(factor_source_id)
             .unwrap_or(default_for_profile);
-        let next = from_profile.add_n(local);
-        next
+
+        from_profile.add_n(local)
     }
 }

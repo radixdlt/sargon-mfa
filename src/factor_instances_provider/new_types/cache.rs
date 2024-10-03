@@ -111,7 +111,7 @@ impl FactorInstancesForEachNetworkCache {
     ) -> Option<FactorInstancesForSpecificNetworkCache> {
         self.networks.get(&network_id).map(|x| x.cloned_snapshot())
     }
-    pub fn merge(&self, on_network: FactorInstancesForSpecificNetworkCache) -> Result<()> {
+    pub fn merge(&self, _on_network: FactorInstancesForSpecificNetworkCache) -> Result<()> {
         todo!()
     }
 }

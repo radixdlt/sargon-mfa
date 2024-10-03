@@ -3,14 +3,21 @@ use std::sync::{Arc, RwLock};
 use crate::prelude::*;
 
 pub struct FactorInstancesProvider {
+    /// We only derive factor instances for one network at a time, currently, this
+    /// can be expanded in the future if we want to, but most users only care
+    /// about mainnet.
+    network_id: NetworkID,
+
     /// A Clone of a cache, the caller MUST commit the changes to the
     /// original cache if they want to persist them.
     #[allow(dead_code)]
     cache: RwLock<FactorInstancesForSpecificNetworkCache>,
 
-    query: InstancesQuery,
-
     next_entity_index_assigner: NextDerivationEntityIndexAssigner,
+
+    derivation_interactors: Arc<dyn KeysDerivationInteractors>,
+
+    query: InstancesQuery,
 }
 
 impl FactorInstancesProvider {
@@ -20,16 +27,19 @@ impl FactorInstancesProvider {
     fn new(
         cache_on_network: FactorInstancesForSpecificNetworkCache,
         profile: impl Into<Option<Profile>>,
+        derivation_interactors: Arc<dyn KeysDerivationInteractors>,
         query: InstancesQuery,
     ) -> Self {
         let network_id = cache_on_network.network_id;
         Self {
+            network_id,
             cache: RwLock::new(cache_on_network),
-            query,
             next_entity_index_assigner: NextDerivationEntityIndexAssigner::new(
                 network_id,
                 profile.into(),
             ),
+            derivation_interactors,
+            query,
         }
     }
 
@@ -37,10 +47,11 @@ impl FactorInstancesProvider {
         cache: Arc<RwLock<FactorInstancesForEachNetworkCache>>,
         network_id: NetworkID,
         profile: impl Into<Option<Profile>>,
+        derivation_interactors: Arc<dyn KeysDerivationInteractors>,
         query: InstancesQuery,
     ) -> Result<ToUseDirectly> {
         let cloned_cache = cache.read().unwrap().clone_for_network_or_empty(network_id);
-        let provider = Self::new(cloned_cache, profile, query);
+        let provider = Self::new(cloned_cache, profile, derivation_interactors, query);
         let provided = provider._provide().await?;
         cache.write().unwrap().merge(provided.cache_to_persist)?;
         Ok(provided.instances_to_be_used)
@@ -63,22 +74,72 @@ impl FactorInstancesProvider {
 }
 
 impl FactorInstancesProvider {
-    fn paths_single_factor(
+    fn paths(
         &self,
-        factor_source_id: FactorSourceIDFromHash,
-        known_indices_for_templates: IndexMap<DerivationTemplate, HDPathComponent>,
-        fill_cache: FillCacheQuantitiesForFactor,
+        indices: FillCacheIndicesPerFactor,
+        quantities: FillCacheQuantitiesPerFactor,
     ) -> DerivationPathPerFactorSource {
-        todo!()
+        assert_eq!(
+            indices.per_factor_source.keys().collect::<HashSet<_>>(),
+            quantities.per_factor_source.keys().collect::<HashSet<_>>(),
+            "Discrepancy, every index needs a quantity, and vice versa."
+        );
+        let network_id = self.network_id;
+
+        let mut paths_per_template_per_factor = IndexMap::<
+            FactorSourceIDFromHash,
+            IndexMap<DerivationTemplate, IndexSet<DerivationPath>>,
+        >::new();
+
+        for (factor_source_id, indices) in indices.per_factor_source.into_iter() {
+            let quantities_for_factor =
+                quantities.per_factor_source.get(&factor_source_id).unwrap();
+            let mut paths_per_template_for_factor =
+                IndexMap::<DerivationTemplate, IndexSet<DerivationPath>>::new();
+            for (derivation_template, index) in indices.indices.into_iter() {
+                let quantity = quantities_for_factor.quantity_for_template(derivation_template);
+                let start_index = index.base_index();
+                let end_index = start_index + quantity as u32;
+                let range = start_index..end_index;
+                let paths_for_template = range
+                    .map(|i| {
+                        DerivationPath::new(
+                            network_id,
+                            derivation_template.entity_kind(),
+                            derivation_template.key_kind(),
+                            HDPathComponent::new_with_key_space_and_index(
+                                derivation_template.key_space(),
+                                i,
+                            )
+                            .unwrap(),
+                        )
+                    })
+                    .collect::<IndexSet<DerivationPath>>();
+                paths_per_template_for_factor.insert(derivation_template, paths_for_template);
+            }
+            paths_per_template_per_factor.insert(factor_source_id, paths_per_template_for_factor);
+        }
+        DerivationPathPerFactorSource {
+            paths_per_template_per_factor,
+        }
     }
 
     async fn derive(&self, paths: DerivationPathPerFactorSource) -> Result<KeyDerivationOutcome> {
-        todo!()
+        let factor_sources = self.query.factor_sources();
+        let derivation_paths = paths.flatten();
+        let keys_collector = KeysCollector::new(
+            factor_sources,
+            derivation_paths,
+            self.derivation_interactors.clone(),
+        )?;
+        let outcome = keys_collector.collect_keys().await;
+        Ok(outcome)
     }
+
     fn split(
         &self,
-        from_cache: Option<HierarchicalDeterministicFactorInstance>,
-        derived: KeyDerivationOutcome,
+        _from_cache: Option<HierarchicalDeterministicFactorInstance>,
+        _derived: KeyDerivationOutcome,
     ) -> (ToUseDirectly, ToCache) {
         todo!()
     }
@@ -86,7 +147,7 @@ impl FactorInstancesProvider {
 
 impl HDPathComponent {
     pub fn next(&self) -> Self {
-        todo!()
+        self.add_one()
     }
 }
 
@@ -124,8 +185,7 @@ impl FactorInstancesProvider {
             "Programmer error, both 'veci' and 'maybe_next_index_for_derivation' cannot be none."
         );
         if let Some(next_index_for_derivation) = maybe_next_index_for_derivation {
-            // furthermore, since we are deriving ANYWAY, we should also derive to Fill The Cache....
-            let fill_cache_maybe_over_estimated =
+            let fill_cache_quantities_upper_bound =
                 FillCacheQuantitiesForFactor::fill(factor_source_id);
 
             let existing = self
@@ -134,12 +194,16 @@ impl FactorInstancesProvider {
                 .unwrap()
                 .peek_all_instances_for_factor_source(factor_source.factor_source_id());
 
-            let fill_cache = fill_cache_maybe_over_estimated.subtracting_existing(existing);
+            let fill_cache_quantities =
+                fill_cache_quantities_upper_bound.subtracting_existing(existing);
 
-            let paths = self.paths_single_factor(
-                factor_source_id,
-                IndexMap::from_iter([(DerivationTemplate::AccountVeci, next_index_for_derivation)]),
-                fill_cache,
+            let paths = self.paths(
+                FillCacheIndicesPerFactor::just(
+                    factor_source_id,
+                    DerivationTemplate::AccountVeci,
+                    next_index_for_derivation,
+                ),
+                FillCacheQuantitiesPerFactor::just(fill_cache_quantities),
             );
 
             let derived = self.derive(paths).await?;
@@ -163,8 +227,8 @@ impl FactorInstancesProvider {
 
     async fn provide_accounts_mfa(
         &self,
-        number_of_instances_per_factor_source: usize,
-        factor_sources: IndexSet<HDFactorSource>,
+        _number_of_instances_per_factor_source: usize,
+        _factor_sources: IndexSet<HDFactorSource>,
     ) -> Result<ProvidedInstances> {
         todo!()
     }
@@ -189,6 +253,7 @@ mod tests {
             cache.clone(),
             network,
             profile,
+            Arc::new(TestDerivationInteractors::default()),
             InstancesQuery::AccountVeci {
                 factor_source: bdfs.clone(),
             },

@@ -25,3 +25,15 @@ pub enum InstancesQuery {
     },
     // PreDeriveKeysForFactorSource
 }
+
+impl InstancesQuery {
+    pub fn factor_sources(&self) -> IndexSet<HDFactorSource> {
+        match self {
+            InstancesQuery::AccountVeci { factor_source } => IndexSet::just(factor_source.clone()),
+            InstancesQuery::AccountMfa {
+                factor_sources,
+                number_of_instances_per_factor_source: _,
+            } => factor_sources.clone(),
+        }
+    }
+}

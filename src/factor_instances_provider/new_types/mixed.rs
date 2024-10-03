@@ -1,18 +1,15 @@
 use crate::prelude::*;
 
-#[derive(Clone, Default, Debug, PartialEq, Eq, Hash)]
-pub struct HiddenConstructor;
-
 pub trait IsHDFactorInstance {
     fn instance(&self) -> HierarchicalDeterministicFactorInstance;
     fn derivation_path(&self) -> DerivationPath {
         self.instance().derivation_path().clone()
     }
     fn derivation_entity_index(&self) -> HDPathComponent {
-        self.derivation_path().index.clone()
+        self.derivation_path().index
     }
     fn network_id(&self) -> NetworkID {
-        self.derivation_path().network_id.clone()
+        self.derivation_path().network_id
     }
 }
 
@@ -141,6 +138,36 @@ pub enum DerivationTemplate {
     /// Identity, Securified, TransactionSigning
     IdentityMfa,
 }
+impl DerivationTemplate {
+    pub fn entity_kind(&self) -> CAP26EntityKind {
+        match self {
+            Self::AccountVeci => CAP26EntityKind::Account,
+            Self::AccountRola => CAP26EntityKind::Account,
+            Self::AccountMfa => CAP26EntityKind::Account,
+            Self::IdentityVeci => CAP26EntityKind::Identity,
+            Self::IdentityMfa => CAP26EntityKind::Identity,
+        }
+    }
+    pub fn key_space(&self) -> KeySpace {
+        match self {
+            Self::AccountVeci => KeySpace::Unsecurified,
+            Self::AccountRola => KeySpace::Securified, // TODO: I think we don't create ROLA keys for UnsecurifiedAccounts, if we do, split this into two variants.
+            Self::AccountMfa => KeySpace::Securified,
+            Self::IdentityVeci => KeySpace::Unsecurified,
+            Self::IdentityMfa => KeySpace::Securified,
+        }
+    }
+    pub fn key_kind(&self) -> CAP26KeyKind {
+        match self {
+            Self::AccountVeci => CAP26KeyKind::TransactionSigning,
+            Self::AccountMfa => CAP26KeyKind::TransactionSigning,
+            Self::IdentityVeci => CAP26KeyKind::TransactionSigning,
+            Self::IdentityMfa => CAP26KeyKind::TransactionSigning,
+
+            Self::AccountRola => CAP26KeyKind::AuthenticationSigning,
+        }
+    }
+}
 
 /// A collection of sets of FactorInstances,
 /// all on the same network
@@ -168,8 +195,8 @@ impl CollectionsOfFactorInstances {
         .unwrap()
     }
     pub fn is_full(&self) -> bool {
-        self.unsecurified_accounts.len() == CACHE_SIZE as usize
-            && self.unsecurified_identities.len() == CACHE_SIZE as usize
+        self.unsecurified_accounts.len() == CACHE_SIZE
+            && self.unsecurified_identities.len() == CACHE_SIZE
     }
     pub fn new(
         network: NetworkID,
@@ -228,7 +255,25 @@ impl ToUseDirectly {
 
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct DerivationPathPerFactorSource {
-    per_factor_source: IndexMap<FactorSourceIDFromHash, IndexSet<DerivationPath>>,
+    pub paths_per_template_per_factor:
+        IndexMap<FactorSourceIDFromHash, IndexMap<DerivationTemplate, IndexSet<DerivationPath>>>,
+}
+
+impl DerivationPathPerFactorSource {
+    /// Flattens the collection, merging all DerivationPaths for the same FactorSource together,
+    /// effectively removing the DerivationTemplate level.
+    pub fn flatten(&self) -> IndexMap<FactorSourceIDFromHash, IndexSet<DerivationPath>> {
+        self.paths_per_template_per_factor
+            .iter()
+            .map(|(factor_source_id, paths_per_template)| {
+                let paths = paths_per_template
+                    .iter()
+                    .flat_map(|(_, paths)| paths.iter().cloned())
+                    .collect();
+                (*factor_source_id, paths)
+            })
+            .collect()
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -11,5 +11,5 @@
 ///
 /// Making it impossible to create `ValidatedName` with invalid value!
 ///
-#[derive(Clone, Default, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Default, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct HiddenConstructor;

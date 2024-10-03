@@ -18,8 +18,8 @@ pub struct ProvidedInstances {
 }
 impl ProvidedInstances {
     pub fn new(
-        cache: FactorInstancesForSpecificNetworkCache,
-        to_use_directly: ToUseDirectly,
+        _cache: FactorInstancesForSpecificNetworkCache,
+        _to_use_directly: ToUseDirectly,
     ) -> Self {
         todo!()
     }
