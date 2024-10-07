@@ -84,7 +84,7 @@ impl FactorInstancesForSpecificNetworkCache {
         if let Some(first) = collections.take_first_account_veci() {
             Some(FactorInstanceFromCache::new(
                 first.instance(),
-                collections.unsecurified_accounts.is_empty(),
+                collections.account_veci.is_empty(),
             ))
         } else {
             None
@@ -92,7 +92,7 @@ impl FactorInstancesForSpecificNetworkCache {
     }
 
     /// Does NOT mutate self
-    pub fn peek_all_instances_for_factor_source(
+    pub fn peek_all_instances_of_factor_source(
         &self,
         factor_source_id: FactorSourceIDFromHash,
     ) -> Option<CollectionsOfFactorInstances> {
@@ -103,7 +103,7 @@ impl FactorInstancesForSpecificNetworkCache {
 
 impl CollectionsOfFactorInstances {
     pub fn take_first_account_veci(&mut self) -> Option<AccountVeci> {
-        self.unsecurified_accounts.swap_remove_index(0)
+        self.account_veci.swap_remove_index(0)
     }
 }
 

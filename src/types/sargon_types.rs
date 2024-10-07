@@ -2088,6 +2088,20 @@ impl Profile {
         self.get_securified_entities_of_kind_on_network(CAP26EntityKind::Account, network_id)
     }
 
+    pub fn unsecurified_identities_on_network(
+        &self,
+        network_id: NetworkID,
+    ) -> IndexSet<UnsecurifiedEntity> {
+        self.get_unsecurified_entities_of_kind_on_network(CAP26EntityKind::Identity, network_id)
+    }
+
+    pub fn securified_identities_on_network(
+        &self,
+        network_id: NetworkID,
+    ) -> IndexSet<SecurifiedEntity> {
+        self.get_securified_entities_of_kind_on_network(CAP26EntityKind::Identity, network_id)
+    }
+
     pub fn accounts_on_network(&self, network_id: NetworkID) -> IndexSet<Account> {
         self.get_accounts()
             .into_iter()

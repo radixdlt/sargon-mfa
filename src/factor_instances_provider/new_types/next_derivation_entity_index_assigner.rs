@@ -62,6 +62,12 @@ pub struct NextDerivationEntityIndexProfileAnalyzingAssigner {
 
     /// might be empty
     securified_accounts_on_network: IndexSet<SecurifiedEntity>,
+
+    /// might be empty
+    unsecurified_identities_on_network: IndexSet<UnsecurifiedEntity>,
+
+    /// might be empty
+    securified_identities_on_network: IndexSet<SecurifiedEntity>,
 }
 
 impl NextDerivationEntityIndexProfileAnalyzingAssigner {
@@ -76,12 +82,25 @@ impl NextDerivationEntityIndexProfileAnalyzingAssigner {
             .map(|p| p.securified_accounts_on_network(network_id))
             .unwrap_or_default();
 
+        let unsecurified_identities_on_network = profile
+            .as_ref()
+            .map(|p| p.unsecurified_identities_on_network(network_id))
+            .unwrap_or_default();
+
+        let securified_identities_on_network = profile
+            .as_ref()
+            .map(|p| p.securified_identities_on_network(network_id))
+            .unwrap_or_default();
+
         Self {
             network_id,
             unsecurified_accounts_on_network,
             securified_accounts_on_network,
+            unsecurified_identities_on_network,
+            securified_identities_on_network,
         }
     }
+
     pub fn next_account_veci(
         &self,
         factor_source_id: FactorSourceIDFromHash,
@@ -104,6 +123,43 @@ impl NextDerivationEntityIndexProfileAnalyzingAssigner {
             .map(|fi| fi.index)
             .max()
     }
+
+    pub fn next_identity_veci(
+        &self,
+        factor_source_id: FactorSourceIDFromHash,
+    ) -> Option<HDPathComponent> {
+        self.unsecurified_identities_on_network
+            .clone()
+            .into_iter()
+            .map(|x: UnsecurifiedEntity| x.veci().factor_instance())
+            .filter(|f| f.factor_source_id == factor_source_id)
+            .map(|f| f.derivation_path())
+            .map(|p| {
+                AssertMatches {
+                    network_id: self.network_id,
+                    key_kind: CAP26KeyKind::TransactionSigning,
+                    entity_kind: CAP26EntityKind::Identity,
+                    key_space: KeySpace::Unsecurified,
+                }
+                .matches(&p)
+            })
+            .map(|fi| fi.index)
+            .max()
+    }
+
+    pub fn next(
+        &self,
+        template: DerivationTemplate,
+        factor_source_id: FactorSourceIDFromHash,
+    ) -> Option<HDPathComponent> {
+        match template {
+            DerivationTemplate::AccountVeci => self.next_account_veci(factor_source_id),
+            DerivationTemplate::AccountMfa => self.next_account_mfa(factor_source_id),
+            DerivationTemplate::IdentityVeci => self.next_identity_veci(factor_source_id),
+            DerivationTemplate::IdentityMfa => self.next_identity_mfa(factor_source_id),
+        }
+    }
+
     pub fn next_account_mfa(
         &self,
         factor_source_id: FactorSourceIDFromHash,
@@ -118,6 +174,27 @@ impl NextDerivationEntityIndexProfileAnalyzingAssigner {
                         network_id: self.network_id,
                         key_kind: CAP26KeyKind::TransactionSigning,
                         entity_kind: CAP26EntityKind::Account,
+                        key_space: KeySpace::Securified,
+                    },
+                )
+            })
+            .max()
+    }
+
+    pub fn next_identity_mfa(
+        &self,
+        factor_source_id: FactorSourceIDFromHash,
+    ) -> Option<HDPathComponent> {
+        self.securified_identities_on_network
+            .clone()
+            .into_iter()
+            .flat_map(|e: SecurifiedEntity| {
+                e.highest_derivation_path_index(
+                    factor_source_id,
+                    AssertMatches {
+                        network_id: self.network_id,
+                        key_kind: CAP26KeyKind::TransactionSigning,
+                        entity_kind: CAP26EntityKind::Identity,
                         key_space: KeySpace::Securified,
                     },
                 )
@@ -205,16 +282,24 @@ impl NextDerivationEntityIndexAssigner {
         }
     }
 
-    pub fn next_account_veci(&self, factor_source_id: FactorSourceIDFromHash) -> HDPathComponent {
-        let default_for_profile = HDPathComponent::unsecurified_hardening_base_index(0);
-        let local = self
-            .local_offsets
-            .reserve(factor_source_id, DerivationTemplate::AccountVeci);
+    pub fn next(
+        &self,
+        template: DerivationTemplate,
+        factor_source_id: FactorSourceIDFromHash,
+    ) -> HDPathComponent {
+        let default_for_profile = HDPathComponent::new_with_key_space_and_base_index(
+            template.key_space(),
+            U30::new(0).unwrap(),
+        );
+        let local = self.local_offsets.reserve(factor_source_id, template);
         let from_profile = self
             .profile_analyzing
-            .next_account_veci(factor_source_id)
+            .next(template, factor_source_id)
             .unwrap_or(default_for_profile);
 
         from_profile.add_n(local)
+    }
+    pub fn next_account_veci(&self, factor_source_id: FactorSourceIDFromHash) -> HDPathComponent {
+        self.next(DerivationTemplate::AccountVeci, factor_source_id)
     }
 }
