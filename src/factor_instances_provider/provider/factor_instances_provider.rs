@@ -314,10 +314,8 @@ impl FactorInstancesProvider {
                     .unwrap()
                     .peek_all_instances_of_factor_source(factor_source.factor_source_id());
 
-                let triple = fill_cache_quantities_upper_bound
-                    .calculate_quantities_for_factor(Quantities::only(1, template), in_cache);
-
-                triple
+                fill_cache_quantities_upper_bound
+                    .calculate_quantities_for_factor(Quantities::only(1, template), in_cache)
             };
 
             println!("🎃 triple: {:?}", triple);
@@ -366,6 +364,13 @@ impl FactorInstancesProvider {
 }
 
 #[cfg(test)]
+impl FactorInstancesForEachNetworkCache {
+    pub fn assert_is_full(&self, network_id: NetworkID, factor_source_id: FactorSourceIDFromHash) {
+        assert!(self.is_full(network_id, factor_source_id));
+    }
+}
+
+#[cfg(test)]
 mod tests {
 
     use super::*;
@@ -400,24 +405,71 @@ mod tests {
             ))
         );
 
-        // println!(
-        //     "🤡 peek into cache: {:?}",
-        //     cache
-        //         .try_read()
-        //         .unwrap()
-        //         .clone_for_network(network)
-        //         .unwrap()
-        //         .peek_all_instances_for_factor_source(bdfs.factor_source_id())
-        //         .unwrap()
-        // );
-
-        assert!(cache
+        cache
             .try_read()
             .unwrap()
-            .clone_for_network(network)
+            .assert_is_full(network, bdfs.factor_source_id());
+
+        let cached = cache
+            .try_read()
             .unwrap()
+            .clone_for_network_or_empty(network)
             .peek_all_instances_of_factor_source(bdfs.factor_source_id())
-            .unwrap()
-            .is_full());
+            .unwrap();
+
+        let account_vecis = cached
+            .clone()
+            .account_veci
+            .into_iter()
+            .map(|f| f.derivation_entity_index())
+            .collect_vec();
+
+        assert_eq!(
+            account_vecis.first().unwrap().clone(),
+            HDPathComponent::unsecurified_hardening_base_index(1)
+        );
+
+        assert_eq!(
+            account_vecis.last().unwrap().clone(),
+            HDPathComponent::unsecurified_hardening_base_index(30)
+        );
+
+        let account_mfas = cached
+            .clone()
+            .account_mfa
+            .into_iter()
+            .map(|f| f.derivation_entity_index())
+            .collect_vec();
+
+        assert_eq!(
+            account_mfas.first().unwrap().clone(),
+            HDPathComponent::securifying_base_index(0)
+        );
+
+        assert_eq!(
+            account_mfas.last().unwrap().clone(),
+            HDPathComponent::securifying_base_index(29)
+        );
+        assert!(cached
+            .clone()
+            .identity_mfa
+            .into_iter()
+            .all(|f| f.derivation_path().entity_kind == CAP26EntityKind::Identity));
+
+        let identity_mfas = cached
+            .identity_mfa
+            .into_iter()
+            .map(|f| f.derivation_entity_index())
+            .collect_vec();
+
+        assert_eq!(
+            identity_mfas.first().unwrap().clone(),
+            HDPathComponent::securifying_base_index(0)
+        );
+
+        assert_eq!(
+            identity_mfas.last().unwrap().clone(),
+            HDPathComponent::securifying_base_index(29)
+        );
     }
 }

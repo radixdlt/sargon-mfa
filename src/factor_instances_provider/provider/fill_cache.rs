@@ -21,7 +21,7 @@ impl FillCacheIndicesForFactor {
         next_index_assigner: &NextDerivationEntityIndexAssigner,
     ) -> Self {
         let mut indices: IndexMap<DerivationTemplate, HDPathComponent> = self.indices;
-        for template in enum_iterator::all::<DerivationTemplate>().into_iter() {
+        for template in enum_iterator::all::<DerivationTemplate>() {
             if indices.get(&template).is_none() {
                 let next = next_index_assigner.next(template, self.factor_source_id);
                 indices.insert(template, next);
@@ -99,7 +99,7 @@ impl From<usize> for InstancesQuantity {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct Quantities {
     /// Number of "account veci" instances to derive, using
     /// `factor_source_id` as the factor source
@@ -117,16 +117,7 @@ pub struct Quantities {
     /// `factor_source_id` as the factor source
     pub identity_mfa: InstancesQuantity,
 }
-impl Default for Quantities {
-    fn default() -> Self {
-        Self {
-            account_veci: Default::default(),
-            account_mfa: Default::default(),
-            identity_veci: Default::default(),
-            identity_mfa: Default::default(),
-        }
-    }
-}
+
 impl Quantities {
     pub fn only(quantity: usize, template: DerivationTemplate) -> Self {
         match template {

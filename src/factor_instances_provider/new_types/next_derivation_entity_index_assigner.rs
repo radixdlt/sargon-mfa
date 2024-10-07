@@ -205,7 +205,9 @@ impl NextDerivationEntityIndexProfileAnalyzingAssigner {
 
 #[derive(Debug)]
 pub struct NextDerivationEntityIndexWithLocalOffsetsForFactorSource {
+    #[allow(dead_code)]
     network_id: NetworkID,
+    #[allow(dead_code)]
     factor_source_id: FactorSourceIDFromHash,
     local_offsets_derivation_template_query: RwLock<HashMap<DerivationTemplate, HDPathValue>>,
 }
@@ -254,18 +256,19 @@ impl NextDerivationEntityIndexWithLocalOffsets {
         factor_source_id: FactorSourceIDFromHash,
         template: DerivationTemplate,
     ) -> HDPathValue {
-        let mut default = NextDerivationEntityIndexWithLocalOffsetsForFactorSource::empty(
+        let default = NextDerivationEntityIndexWithLocalOffsetsForFactorSource::empty(
             self.network_id,
             factor_source_id,
         );
         let binding = self.local_offsets_per_factor_source.write().unwrap();
-        let for_factor = binding.get(&factor_source_id).unwrap_or(&mut default);
+        let for_factor = binding.get(&factor_source_id).unwrap_or(&default);
 
         for_factor.reserve(template)
     }
 }
 
 pub struct NextDerivationEntityIndexAssigner {
+    #[allow(dead_code)]
     network_id: NetworkID,
     profile_analyzing: NextDerivationEntityIndexProfileAnalyzingAssigner,
     local_offsets: NextDerivationEntityIndexWithLocalOffsets,

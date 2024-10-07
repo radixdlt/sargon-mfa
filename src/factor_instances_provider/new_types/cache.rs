@@ -99,6 +99,12 @@ impl FactorInstancesForSpecificNetworkCache {
         let binding = self.per_factor_source.write().unwrap();
         binding.get(&factor_source_id).cloned()
     }
+
+    pub fn is_full(&self, factor_source_id: FactorSourceIDFromHash) -> bool {
+        self.peek_all_instances_of_factor_source(factor_source_id)
+            .map(|c| c.is_full())
+            .unwrap_or(false)
+    }
 }
 
 impl CollectionsOfFactorInstances {
@@ -121,6 +127,12 @@ impl FactorInstancesForEachNetworkCache {
     ) -> FactorInstancesForSpecificNetworkCache {
         self.clone_for_network(network_id)
             .unwrap_or(FactorInstancesForSpecificNetworkCache::empty(network_id))
+    }
+
+    pub fn is_full(&self, network_id: NetworkID, factor_source_id: FactorSourceIDFromHash) -> bool {
+        self.clone_for_network(network_id)
+            .unwrap()
+            .is_full(factor_source_id)
     }
 
     pub fn clone_for_network(
