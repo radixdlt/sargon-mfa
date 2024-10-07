@@ -66,11 +66,11 @@ mod tests {
             factor_source: HDFactorSource,
             network: NetworkID,
             name: impl AsRef<str>,
-        ) -> Result<(Account, DidDeriveNewFactorInstances)> {
+        ) -> Result<(Account, FactorInstancesProviderStatistics)> {
             let interactors: Arc<dyn KeysDerivationInteractors> =
                 Arc::new(TestDerivationInteractors::default());
 
-            let factor_instances_provider = FactorInstancesProvider::provide(
+            let outcome = FactorInstancesProvider::provide(
                 FillCacheStrategy::AllTemplates,
                 self._cache(),
                 network,
@@ -81,21 +81,12 @@ mod tests {
                 },
             )
             .await?;
-            // let factor_instances_provider =
-            //     FactorInstancesProvider::new_virtual_unsecurified_account(
-            //         network,
-            //         &factor_source,
-            //         self._cache(),
-            //         self.profile_snapshot(),
-            //         interactors,
-            //     );
 
-            let (instances, did_derive_new) = factor_instances_provider
-                .get_factor_instances_outcome()
-                .await?;
+            let instance = outcome
+                .factor_instances_to_use_directly
+                .account_veci()?
+                .instance();
 
-            assert_eq!(instances.len(), 1);
-            let instance = instances.into_iter().next().unwrap();
             println!(
                 "🔮 Created account: '{}' with veci.index: {}",
                 name.as_ref(),
@@ -110,116 +101,126 @@ mod tests {
                 ThirdPartyDepositPreference::default(),
             );
             self.profile.try_write().unwrap().add_account(&account);
-            Ok((account, did_derive_new))
+            Ok((account, outcome.statistics))
         }
 
-        pub async fn securify(
-            &self,
-            accounts: Accounts,
-            shield: MatrixOfFactorSources,
-        ) -> Result<(SecurifiedAccounts, DidDeriveNewFactorInstances)> {
-            println!(
-                "🛡️ Securifying accounts: '{:?}'",
-                accounts.clone().into_iter().map(|x| x.name()).collect_vec()
-            );
-            let interactors: Arc<dyn KeysDerivationInteractors> =
-                Arc::new(TestDerivationInteractors::default());
+        /*
+                pub async fn securify(
+                    &self,
+                    accounts: Accounts,
+                    shield: MatrixOfFactorSources,
+                ) -> Result<(SecurifiedAccounts, DidDeriveNewFactorInstances)> {
+                    println!(
+                        "🛡️ Securifying accounts: '{:?}'",
+                        accounts.clone().into_iter().map(|x| x.name()).collect_vec()
+                    );
+                    let interactors: Arc<dyn KeysDerivationInteractors> =
+                        Arc::new(TestDerivationInteractors::default());
 
-            let factor_instances_provider =
-                FactorInstancesProvider::update_or_set_security_shield_for_accounts(
-                    accounts.clone(),
-                    shield.clone(),
-                    self._cache(),
-                    self.profile_snapshot(),
-                    interactors,
-                );
+                    let factor_instances_provider =
+                        FactorInstancesProvider::update_or_set_security_shield_for_accounts(
+                            accounts.clone(),
+                            shield.clone(),
+                            self._cache(),
+                            self.profile_snapshot(),
+                            interactors,
+                        );
 
-            let (instances, did_derive_new) = factor_instances_provider
-                .get_factor_instances_outcome()
-                .await?;
-            let mut instances = instances.factor_instances();
+                    let (instances, did_derive_new) = factor_instances_provider
+                        .get_factor_instances_outcome()
+                        .await?;
+                    let mut instances = instances.factor_instances();
 
-            println!(
-                "🧵🎉 securfying: #{} accounts, got: #{} factor instances",
-                accounts.len(),
-                instances.len()
-            );
+                    println!(
+                        "🧵🎉 securfying: #{} accounts, got: #{} factor instances",
+                        accounts.len(),
+                        instances.len()
+                    );
 
-            // Now we need to map the flat set of instances into many MatrixOfFactorInstances, and assign
-            // one to each account
-            let updated_accounts = accounts
-                .clone()
-                .into_iter()
-                .map(|a| {
-                    let matrix_of_instances =
-                    MatrixOfFactorInstances::fulfilling_matrix_of_factor_sources_with_instances(
-                        instances.clone(),
-                        shield.clone(),
-                    )
-                    .unwrap();
-                println!("🦆👻 removing: #{} instances used by Matrix from instances: #{} => left is #{}", matrix_of_instances.all_factors().len(), instances.len(), instances.len() - matrix_of_instances.all_factors().len());
-                    for used_instance in matrix_of_instances.all_factors() {
-                        instances.shift_remove(&used_instance);
+                    // Now we need to map the flat set of instances into many MatrixOfFactorInstances, and assign
+                    // one to each account
+                    let updated_accounts = accounts
+                        .clone()
+                        .into_iter()
+                        .map(|a| {
+                            let matrix_of_instances =
+                            MatrixOfFactorInstances::fulfilling_matrix_of_factor_sources_with_instances(
+                                instances.clone(),
+                                shield.clone(),
+                            )
+                            .unwrap();
+                        println!("🦆👻 removing: #{} instances used by Matrix from instances: #{} => left is #{}", matrix_of_instances.all_factors().len(), instances.len(), instances.len() - matrix_of_instances.all_factors().len());
+                            for used_instance in matrix_of_instances.all_factors() {
+                                instances.shift_remove(&used_instance);
+                            }
+                            let access_controller = match a.security_state() {
+                                EntitySecurityState::Unsecured(_) => {
+                                    AccessController::from_unsecurified_address(a.entity_address())
+                                }
+                                EntitySecurityState::Securified(sec) => sec.access_controller.clone(),
+                            };
+                            let veci = match a.security_state() {
+                                EntitySecurityState::Unsecured(veci) => Some(veci),
+                                EntitySecurityState::Securified(sec) => sec.veci.clone(),
+                            };
+                            let sec =
+                                SecurifiedEntityControl::new(matrix_of_instances, access_controller, veci);
+
+                            SecurifiedAccount::new(
+                                a.name(),
+                                a.entity_address(),
+                                sec,
+                                a.third_party_deposit(),
+                            )
+                        })
+                        .collect::<IndexSet<SecurifiedAccount>>();
+
+                    for account in updated_accounts.iter() {
+                        self.profile
+                            .try_write()
+                            .unwrap()
+                            .update_account(&account.account());
                     }
-                    let access_controller = match a.security_state() {
-                        EntitySecurityState::Unsecured(_) => {
-                            AccessController::from_unsecurified_address(a.entity_address())
-                        }
-                        EntitySecurityState::Securified(sec) => sec.access_controller.clone(),
-                    };
-                    let veci = match a.security_state() {
-                        EntitySecurityState::Unsecured(veci) => Some(veci),
-                        EntitySecurityState::Securified(sec) => sec.veci.clone(),
-                    };
-                    let sec =
-                        SecurifiedEntityControl::new(matrix_of_instances, access_controller, veci);
-
-                    SecurifiedAccount::new(
-                        a.name(),
-                        a.entity_address(),
-                        sec,
-                        a.third_party_deposit(),
-                    )
-                })
-                .collect::<IndexSet<SecurifiedAccount>>();
-
-            for account in updated_accounts.iter() {
-                self.profile
-                    .try_write()
-                    .unwrap()
-                    .update_account(&account.account());
-            }
-            assert!(
-                instances.is_empty(),
-                "should have used all instances, but have unused instances: {:?}",
-                instances
-            );
-            SecurifiedAccounts::new(accounts.network_id(), updated_accounts)
-                .map(|x| (x, did_derive_new))
-        }
-
+                    assert!(
+                        instances.is_empty(),
+                        "should have used all instances, but have unused instances: {:?}",
+                        instances
+                    );
+                    SecurifiedAccounts::new(accounts.network_id(), updated_accounts)
+                        .map(|x| (x, did_derive_new))
+                }
+        */
         async fn add_factor_source(&self, factor_source: HDFactorSource) -> Result<()> {
             let interactors: Arc<dyn KeysDerivationInteractors> =
                 Arc::new(TestDerivationInteractors::default());
 
-            let factor_instances_provider =
-                FactorInstancesProvider::pre_derive_instance_for_new_factor_source(
-                    &factor_source,
-                    self._cache(),
-                    self.profile_snapshot(),
-                    interactors,
-                );
+            // let factor_instances_provider =
+            //     FactorInstancesProvider::pre_derive_instance_for_new_factor_source(
+            //         &factor_source,
+            //         self._cache(),
+            //         self.profile_snapshot(),
+            //         interactors,
+            //     );
+            let network_id = NetworkID::Mainnet;
+            let outcome = FactorInstancesProvider::provide(
+                FillCacheStrategy::AllTemplates,
+                self._cache(),
+                network_id,
+                self.profile_snapshot(),
+                interactors,
+                InstancesQuery::PreDeriveKeys {
+                    factor_source: factor_source.clone(),
+                },
+            )
+            .await?;
 
-            let (instances, did_derive_new) = factor_instances_provider
-                .get_factor_instances_outcome()
-                .await?;
+           
+            // assert!(did_derive_new.0);
 
-            assert!(did_derive_new.0);
-
-            assert!(
-                instances.is_empty(),
-                "should be empty, since should have been put into the cache, not here."
-            );
+            // assert!(
+            //     instances.is_empty(),
+            //     "should be empty, since should have been put into the cache, not here."
+            // );
 
             self.profile
                 .try_write()

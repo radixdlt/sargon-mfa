@@ -2,6 +2,10 @@ use crate::prelude::*;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum InstancesQuery {
+    PreDeriveKeys {
+        factor_source: HDFactorSource,
+    },
+
     /// Uses the "next" derivation entity index for the derivation path
     /// The network is already known by the FactorInstancesProvider
     AccountVeci {
@@ -23,14 +27,14 @@ pub enum InstancesQuery {
         number_of_instances_per_factor_source: usize,
         factor_sources: IndexSet<HDFactorSource>,
     },
-    // PreDeriveKeysForFactorSource
 }
 
 impl InstancesQuery {
     pub fn factor_sources(&self) -> IndexSet<HDFactorSource> {
         match self {
-            InstancesQuery::AccountVeci { factor_source } => IndexSet::just(factor_source.clone()),
-            InstancesQuery::AccountMfa {
+            Self::PreDeriveKeys { factor_source } => IndexSet::just(factor_source.clone()),
+            Self::AccountVeci { factor_source } => IndexSet::just(factor_source.clone()),
+            Self::AccountMfa {
                 factor_sources,
                 number_of_instances_per_factor_source: _,
             } => factor_sources.clone(),

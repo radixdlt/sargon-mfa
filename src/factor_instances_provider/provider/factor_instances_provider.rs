@@ -118,6 +118,9 @@ impl FactorInstancesProvider {
                 self.provide_accounts_mfa(number_of_instances_per_factor_source, factor_sources)
                     .await
             }
+            InstancesQuery::PreDeriveKeys { factor_source: _ } => {
+                todo!()
+            }
             InstancesQuery::AccountVeci { factor_source } => {
                 self.provide_account_veci(factor_source).await
             }
@@ -222,7 +225,23 @@ impl FactorInstancesProvider {
             InstancesQuery::AccountMfa {
                 number_of_instances_per_factor_source: _,
                 factor_sources: _,
-            } => todo!(),
+            } => {
+                todo!()
+            }
+            InstancesQuery::PreDeriveKeys { factor_source } => {
+                let derived = derived
+                    .get(&factor_source.factor_source_id())
+                    .unwrap()
+                    .clone();
+
+                (
+                    InstancesToUseDirectly::default(),
+                    InstancesToCache::from((
+                        network_id,
+                        IndexMap::kv(factor_source.factor_source_id(), derived),
+                    )),
+                )
+            }
             InstancesQuery::AccountVeci { factor_source } => {
                 let derived = derived
                     .get(&factor_source.factor_source_id())
