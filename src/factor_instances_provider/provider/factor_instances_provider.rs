@@ -21,6 +21,24 @@ impl Default for FillCacheStrategy {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FactorInstancesProviderOutcome {
+    /// FactorInstances that have not been saved into the cache, which are meant
+    /// to be used directly. Can be empty. In case of Account veci this will
+    /// be a single FactorInstance.
+    pub factor_instances_to_use_directly: InstancesToUseDirectly,
+
+    /// Statistics
+    pub statistics: FactorInstancesProviderStatistics,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FactorInstancesProviderStatistics {
+    pub number_of_instances_newly_derived: usize,
+    pub number_of_instances_loaded_from_cache: usize,
+    pub number_of_instances_saved_into_cache: usize,
+}
+
 pub struct FactorInstancesProvider {
     fill_cache_strategy: FillCacheStrategy,
 
@@ -73,8 +91,9 @@ impl FactorInstancesProvider {
         profile: impl Into<Option<Profile>>,
         derivation_interactors: Arc<dyn KeysDerivationInteractors>,
         query: InstancesQuery,
-    ) -> Result<InstancesToUseDirectly> {
-        let cloned_cache = cache.read().unwrap().clone_for_network_or_empty(network_id);
+    ) -> Result<FactorInstancesProviderOutcome> {
+        let cloned_cache: FactorInstancesForSpecificNetworkCache =
+            cache.read().unwrap().clone_for_network_or_empty(network_id);
         let provider = Self::new(
             fill_cache_strategy,
             cloned_cache,
@@ -84,7 +103,10 @@ impl FactorInstancesProvider {
         );
         let provided = provider._provide().await?;
         cache.write().unwrap().merge(provided.cache_to_persist)?;
-        Ok(provided.instances_to_be_used)
+        Ok(FactorInstancesProviderOutcome {
+            factor_instances_to_use_directly: provided.instances_to_be_used,
+            statistics: provided.statistics,
+        })
     }
 
     async fn _provide(self) -> Result<ProvidedInstances> {
@@ -269,8 +291,12 @@ impl FactorInstancesProvider {
 
         let mut to_cache: Option<CollectionsOfFactorInstances> = None;
 
+        let mut number_of_instances_loaded_from_cache = 0;
+        let mut number_of_instances_saved_into_cache = 0;
+
         if let Some(cached) = maybe_cached {
             veci = Some(cached.instance.clone());
+            number_of_instances_loaded_from_cache = 1;
             if cached.was_last_used {
                 // TODO: Should we introduce a check to see if `next` is in fact free??? Check against Profile that is...
                 // lets try skipping it for now
@@ -287,10 +313,12 @@ impl FactorInstancesProvider {
             );
             maybe_next_index_for_derivation = Some(next)
         }
+
         assert!(
             !(veci.is_none() && maybe_next_index_for_derivation.is_none()),
             "Programmer error, both 'veci' and 'maybe_next_index_for_derivation' cannot be none."
         );
+
         if let Some(next_index_for_derivation) = maybe_next_index_for_derivation {
             let fill_cache_quantities_upper_bound = QuantitiesForFactor::fill(factor_source_id);
 
@@ -345,13 +373,19 @@ impl FactorInstancesProvider {
         }
         let veci = veci.ok_or(CommonError::ExpectedVeci)?;
         if let Some(to_cache) = to_cache {
+            number_of_instances_saved_into_cache = to_cache.total_number_of_instances();
             self.cache
                 .write()
                 .unwrap()
                 .append_for_factor(factor_source_id, to_cache)?;
         }
         let cache = self.cache.into_inner().unwrap();
-        Ok(ProvidedInstances::for_account_veci(cache, veci))
+        let statistics = FactorInstancesProviderStatistics {
+            number_of_instances_newly_derived: 1,
+            number_of_instances_loaded_from_cache,
+            number_of_instances_saved_into_cache,
+        };
+        Ok(ProvidedInstances::for_account_veci(cache, veci, statistics))
     }
 
     async fn provide_accounts_mfa(
@@ -398,8 +432,20 @@ mod tests {
         .await
         .unwrap();
 
+        assert_eq!(outcome.statistics.number_of_instances_newly_derived, 1);
+        assert_eq!(outcome.statistics.number_of_instances_loaded_from_cache, 0);
         assert_eq!(
-            outcome.account_veci().unwrap().derivation_entity_index(),
+            outcome.statistics.number_of_instances_saved_into_cache,
+            CACHE_SIZE * DerivationTemplate::all().len()
+        );
+
+        let instances_used_directly = outcome.factor_instances_to_use_directly;
+
+        assert_eq!(
+            instances_used_directly
+                .account_veci()
+                .unwrap()
+                .derivation_entity_index(),
             HDPathComponent::Hardened(HDPathComponentHardened::Unsecurified(
                 UnsecurifiedIndex::unsecurified_hardening_base_index(0)
             ))

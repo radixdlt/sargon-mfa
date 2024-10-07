@@ -121,6 +121,16 @@ pub struct FactorInstancesForEachNetworkCache {
 }
 
 impl FactorInstancesForEachNetworkCache {
+    pub fn clone_snapshot(&self) -> Self {
+        let mut networks = HashMap::<NetworkID, FactorInstancesForSpecificNetworkCache>::new();
+        for (k, v) in self.networks.try_read().unwrap().iter() {
+            networks.insert(*k, v.cloned_snapshot());
+        }
+        Self {
+            hidden_constructor: HiddenConstructor,
+            networks: RwLock::new(networks),
+        }
+    }
     pub fn clone_for_network_or_empty(
         &self,
         network_id: NetworkID,

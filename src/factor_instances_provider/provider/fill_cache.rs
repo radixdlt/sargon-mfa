@@ -21,7 +21,7 @@ impl FillCacheIndicesForFactor {
         next_index_assigner: &NextDerivationEntityIndexAssigner,
     ) -> Self {
         let mut indices: IndexMap<DerivationTemplate, HDPathComponent> = self.indices;
-        for template in enum_iterator::all::<DerivationTemplate>() {
+        for template in DerivationTemplate::all() {
             if indices.get(&template).is_none() {
                 let next = next_index_assigner.next(template, self.factor_source_id);
                 indices.insert(template, next);
@@ -257,7 +257,7 @@ impl QuantitiesForFactor {
         let mut to_use_directly = Quantities::all(0);
         let mut to_cache = Quantities::all(0);
 
-        for template in enum_iterator::all::<DerivationTemplate>() {
+        for template in DerivationTemplate::all() {
             let r = requested.quantity_for_template(template).value;
             let from_cache = in_cache
                 .as_ref()

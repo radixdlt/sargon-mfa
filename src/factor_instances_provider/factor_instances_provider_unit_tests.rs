@@ -5,10 +5,10 @@ mod tests {
         sync::RwLockReadGuard,
     };
 
-    use super::*;
+    use crate::prelude::*;
 
     struct SargonOS {
-        cache: Arc<RwLock<PreDerivedKeysCache>>,
+        cache: Arc<RwLock<FactorInstancesForEachNetworkCache>>,
         gateway: RwLock<TestGateway>,
         profile: RwLock<Profile>,
     }
@@ -20,7 +20,7 @@ mod tests {
         pub fn new() -> Self {
             Arc::new(TestDerivationInteractors::default());
             Self {
-                cache: Arc::new(RwLock::new(PreDerivedKeysCache::default())),
+                cache: Arc::new(RwLock::new(FactorInstancesForEachNetworkCache::default())),
                 gateway: RwLock::new(TestGateway::default()),
                 profile: RwLock::new(Profile::default()),
             }
@@ -32,17 +32,17 @@ mod tests {
             (self_, bdfs)
         }
 
-        fn _cache(&self) -> Option<Arc<RwLock<PreDerivedKeysCache>>> {
-            Some(self.cache.clone())
+        fn _cache(&self) -> Arc<RwLock<FactorInstancesForEachNetworkCache>> {
+            self.cache.clone()
         }
 
-        pub fn cache_snapshot(&self) -> PreDerivedKeysCache {
+        pub fn cache_snapshot(&self) -> FactorInstancesForEachNetworkCache {
             self.cache.try_read().unwrap().clone_snapshot()
         }
 
         pub fn clear_cache(&self) {
             println!("💣 CLEAR CACHE");
-            *self.cache.try_write().unwrap() = PreDerivedKeysCache::default();
+            *self.cache.try_write().unwrap() = FactorInstancesForEachNetworkCache::default();
         }
 
         pub async fn new_mainnet_account_with_bdfs(
@@ -70,14 +70,25 @@ mod tests {
             let interactors: Arc<dyn KeysDerivationInteractors> =
                 Arc::new(TestDerivationInteractors::default());
 
-            let factor_instances_provider =
-                FactorInstancesProvider::new_virtual_unsecurified_account(
-                    network,
-                    &factor_source,
-                    self._cache(),
-                    self.profile_snapshot(),
-                    interactors,
-                );
+            let factor_instances_provider = FactorInstancesProvider::provide(
+                FillCacheStrategy::AllTemplates,
+                self._cache(),
+                network,
+                self.profile_snapshot(),
+                interactors,
+                InstancesQuery::AccountVeci {
+                    factor_source: factor_source.clone(),
+                },
+            )
+            .await?;
+            // let factor_instances_provider =
+            //     FactorInstancesProvider::new_virtual_unsecurified_account(
+            //         network,
+            //         &factor_source,
+            //         self._cache(),
+            //         self.profile_snapshot(),
+            //         interactors,
+            //     );
 
             let (instances, did_derive_new) = factor_instances_provider
                 .get_factor_instances_outcome()

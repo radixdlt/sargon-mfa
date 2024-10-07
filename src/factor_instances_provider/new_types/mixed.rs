@@ -175,6 +175,9 @@ pub enum DerivationTemplate {
     // AccountRola, // TODO, this
 }
 impl DerivationTemplate {
+    pub fn all() -> IndexSet<Self> {
+        enum_iterator::all::<Self>().collect()
+    }
     pub fn entity_kind(&self) -> CAP26EntityKind {
         match self {
             Self::AccountVeci | Self::AccountMfa => CAP26EntityKind::Account,
@@ -215,6 +218,12 @@ pub struct CollectionsOfFactorInstances {
     pub identity_mfa: IndexSet<IdentityMfaFactorInstance>,
 }
 impl CollectionsOfFactorInstances {
+    pub fn total_number_of_instances(&self) -> usize {
+        self.account_veci.len()
+            + self.account_mfa.len()
+            + self.identity_veci.len()
+            + self.identity_mfa.len()
+    }
     pub fn empty(network: NetworkID, factor_source_id: FactorSourceIDFromHash) -> Self {
         Self::new(
             network,
