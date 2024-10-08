@@ -394,6 +394,11 @@ impl Cache {
                     .reduce(Add::add)
             })
             .unwrap_or(0);
+        println!(
+            "🪱 count: #{} (self.values.len(): #{})",
+            count,
+            self.values.len()
+        );
         count == NetworkIndexAgnosticPath::all_presets().len() * CACHE_FILLING_QUANTITY
     }
     pub fn assert_is_full(&self, network_id: NetworkID, factor_source_id: FactorSourceIDFromHash) {
@@ -457,31 +462,23 @@ mod tests {
             NetworkIndexAgnosticPath::all_presets().len() * CACHE_FILLING_QUANTITY + 1
         );
 
-        assert_eq!(outcome.to_use_directly.len(), 1);
-
-        /*
-        assert_eq!(outcome.statistics.number_of_instances_loaded_from_cache, 0);
-        assert_eq!(
-            outcome.statistics.number_of_instances_saved_into_cache,
-            CACHE_SIZE * DerivationTemplate::all().len()
-        );
-
-        let instances_used_directly = outcome.factor_instances_to_use_directly;
+        let instances_used_directly = outcome.to_use_directly.factor_instances();
+        assert_eq!(instances_used_directly.len(), 1);
+        let instances_used_directly = instances_used_directly.first().unwrap();
 
         assert_eq!(
-            instances_used_directly
-                .account_veci()
-                .unwrap()
-                .derivation_entity_index(),
+            instances_used_directly.derivation_entity_index(),
             HDPathComponent::Hardened(HDPathComponentHardened::Unsecurified(
                 UnsecurifiedIndex::unsecurified_hardening_base_index(0)
             ))
         );
 
         cache
-            .try_read()
-            .unwrap()
+            // .try_read()
+            // .unwrap()
             .assert_is_full(network, bdfs.factor_source_id());
+
+        /*
 
         let cached = cache
             .try_read()
