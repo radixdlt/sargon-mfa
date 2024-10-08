@@ -2,7 +2,7 @@ use crate::prelude::*;
 
 pub const CACHE_FILLING_QUANTITY: usize = 30;
 
-#[derive(Clone, Copy, Hash, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
 pub enum QuantityToCacheToUseDirectly {
     OnlyCacheFilling {
         /// Typically (always?) `CACHE_FILLING_QUANTITY`
@@ -28,7 +28,14 @@ impl QuantityToCacheToUseDirectly {
             Self::ToCacheToUseDirectly {
                 remaining,
                 extra_to_fill_cache,
-            } => *remaining + *extra_to_fill_cache,
+            } => {
+                let total = *remaining + *extra_to_fill_cache;
+                println!(
+                    "🐌 total: {} ({} + {})",
+                    total, *remaining, *extra_to_fill_cache
+                );
+                total
+            }
         }
     }
 }

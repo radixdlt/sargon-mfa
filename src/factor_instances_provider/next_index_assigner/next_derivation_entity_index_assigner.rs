@@ -230,8 +230,7 @@ impl NextDerivationEntityIndexWithLocalOffsetsForFactorSource {
             existing.add_assign(1);
             free
         } else {
-            let next_free = 1;
-            binding.insert(agnostic_path, next_free);
+            binding.insert(agnostic_path, 1);
             0
         }
     }
@@ -250,12 +249,16 @@ impl NextDerivationEntityIndexWithLocalOffsets {
         factor_source_id: FactorSourceIDFromHash,
         agnostic_path: NetworkIndexAgnosticPath,
     ) -> HDPathValue {
-        let default =
-            NextDerivationEntityIndexWithLocalOffsetsForFactorSource::empty(factor_source_id);
-        let binding = self.local_offsets_per_factor_source.write().unwrap();
-        let for_factor = binding.get(&factor_source_id).unwrap_or(&default);
-
-        for_factor.reserve(agnostic_path)
+        let mut binding = self.local_offsets_per_factor_source.write().unwrap();
+        if let Some(for_factor) = binding.get_mut(&factor_source_id) {
+            for_factor.reserve(agnostic_path)
+        } else {
+            let new =
+                NextDerivationEntityIndexWithLocalOffsetsForFactorSource::empty(factor_source_id);
+            let next = new.reserve(agnostic_path);
+            binding.insert(factor_source_id, new);
+            next
+        }
     }
 }
 
@@ -292,6 +295,8 @@ impl NextDerivationEntityIndexAssigner {
             .next(agnostic_path, factor_source_id)
             .unwrap_or(default_for_profile);
 
-        from_profile.add_n(local)
+        let sum = from_profile.add_n(local);
+
+        sum
     }
 }

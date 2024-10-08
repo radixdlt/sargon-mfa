@@ -247,8 +247,15 @@ impl FactorInstancesProvider {
                 }
             }
         }
+        assert!(pf_quantified_network_agnostic_paths_for_derivation
+            .iter()
+            .all(|x| x.1.len() == NetworkIndexAgnosticPath::all_presets().len()));
+        println!(
+            "🦄 pf_quantified_network_agnostic_paths_for_derivation: {:?}",
+            pf_quantified_network_agnostic_paths_for_derivation
+        );
 
-        // Now map from NetworkAgnostic to NetworkAware paths, but still index agnostic
+        // Map `NetworkAgnostic -> IndexAgnosticPath`
         let pf_quantified_index_agnostic_paths_for_derivation =
             pf_quantified_network_agnostic_paths_for_derivation
                 .into_iter()
@@ -282,6 +289,7 @@ impl FactorInstancesProvider {
                             .map(|_| {
                                 let index = next_index_assigner
                                     .next(f, quantified_agnostic_path.network_agnostic());
+                                println!("🦄 index: {:?}", index);
                                 DerivationPath::from((
                                     quantified_agnostic_path.agnostic_path,
                                     index,
@@ -434,11 +442,21 @@ mod tests {
         let per_factor = outcome.per_factor;
         assert_eq!(per_factor.len(), 1);
         let outcome = per_factor.get(&bdfs.factor_source_id()).unwrap().clone();
+        println!("🦄 outcome: {:?}", outcome);
         assert_eq!(outcome.factor_source_id, bdfs.factor_source_id());
 
         assert_eq!(outcome.found_in_cache.len(), 0);
-        assert_eq!(outcome.newly_derived.len(), CACHE_FILLING_QUANTITY);
-        assert_eq!(outcome.to_cache.len(), CACHE_FILLING_QUANTITY - 1);
+
+        assert_eq!(
+            outcome.to_cache.len(),
+            NetworkIndexAgnosticPath::all_presets().len() * CACHE_FILLING_QUANTITY
+        );
+
+        assert_eq!(
+            outcome.newly_derived.len(),
+            NetworkIndexAgnosticPath::all_presets().len() * CACHE_FILLING_QUANTITY + 1
+        );
+
         assert_eq!(outcome.to_use_directly.len(), 1);
 
         /*

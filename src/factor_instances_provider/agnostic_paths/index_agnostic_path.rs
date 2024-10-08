@@ -31,12 +31,13 @@ impl NetworkIndexAgnosticPath {
         Self::transaction_signing(CAP26EntityKind::Identity, KeySpace::Securified)
     }
     pub fn all_presets() -> IndexSet<Self> {
-        IndexSet::from_iter([
-            Self::account_mfa(),
+        let presets = IndexSet::from_iter([
+            Self::account_veci(),
             Self::account_mfa(),
             Self::identity_veci(),
             Self::identity_mfa(),
-        ])
+        ]);
+        presets
     }
 }
 
@@ -71,7 +72,7 @@ pub struct QuantifiedNetworkIndexAgnosticPath {
     pub quantity: usize,
 }
 
-#[derive(Clone, Copy, Hash, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
 pub struct QuantifiedToCacheToUseNetworkIndexAgnosticPath {
     pub agnostic_path: NetworkIndexAgnosticPath,
     pub quantity: QuantityToCacheToUseDirectly,

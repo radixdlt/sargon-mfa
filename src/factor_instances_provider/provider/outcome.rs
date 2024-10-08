@@ -1,6 +1,6 @@
 use crate::prelude::*;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct FactorInstancesProviderOutcomeForFactor {
     pub factor_source_id: FactorSourceIDFromHash,
 
