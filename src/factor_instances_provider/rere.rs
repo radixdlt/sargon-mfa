@@ -1,4 +1,4 @@
-use std::clone;
+use std::{clone, ops::Index};
 
 use crate::prelude::*;
 
@@ -50,6 +50,22 @@ impl From<(IndexAgnosticPath, HDPathComponent)> for DerivationPath {
     fn from((path, index): (IndexAgnosticPath, HDPathComponent)) -> Self {
         assert_eq!(index.key_space(), path.key_space);
         Self::new(path.network_id, path.entity_kind, path.key_kind, index)
+    }
+}
+
+impl DerivationPath {
+    fn agnostic(&self) -> IndexAgnosticPath {
+        IndexAgnosticPath {
+            network_id: self.network_id,
+            entity_kind: self.entity_kind,
+            key_kind: self.key_kind,
+            key_space: self.key_space(),
+        }
+    }
+}
+impl HierarchicalDeterministicFactorInstance {
+    fn agnostic_path(&self) -> IndexAgnosticPath {
+        self.derivation_path().agnostic()
     }
 }
 
@@ -202,8 +218,8 @@ pub struct NextIndexAssigner {
 impl NextIndexAssigner {
     pub fn next_index(
         &self,
-        factor_source_id: FactorSourceIDFromHash,
-        agnostic_path: IndexAgnosticPath,
+        _factor_source_id: FactorSourceIDFromHash,
+        _agnostic_path: IndexAgnosticPath,
     ) -> HDPathComponent {
         todo!()
     }
@@ -217,17 +233,19 @@ pub struct FactorInstancesProvider {
 pub struct KeysCollector;
 impl KeysCollector {
     fn new(
-        _factor_sources: FactorSources,
+        _factor_sources: IndexSet<HDFactorSource>,
         _paths_per_factor: IndexMap<FactorSourceIDFromHash, IndexSet<DerivationPath>>,
     ) -> Self {
         todo!()
     }
-    fn derive(self) -> Result<FactorInstances> {
+    fn collect(self) -> Result<IndexMap<FactorSourceIDFromHash, FactorInstances>> {
         todo!()
     }
 }
 
-struct FactorInstancesProviderOutcome {
+pub struct FactorInstancesProviderOutcomeForFactor {
+    factor_source_id: FactorSourceIDFromHash,
+
     /// Might be empty
     pub to_cache: FactorInstances,
     /// Might be empty
@@ -235,13 +253,108 @@ struct FactorInstancesProviderOutcome {
 
     /// LESS IMPORTANT - for tests...
     /// might overlap with `to_use_directly`
-    pub _found_in_cache: FactorInstances,
+    pub found_in_cache: FactorInstances,
     /// might overlap with `to_cache` and `to_use_directly`
-    pub _newly_derived: FactorInstances,
+    pub newly_derived: FactorInstances,
 }
-impl FactorInstancesProvider {
-    pub fn provide(self) -> Result<FactorInstancesProviderOutcome> {
-        todo!()
+
+pub struct FactorInstancesProviderOutcome {
+    pub per_factor: IndexMap<FactorSourceIDFromHash, FactorInstancesProviderOutcomeForFactor>,
+}
+impl FactorInstancesProviderOutcome {
+    pub fn new(
+        per_factor: IndexMap<FactorSourceIDFromHash, FactorInstancesProviderOutcomeForFactor>,
+    ) -> Self {
+        Self { per_factor }
+    }
+    pub fn transpose(
+        pf_to_cache: IndexMap<FactorSourceIDFromHash, FactorInstances>,
+        pf_to_use_directly: IndexMap<FactorSourceIDFromHash, FactorInstances>,
+        pf_found_in_cache: IndexMap<FactorSourceIDFromHash, FactorInstances>,
+        pf_newly_derived: IndexMap<FactorSourceIDFromHash, FactorInstances>,
+    ) -> Self {
+        struct Builder {
+            factor_source_id: FactorSourceIDFromHash,
+
+            /// Might be empty
+            pub to_cache: IndexSet<HierarchicalDeterministicFactorInstance>,
+            /// Might be empty
+            pub to_use_directly: IndexSet<HierarchicalDeterministicFactorInstance>,
+
+            /// LESS IMPORTANT - for tests...
+            /// might overlap with `to_use_directly`
+            pub found_in_cache: IndexSet<HierarchicalDeterministicFactorInstance>,
+            /// might overlap with `to_cache` and `to_use_directly`
+            pub newly_derived: IndexSet<HierarchicalDeterministicFactorInstance>,
+        }
+        impl Builder {
+            fn build(self) -> FactorInstancesProviderOutcomeForFactor {
+                FactorInstancesProviderOutcomeForFactor {
+                    factor_source_id: self.factor_source_id,
+                    to_cache: FactorInstances::from(self.to_cache),
+                    to_use_directly: FactorInstances::from(self.to_use_directly),
+                    found_in_cache: FactorInstances::from(self.found_in_cache),
+                    newly_derived: FactorInstances::from(self.newly_derived),
+                }
+            }
+            fn new(factor_source_id: FactorSourceIDFromHash) -> Self {
+                Self {
+                    factor_source_id,
+                    to_cache: IndexSet::new(),
+                    to_use_directly: IndexSet::new(),
+                    found_in_cache: IndexSet::new(),
+                    newly_derived: IndexSet::new(),
+                }
+            }
+        }
+        let mut builders = IndexMap::<FactorSourceIDFromHash, Builder>::new();
+
+        for (factor_source_id, instances) in pf_found_in_cache {
+            if let Some(builder) = builders.get_mut(&factor_source_id) {
+                builder.found_in_cache.extend(instances.factor_instances());
+            } else {
+                let mut builder = Builder::new(factor_source_id);
+                builder.found_in_cache.extend(instances.factor_instances());
+                builders.insert(factor_source_id, builder);
+            }
+        }
+
+        for (factor_source_id, instances) in pf_newly_derived {
+            if let Some(builder) = builders.get_mut(&factor_source_id) {
+                builder.newly_derived.extend(instances.factor_instances());
+            } else {
+                let mut builder = Builder::new(factor_source_id);
+                builder.newly_derived.extend(instances.factor_instances());
+                builders.insert(factor_source_id, builder);
+            }
+        }
+
+        for (factor_source_id, instances) in pf_to_cache {
+            if let Some(builder) = builders.get_mut(&factor_source_id) {
+                builder.to_cache.extend(instances.factor_instances());
+            } else {
+                let mut builder = Builder::new(factor_source_id);
+                builder.to_cache.extend(instances.factor_instances());
+                builders.insert(factor_source_id, builder);
+            }
+        }
+
+        for (factor_source_id, instances) in pf_to_use_directly {
+            if let Some(builder) = builders.get_mut(&factor_source_id) {
+                builder.to_use_directly.extend(instances.factor_instances());
+            } else {
+                let mut builder = Builder::new(factor_source_id);
+                builder.to_use_directly.extend(instances.factor_instances());
+                builders.insert(factor_source_id, builder);
+            }
+        }
+
+        Self::new(
+            builders
+                .into_iter()
+                .map(|(k, v)| (k, v.build()))
+                .collect::<IndexMap<FactorSourceIDFromHash, FactorInstancesProviderOutcomeForFactor>>(),
+        )
     }
 }
 
@@ -252,7 +365,7 @@ impl FactorInstancesProvider {
         matrix_of_factor_sources: MatrixOfFactorSources,
         profile: Profile,
         accounts: IndexSet<AccountAddress>,
-    ) -> Self {
+    ) -> Result<FactorInstancesProviderOutcome> {
         let factor_sources_to_use = matrix_of_factor_sources.all_factors();
         let factor_sources = profile.factor_sources.clone();
         assert!(
@@ -283,6 +396,7 @@ impl FactorInstancesProvider {
         Self::with(
             network_id,
             cache,
+            factor_sources,
             factor_sources_to_use
                 .into_iter()
                 .map(|f| {
@@ -305,18 +419,28 @@ impl FactorInstancesProvider {
     fn with(
         network_id: NetworkID,
         cache: &mut Cache,
+        factor_sources: IndexSet<HDFactorSource>,
         index_agnostic_path_and_quantity_per_factor_source: IndexMap<
             FactorSourceIDFromHash,
             QuantifiedNetworkIndexAgnosticPath,
         >,
         next_index_assigner: &NextIndexAssigner,
-    ) -> Self {
+    ) -> Result<FactorInstancesProviderOutcome> {
         // `pf` is short for `Per FactorSource`
         let mut pf_found_in_cache = IndexMap::<FactorSourceIDFromHash, FactorInstances>::new();
         let factor_source_ids = index_agnostic_path_and_quantity_per_factor_source
             .keys()
             .cloned()
             .collect::<IndexSet<_>>();
+
+        // used to filter out factor instances to use directly from the newly derived, based on
+        // `index_agnostic_path_and_quantity_per_factor_source`
+        let index_agnostic_paths_originally_requested =
+            index_agnostic_path_and_quantity_per_factor_source
+                .values()
+                .cloned()
+                .map(|q| IndexAgnosticPath::from((network_id, q.agnostic_path)))
+                .collect::<IndexSet<_>>();
 
         // For every factor source found in this map, we derive the remaining
         // quantity as to satisfy the request PLUS we are deriving to fill the
@@ -325,11 +449,16 @@ impl FactorInstancesProvider {
         let mut pf_quantity_remaining_not_satisfied_by_cache =
             IndexMap::<FactorSourceIDFromHash, QuantifiedNetworkIndexAgnosticPath>::new();
 
+        let mut pf_to_use_directly = IndexMap::<
+            FactorSourceIDFromHash,
+            IndexSet<HierarchicalDeterministicFactorInstance>,
+        >::new();
+
         for (factor_source_id, quantified_agnostic_path) in
             index_agnostic_path_and_quantity_per_factor_source.iter()
         {
-            let mut from_cache = FactorInstances::default();
-            let mut unsatisfied_quantity = 0;
+            let from_cache: FactorInstances;
+            let unsatisfied_quantity: usize;
             let cache_key =
                 IndexAgnosticPath::from((network_id, quantified_agnostic_path.agnostic_path));
             let quantity = quantified_agnostic_path.quantity;
@@ -361,6 +490,7 @@ impl FactorInstancesProvider {
             }
             if !from_cache.is_empty() {
                 pf_found_in_cache.insert(*factor_source_id, from_cache.clone());
+                pf_to_use_directly.insert(*factor_source_id, from_cache.factor_instances());
             }
         }
 
@@ -434,7 +564,7 @@ impl FactorInstancesProvider {
                     .into_iter()
                     .flat_map(|quantified_agnostic_path| {
                         // IMPORTANT! We are not mapping one `IndexAgnosticPath` to one `DerivationPath`, but
-                        // rather we are mapping one `IndexAgnosticPath` to many `DerivationPath`! Equal to
+                        // rather we are mapping one `IndexAgnosticPath` to **MANY** `DerivationPath`s! Equal to
                         // the same number as the specified quantity!
                         (0..quantified_agnostic_path.quantity.total_quantity_to_derive())
                             .map(|_| {
@@ -447,25 +577,76 @@ impl FactorInstancesProvider {
                             })
                             .collect::<IndexSet<_>>()
                     })
-                    .into_iter()
                     .collect::<IndexSet<_>>();
                 (f, paths)
             })
             .collect::<IndexMap<FactorSourceIDFromHash, IndexSet<DerivationPath>>>();
 
-        let _pf_to_cache = IndexMap::<FactorSourceIDFromHash, FactorInstances>::new();
-        let _pf_to_use_directly = IndexMap::<FactorSourceIDFromHash, FactorInstances>::new();
-        let _pf_newly_derived = IndexMap::<FactorSourceIDFromHash, FactorInstances>::new();
+        let mut pf_to_cache = IndexMap::<FactorSourceIDFromHash, FactorInstances>::new();
 
-        // let keys_collector = KeysCollector::new(
-        //     index_agnostic_path_and_quantity_per_factor_source
-        //         .iter()
-        //         .map(|(f, _)| f.clone())
-        //         .collect(),
-        //     paths,
-        // );
+        let mut pf_newly_derived = IndexMap::<FactorSourceIDFromHash, FactorInstances>::new();
 
-        todo!()
+        let keys_collector = KeysCollector::new(factor_sources, paths);
+        let outcome = keys_collector.collect()?;
+
+        for (f, instances) in outcome {
+            pf_newly_derived.insert(f, instances.clone());
+            let instances: Vec<HierarchicalDeterministicFactorInstance> =
+                instances.into_iter().collect_vec();
+            let mut to_use_directly = IndexSet::<HierarchicalDeterministicFactorInstance>::new();
+
+            // to use directly
+            let remaining = pf_quantity_remaining_not_satisfied_by_cache
+                .get(&f)
+                .map(|q| q.quantity)
+                .unwrap_or(0);
+
+            let mut to_cache = IndexSet::<HierarchicalDeterministicFactorInstance>::new();
+            for instance in instances {
+                // IMPORTANT: `instance_matches_original_request` SHOULD ALWAYS be
+                // `false` if we used the `FactorInstancesProvider` for purpose "PRE_DERIVE_KEYS_FOR_NEW_FACTOR_SOURCE",
+                // for which we don't want to use any factor instance directly.
+                // By "original request" we mean, if we used the `FactorInstancesProvider` for purpose
+                // "account_veci", then we check here that the derivation path of `instance` matches
+                // that of `NetworkIndexAgnostic::account_veci()`, if it does, then that instance
+                // "matches the original request", but if it is an instances for "identity_veci" or
+                // "account_mfa" or "identity_mfa", then it does not match the original request, and
+                // it should not be used directly, rather be put into the cache.
+                let instance_matches_original_request = index_agnostic_paths_originally_requested
+                    .contains(&instance.derivation_path().agnostic());
+
+                if instance_matches_original_request {
+                    // we can get MULTIPLE hits here, since we are deriving multiple factors per
+                    // agnostic path..
+
+                    if to_use_directly.len() < remaining {
+                        to_use_directly.insert(instance);
+                    } else {
+                        to_cache.insert(instance);
+                    }
+                } else {
+                    to_cache.insert(instance);
+                }
+            }
+
+            pf_to_cache.insert(f, to_cache.into());
+            if let Some(existing_to_use_directly) = pf_to_use_directly.get_mut(&f) {
+                existing_to_use_directly.extend(to_use_directly.into_iter());
+            } else {
+                pf_to_use_directly.insert(f, to_use_directly);
+            }
+        }
+
+        let outcome = FactorInstancesProviderOutcome::transpose(
+            pf_to_cache,
+            pf_to_use_directly
+                .into_iter()
+                .map(|(k, v)| (k, FactorInstances::from(v)))
+                .collect(),
+            pf_found_in_cache,
+            pf_newly_derived,
+        );
+        Ok(outcome)
     }
 }
 
