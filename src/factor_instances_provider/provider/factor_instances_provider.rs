@@ -110,6 +110,8 @@ impl FactorInstancesProvider {
         )
         .await?;
 
+        *cache = cloned_cache;
+
         cache.insert_all(
             outcome
                 .per_factor
@@ -209,6 +211,15 @@ impl FactorInstancesProvider {
             IndexSet<QuantifiedToCacheToUseNetworkIndexAgnosticPath>,
         >::new();
 
+        let need_to_derive_more_instances =
+            !pf_quantity_remaining_not_satisfied_by_cache.is_empty();
+
+        if !need_to_derive_more_instances {
+            return Ok(FactorInstancesProviderOutcome::satisfied_by_cache(
+                pf_found_in_cache,
+            ));
+        }
+
         for factor_source_id in factor_source_ids.iter() {
             let partial = pf_quantity_remaining_not_satisfied_by_cache
                 .get(factor_source_id)
@@ -287,7 +298,6 @@ impl FactorInstancesProvider {
                             .map(|_| {
                                 let index = next_index_assigner
                                     .next(f, quantified_agnostic_path.network_agnostic());
-                                println!("🦄 index: {:?}", index);
                                 DerivationPath::from((
                                     quantified_agnostic_path.agnostic_path,
                                     index,
@@ -434,6 +444,8 @@ mod tests {
             .map(|x| x.derivation_path())
             .collect_vec();
 
+        assert_eq!(account_veci_paths.len(), CACHE_FILLING_QUANTITY);
+
         assert!(account_veci_paths
             .iter()
             .all(|x| x.entity_kind == CAP26EntityKind::Account
@@ -544,6 +556,79 @@ mod tests {
         assert_eq!(
             identity_veci_indices.last().unwrap().clone(),
             HDPathComponent::unsecurified_hardening_base_index(29)
+        );
+
+        // lets create another account (same network, same factor source)
+
+        let outcome = Sut::for_account_veci(
+            &mut cache,
+            None,
+            bdfs.clone(),
+            network,
+            Arc::new(TestDerivationInteractors::default()),
+        )
+        .await
+        .unwrap();
+
+        let per_factor = outcome.per_factor;
+        assert_eq!(per_factor.len(), 1);
+        let outcome = per_factor.get(&bdfs.factor_source_id()).unwrap().clone();
+        assert_eq!(outcome.factor_source_id, bdfs.factor_source_id());
+
+        assert_eq!(outcome.found_in_cache.len(), 1); // This time we found in cache
+
+        assert_eq!(outcome.to_cache.len(), 0);
+
+        assert_eq!(outcome.newly_derived.len(), 0);
+
+        let instances_used_directly = outcome.to_use_directly.factor_instances();
+        assert_eq!(instances_used_directly.len(), 1);
+        let instances_used_directly = instances_used_directly.first().unwrap();
+
+        assert_eq!(
+            instances_used_directly.derivation_entity_index(),
+            HDPathComponent::Hardened(HDPathComponentHardened::Unsecurified(
+                UnsecurifiedIndex::unsecurified_hardening_base_index(1) // Next one!
+            ))
+        );
+
+        assert!(!cache.is_full(network, bdfs.factor_source_id())); // not full anymore, since we just used a veci
+
+        let cached = cache
+            .peek_all_instances_of_factor_source(bdfs.factor_source_id())
+            .unwrap();
+
+        let account_veci_paths = cached
+            .clone()
+            .get(&NetworkIndexAgnosticPath::account_veci().on_network(network))
+            .unwrap()
+            .factor_instances()
+            .into_iter()
+            .map(|x| x.derivation_path())
+            .collect_vec();
+
+        assert_eq!(account_veci_paths.len(), CACHE_FILLING_QUANTITY - 1);
+
+        assert!(account_veci_paths
+            .iter()
+            .all(|x| x.entity_kind == CAP26EntityKind::Account
+                && x.network_id == network
+                && x.key_space() == KeySpace::Unsecurified
+                && x.key_kind == CAP26KeyKind::TransactionSigning));
+
+        let account_veci_indices = account_veci_paths
+            .into_iter()
+            .map(|x| x.index)
+            .collect_vec();
+
+        assert_eq!(
+            account_veci_indices.first().unwrap().clone(),
+            HDPathComponent::unsecurified_hardening_base_index(2) // first is not `1` anymore
+        );
+
+        assert_eq!(
+            account_veci_indices.last().unwrap().clone(),
+            HDPathComponent::unsecurified_hardening_base_index(30)
         );
     }
 }

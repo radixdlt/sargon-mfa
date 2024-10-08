@@ -31,7 +31,6 @@ impl NetworkIndexAgnosticPath {
         Self::transaction_signing(CAP26EntityKind::Identity, KeySpace::Securified)
     }
     pub fn all_presets() -> IndexSet<Self> {
-        
         IndexSet::from_iter([
             Self::account_veci(),
             Self::account_mfa(),

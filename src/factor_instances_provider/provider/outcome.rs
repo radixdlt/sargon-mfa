@@ -15,6 +15,20 @@ pub struct FactorInstancesProviderOutcomeForFactor {
     /// might overlap with `to_cache` and `to_use_directly`
     pub newly_derived: FactorInstances,
 }
+impl FactorInstancesProviderOutcomeForFactor {
+    fn satisfied_by_cache(
+        factor_source_id: FactorSourceIDFromHash,
+        found_in_cache: FactorInstances,
+    ) -> Self {
+        Self {
+            factor_source_id,
+            found_in_cache: found_in_cache.clone(),
+            to_use_directly: found_in_cache.clone(),
+            to_cache: FactorInstances::default(),
+            newly_derived: FactorInstances::default(),
+        }
+    }
+}
 
 pub struct FactorInstancesProviderOutcome {
     pub per_factor: IndexMap<FactorSourceIDFromHash, FactorInstancesProviderOutcomeForFactor>,
@@ -24,6 +38,21 @@ impl FactorInstancesProviderOutcome {
         per_factor: IndexMap<FactorSourceIDFromHash, FactorInstancesProviderOutcomeForFactor>,
     ) -> Self {
         Self { per_factor }
+    }
+    pub fn satisfied_by_cache(
+        pf_found_in_cache: IndexMap<FactorSourceIDFromHash, FactorInstances>,
+    ) -> Self {
+        Self::new(
+            pf_found_in_cache
+                .into_iter()
+                .map(|(k, v)| {
+                    (
+                        k,
+                        FactorInstancesProviderOutcomeForFactor::satisfied_by_cache(k, v),
+                    )
+                })
+                .collect(),
+        )
     }
     pub fn transpose(
         pf_to_cache: IndexMap<FactorSourceIDFromHash, FactorInstances>,
