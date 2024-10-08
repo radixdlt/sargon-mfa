@@ -2,31 +2,91 @@ use crate::prelude::*;
 
 #[derive(Clone, Debug)]
 pub struct FactorInstancesProviderOutcomeForFactor {
+    #[allow(dead_code)]
+    hidden: HiddenConstructor,
+
+    /// The FactorSourceID of all the factor instances of this type.
     pub factor_source_id: FactorSourceIDFromHash,
 
+    /// FactorInstances which are saved into the cache
+    ///
     /// Might be empty
     pub to_cache: FactorInstances,
+
+    /// FactorInstances which are not saved into the cache.
+    ///
     /// Might be empty
     pub to_use_directly: FactorInstances,
 
-    /// LESS IMPORTANT - for tests...
-    /// might overlap with `to_use_directly`
+    /// FactorInstances which was found in the cache before the operation was
+    /// executed.
+    ///
+    /// Might be empty
+    ///
+    /// Useful for unit tests.
+    ///
+    /// Might overlap with `to_use_directly`
     pub found_in_cache: FactorInstances,
-    /// might overlap with `to_cache` and `to_use_directly`
+
+    /// FactorInstances which was newly derived.
+    ///
+    /// Might be empty
+    ///
+    /// Useful for unit tests.
+    ///
+    /// Might overlap with `to_cache` and `to_use_directly`
     pub newly_derived: FactorInstances,
 }
 impl FactorInstancesProviderOutcomeForFactor {
+    pub fn new(
+        factor_source_id: FactorSourceIDFromHash,
+        to_cache: FactorInstances,
+        to_use_directly: FactorInstances,
+        found_in_cache: FactorInstances,
+        newly_derived: FactorInstances,
+    ) -> Self {
+        let assert_factor = |xs: &FactorInstances| {
+            assert!(
+                xs.factor_instances()
+                    .iter()
+                    .all(|x| x.factor_source_id() == factor_source_id),
+                "Discrepancy factor source id"
+            );
+        };
+        assert_factor(&to_cache);
+        assert_factor(&to_use_directly);
+        assert_factor(&found_in_cache);
+        assert_factor(&newly_derived);
+
+        Self {
+            hidden: HiddenConstructor,
+            factor_source_id,
+            to_cache,
+            to_use_directly,
+            found_in_cache,
+            newly_derived,
+        }
+    }
+
     fn satisfied_by_cache(
         factor_source_id: FactorSourceIDFromHash,
         found_in_cache: FactorInstances,
     ) -> Self {
-        Self {
+        let to_use_directly = found_in_cache.clone();
+
+        // nothing to cache
+        let to_cache = FactorInstances::default();
+
+        // nothing was derived
+        let newly_derived = FactorInstances::default();
+
+        Self::new(
             factor_source_id,
-            found_in_cache: found_in_cache.clone(),
-            to_use_directly: found_in_cache.clone(),
-            to_cache: FactorInstances::default(),
-            newly_derived: FactorInstances::default(),
-        }
+            to_cache,
+            to_use_directly,
+            found_in_cache,
+            newly_derived,
+        )
     }
 }
 
@@ -76,13 +136,17 @@ impl FactorInstancesProviderOutcome {
         }
         impl Builder {
             fn build(self) -> FactorInstancesProviderOutcomeForFactor {
-                FactorInstancesProviderOutcomeForFactor {
-                    factor_source_id: self.factor_source_id,
-                    to_cache: FactorInstances::from(self.to_cache),
-                    to_use_directly: FactorInstances::from(self.to_use_directly),
-                    found_in_cache: FactorInstances::from(self.found_in_cache),
-                    newly_derived: FactorInstances::from(self.newly_derived),
-                }
+                let to_cache = FactorInstances::from(self.to_cache);
+                let to_use_directly = FactorInstances::from(self.to_use_directly);
+                let found_in_cache = FactorInstances::from(self.found_in_cache);
+                let newly_derived = FactorInstances::from(self.newly_derived);
+                FactorInstancesProviderOutcomeForFactor::new(
+                    self.factor_source_id,
+                    to_cache,
+                    to_use_directly,
+                    found_in_cache,
+                    newly_derived,
+                )
             }
             fn new(factor_source_id: FactorSourceIDFromHash) -> Self {
                 Self {

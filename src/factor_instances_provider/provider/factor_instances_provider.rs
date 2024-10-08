@@ -165,19 +165,6 @@ impl FactorInstancesProvider {
     ) -> Result<FactorInstancesProviderOutcome> {
         // `pf` is short for `Per FactorSource`
         let mut pf_found_in_cache = IndexMap::<FactorSourceIDFromHash, FactorInstances>::new();
-        let factor_source_ids = index_agnostic_path_and_quantity_per_factor_source
-            .keys()
-            .cloned()
-            .collect::<IndexSet<_>>();
-
-        // used to filter out factor instances to use directly from the newly derived, based on
-        // `index_agnostic_path_and_quantity_per_factor_source`
-        let index_agnostic_paths_originally_requested =
-            index_agnostic_path_and_quantity_per_factor_source
-                .values()
-                .cloned()
-                .map(|q| IndexAgnosticPath::from((network_id, q.agnostic_path)))
-                .collect::<IndexSet<_>>();
 
         // For every factor source found in this map, we derive the remaining
         // quantity as to satisfy the request PLUS we are deriving to fill the
@@ -185,11 +172,6 @@ impl FactorInstancesProvider {
         // "presets" (Account Veci, Identity Veci, Account MFA, Identity MFA).
         let mut pf_quantity_remaining_not_satisfied_by_cache =
             IndexMap::<FactorSourceIDFromHash, QuantifiedNetworkIndexAgnosticPath>::new();
-
-        let mut pf_to_use_directly = IndexMap::<
-            FactorSourceIDFromHash,
-            IndexSet<HierarchicalDeterministicFactorInstance>,
-        >::new();
 
         let mut need_to_derive_more_instances: bool = false;
 
@@ -232,14 +214,8 @@ impl FactorInstancesProvider {
             }
             if !from_cache.is_empty() {
                 pf_found_in_cache.insert(*factor_source_id, from_cache.clone());
-                pf_to_use_directly.insert(*factor_source_id, from_cache.factor_instances());
             }
         }
-
-        let mut pf_quantified_network_agnostic_paths_for_derivation = IndexMap::<
-            FactorSourceIDFromHash,
-            IndexSet<QuantifiedToCacheToUseNetworkIndexAgnosticPath>,
-        >::new();
 
         if !need_to_derive_more_instances {
             return Ok(FactorInstancesProviderOutcome::satisfied_by_cache(
@@ -247,7 +223,57 @@ impl FactorInstancesProvider {
             ));
         }
 
-        for factor_source_id in factor_source_ids.iter() {
+        Self::derive_more_instances(
+            network_id,
+            cache,
+            next_index_assigner,
+            interactors,
+            factor_sources,
+            index_agnostic_path_and_quantity_per_factor_source,
+            pf_quantity_remaining_not_satisfied_by_cache,
+            pf_found_in_cache,
+        )
+        .await
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    async fn derive_more_instances(
+        network_id: NetworkID,
+        cache: &mut Cache,
+        next_index_assigner: &NextDerivationEntityIndexAssigner,
+        interactors: Arc<dyn KeysDerivationInteractors>,
+        factor_sources: IndexSet<HDFactorSource>,
+        index_agnostic_path_and_quantity_per_factor_source: IndexMap<
+            FactorSourceIDFromHash,
+            QuantifiedNetworkIndexAgnosticPath,
+        >,
+        pf_quantity_remaining_not_satisfied_by_cache: IndexMap<
+            FactorSourceIDFromHash,
+            QuantifiedNetworkIndexAgnosticPath,
+        >,
+        pf_found_in_cache: IndexMap<FactorSourceIDFromHash, FactorInstances>,
+    ) -> Result<FactorInstancesProviderOutcome> {
+        let mut pf_quantified_network_agnostic_paths_for_derivation = IndexMap::<
+            FactorSourceIDFromHash,
+            IndexSet<QuantifiedToCacheToUseNetworkIndexAgnosticPath>,
+        >::new();
+
+        // we will use directly what was found in clone, but later when
+        // we derive more, we will add those to `pf_to_use_directly`, but
+        // not to `pf_found_in_cache`, but we will include `pf_found_in_cache` for
+        // unit tests.
+        let mut pf_to_use_directly = pf_found_in_cache.clone();
+
+        // used to filter out factor instances to use directly from the newly derived, based on
+        // `index_agnostic_path_and_quantity_per_factor_source`
+        let index_agnostic_paths_originally_requested =
+            index_agnostic_path_and_quantity_per_factor_source
+                .values()
+                .cloned()
+                .map(|q| IndexAgnosticPath::from((network_id, q.agnostic_path)))
+                .collect::<IndexSet<_>>();
+
+        for factor_source_id in index_agnostic_path_and_quantity_per_factor_source.keys() {
             let partial = pf_quantity_remaining_not_satisfied_by_cache
                 .get(factor_source_id)
                 .cloned();
@@ -277,11 +303,6 @@ impl FactorInstancesProvider {
                             })
                             .unwrap_or(CACHE_FILLING_QUANTITY);
 
-                        println!(
-                            "🐉 number_of_instances_to_derive_to_fill_cache: {}",
-                            number_of_instances_to_derive_to_fill_cache
-                        );
-
                         QuantifiedToCacheToUseNetworkIndexAgnosticPath {
                             quantity: QuantityToCacheToUseDirectly::OnlyCacheFilling {
                                 fill_cache: number_of_instances_to_derive_to_fill_cache,
@@ -300,13 +321,6 @@ impl FactorInstancesProvider {
                 }
             }
         }
-        assert!(pf_quantified_network_agnostic_paths_for_derivation
-            .iter()
-            .all(|x| x.1.len() == NetworkIndexAgnosticPath::all_presets().len()));
-        println!(
-            "🦄 pf_quantified_network_agnostic_paths_for_derivation: {:?}",
-            pf_quantified_network_agnostic_paths_for_derivation
-        );
 
         // Map `NetworkAgnostic -> IndexAgnosticPath`
         let pf_quantified_index_agnostic_paths_for_derivation =
@@ -405,7 +419,7 @@ impl FactorInstancesProvider {
             if let Some(existing_to_use_directly) = pf_to_use_directly.get_mut(&f) {
                 existing_to_use_directly.extend(to_use_directly.into_iter());
             } else {
-                pf_to_use_directly.insert(f, to_use_directly);
+                pf_to_use_directly.insert(f, FactorInstances::from(to_use_directly));
             }
         }
 
@@ -413,7 +427,7 @@ impl FactorInstancesProvider {
             pf_to_cache,
             pf_to_use_directly
                 .into_iter()
-                .map(|(k, v)| (k, FactorInstances::from(v)))
+                .map(|(k, v)| (k, v.clone()))
                 .collect(),
             pf_found_in_cache,
             pf_newly_derived,
@@ -443,7 +457,10 @@ mod tests {
             assert_eq!(stats.to_cache.len(), 0);
             assert_eq!(stats.newly_derived.len(), 0);
         }
-        assert_eq!(os.profile_snapshot().accounts.len(), CACHE_FILLING_QUANTITY);
+        assert_eq!(
+            os.profile_snapshot().get_accounts().len(),
+            CACHE_FILLING_QUANTITY
+        );
 
         let (acco, stats) = os
             .new_mainnet_account_with_bdfs("newly derive")
@@ -451,7 +468,7 @@ mod tests {
             .unwrap();
 
         assert_eq!(
-            os.profile_snapshot().accounts.len(),
+            os.profile_snapshot().get_accounts().len(),
             CACHE_FILLING_QUANTITY + 1
         );
 
@@ -476,7 +493,7 @@ mod tests {
             .unwrap();
 
         assert_eq!(
-            os.profile_snapshot().accounts.len(),
+            os.profile_snapshot().get_accounts().len(),
             CACHE_FILLING_QUANTITY + 2
         );
 
@@ -816,7 +833,6 @@ mod tests {
 
     struct SargonOS {
         cache: Cache,
-        gateway: RwLock<TestGateway>,
         profile: RwLock<Profile>,
     }
 
@@ -827,9 +843,7 @@ mod tests {
         pub fn new() -> Self {
             Arc::new(TestDerivationInteractors::default());
             Self {
-                // cache: Arc::new(RwLock::new(Cache::default())),
                 cache: Cache::default(),
-                gateway: RwLock::new(TestGateway::default()),
                 profile: RwLock::new(Profile::default()),
             }
         }
@@ -841,13 +855,11 @@ mod tests {
         }
 
         pub fn cache_snapshot(&self) -> Cache {
-            // self.cache.try_read().unwrap().clone_snapshot()
             self.cache.clone()
         }
 
         pub fn clear_cache(&mut self) {
             println!("💣 CLEAR CACHE");
-            // *self.cache.try_write().unwrap() = Cache::default();
             self.cache = Cache::default()
         }
 
@@ -1002,6 +1014,7 @@ mod tests {
                         .map(|x| (x, did_derive_new))
                 }
         */
+
         async fn add_factor_source(&mut self, factor_source: HDFactorSource) -> Result<()> {
             let profile_snapshot = self.profile_snapshot();
             assert!(
@@ -1065,6 +1078,158 @@ mod tests {
         assert_eq!(
             os.profile_snapshot().factor_sources,
             IndexSet::just(factor_source)
+        );
+    }
+
+    #[actix_rt::test]
+    async fn adding_accounts_and_clearing_cache_in_between() {
+        let (mut os, _) = SargonOS::with_bdfs().await;
+        assert!(os.profile_snapshot().get_accounts().is_empty());
+        let (alice, stats) = os.new_mainnet_account_with_bdfs("alice").await.unwrap();
+        assert!(!stats.found_in_cache.is_empty());
+        assert!(stats.to_cache.is_empty());
+        assert!(stats.newly_derived.is_empty());
+        os.clear_cache();
+
+        let (bob, stats) = os.new_mainnet_account_with_bdfs("bob").await.unwrap();
+        assert!(stats.found_in_cache.is_empty());
+        assert!(!stats.to_cache.is_empty());
+        assert!(!stats.newly_derived.is_empty());
+        assert_ne!(alice, bob);
+
+        assert_eq!(os.profile_snapshot().get_accounts().len(), 2);
+    }
+
+    #[actix_rt::test]
+    async fn adding_accounts_different_networks_different_factor_sources() {
+        let mut os = SargonOS::new();
+        assert_eq!(os.cache_snapshot().total_number_of_factor_instances(), 0);
+
+        let fs_device = HDFactorSource::device();
+        let fs_arculus = HDFactorSource::arculus();
+        let fs_ledger = HDFactorSource::ledger();
+
+        os.add_factor_source(fs_device.clone()).await.unwrap();
+        os.add_factor_source(fs_arculus.clone()).await.unwrap();
+        os.add_factor_source(fs_ledger.clone()).await.unwrap();
+
+        assert_eq!(
+            os.cache_snapshot().total_number_of_factor_instances(),
+            3 * 4 * CACHE_FILLING_QUANTITY
+        );
+
+        assert!(os.profile_snapshot().get_accounts().is_empty());
+        assert_eq!(os.profile_snapshot().factor_sources.len(), 3);
+
+        let (alice, stats) = os
+            .new_account(fs_device.clone(), NetworkID::Mainnet, "Alice")
+            .await
+            .unwrap();
+        assert!(stats.newly_derived.is_empty());
+
+        let (bob, stats) = os
+            .new_account(fs_device.clone(), NetworkID::Mainnet, "Bob")
+            .await
+            .unwrap();
+        assert!(stats.newly_derived.is_empty());
+
+        let (carol, stats) = os
+            .new_account(fs_device.clone(), NetworkID::Stokenet, "Carol")
+            .await
+            .unwrap();
+        assert!(
+            !stats.newly_derived.is_empty(),
+            "Should have derived more, since first time Stokenet is used!"
+        );
+
+        let (diana, stats) = os
+            .new_account(fs_device.clone(), NetworkID::Stokenet, "Diana")
+            .await
+            .unwrap();
+        assert!(stats.newly_derived.is_empty());
+
+        let (erin, stats) = os
+            .new_account(fs_arculus.clone(), NetworkID::Mainnet, "Erin")
+            .await
+            .unwrap();
+        assert!(stats.newly_derived.is_empty());
+
+        let (frank, stats) = os
+            .new_account(fs_arculus.clone(), NetworkID::Mainnet, "Frank")
+            .await
+            .unwrap();
+        assert!(stats.newly_derived.is_empty());
+
+        let (grace, stats) = os
+            .new_account(fs_arculus.clone(), NetworkID::Stokenet, "Grace")
+            .await
+            .unwrap();
+        assert!(
+            !stats.newly_derived.is_empty(),
+            "Should have derived more, since first time Stokenet is used with the Arculus!"
+        );
+
+        let (helena, stats) = os
+            .new_account(fs_arculus.clone(), NetworkID::Stokenet, "Helena")
+            .await
+            .unwrap();
+        assert!(stats.newly_derived.is_empty());
+
+        let (isabel, stats) = os
+            .new_account(fs_ledger.clone(), NetworkID::Mainnet, "isabel")
+            .await
+            .unwrap();
+        assert!(stats.newly_derived.is_empty());
+
+        let (jenny, stats) = os
+            .new_account(fs_ledger.clone(), NetworkID::Mainnet, "Jenny")
+            .await
+            .unwrap();
+        assert!(stats.newly_derived.is_empty());
+
+        let (klara, stats) = os
+            .new_account(fs_ledger.clone(), NetworkID::Stokenet, "Klara")
+            .await
+            .unwrap();
+        assert!(
+            !stats.newly_derived.is_empty(),
+            "Should have derived more, since first time Stokenet is used with the Ledger!"
+        );
+
+        let (lisa, stats) = os
+            .new_account(fs_ledger.clone(), NetworkID::Stokenet, "Lisa")
+            .await
+            .unwrap();
+        assert!(stats.newly_derived.is_empty());
+
+        assert_eq!(os.profile_snapshot().get_accounts().len(), 12);
+
+        let accounts = vec![
+            alice, bob, carol, diana, erin, frank, grace, helena, isabel, jenny, klara, lisa,
+        ];
+
+        let factor_source_count = os.profile_snapshot().factor_sources.len();
+        let network_count = os.profile_snapshot().networks.len();
+        assert_eq!(
+            os.cache_snapshot().total_number_of_factor_instances(),
+            network_count
+                * factor_source_count
+                * NetworkIndexAgnosticPath::all_presets().len()
+                * CACHE_FILLING_QUANTITY
+                - accounts.len()
+                + factor_source_count // we do `+ factor_source_count` since every time a factor source is used on a new network for the first time, we derive `CACHE_FILLING_QUANTITY + 1`
+        );
+
+        assert_eq!(
+            os.profile_snapshot()
+                .get_accounts()
+                .into_iter()
+                .map(|a| a.entity_address())
+                .collect::<HashSet<AccountAddress>>(),
+            accounts
+                .into_iter()
+                .map(|a| a.entity_address())
+                .collect::<HashSet<AccountAddress>>()
         );
     }
 }

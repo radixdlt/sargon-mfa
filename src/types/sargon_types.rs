@@ -1953,17 +1953,140 @@ impl ManifestSummary {
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct Profile {
     pub factor_sources: IndexSet<HDFactorSource>,
+    pub networks: IndexMap<NetworkID, ProfileNetwork>,
+    pub current_network: NetworkID,
+}
+
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub struct ProfileNetwork {
+    pub network_id: NetworkID,
     pub accounts: IndexMap<AccountAddress, Account>,
     pub personas: IndexMap<IdentityAddress, Persona>,
-    pub current_network: NetworkID,
+}
+
+impl Default for ProfileNetwork {
+    fn default() -> Self {
+        Self {
+            network_id: NetworkID::Mainnet,
+            accounts: IndexMap::new(),
+            personas: IndexMap::new(),
+        }
+    }
+}
+
+impl ProfileNetwork {
+    pub fn contains_account(&self, address: impl Into<AccountAddress>) -> bool {
+        let address = address.into();
+        self.accounts.contains_key(&address)
+    }
+
+    pub fn get_entities<E: IsEntity + std::hash::Hash + Eq>(&self) -> IndexSet<E> {
+        self.get_entities_erased(E::kind())
+            .into_iter()
+            .map(|e| E::try_from(e).ok().unwrap())
+            .collect()
+    }
+
+    pub fn get_entities_erased(&self, entity_kind: CAP26EntityKind) -> IndexSet<AccountOrPersona> {
+        match entity_kind {
+            CAP26EntityKind::Account => self
+                .accounts
+                .values()
+                .cloned()
+                .map(AccountOrPersona::from)
+                .collect::<IndexSet<_>>(),
+            CAP26EntityKind::Identity => self
+                .personas
+                .values()
+                .cloned()
+                .map(AccountOrPersona::from)
+                .collect::<IndexSet<_>>(),
+        }
+    }
+
+    pub fn update_entity<E: IsEntity>(&mut self, entity: E) {
+        match Into::<AccountOrPersona>::into(entity.clone()) {
+            AccountOrPersona::AccountEntity(a) => {
+                assert!(self.accounts.insert(a.entity_address(), a).is_some());
+            }
+            AccountOrPersona::PersonaEntity(p) => {
+                assert!(self.personas.insert(p.entity_address(), p).is_some());
+            }
+        }
+    }
+
+    pub fn get_entities_of_kind_in_key_space(
+        &self,
+        entity_kind: CAP26EntityKind,
+        key_space: KeySpace,
+    ) -> IndexSet<AccountOrPersona> {
+        self.get_entities_erased(entity_kind)
+            .into_iter()
+            .filter(|e| e.matches_key_space(key_space))
+            .collect()
+    }
+
+    pub fn insert_accounts(&mut self, accounts: IndexSet<Account>) -> Result<()> {
+        if accounts.is_empty() {
+            return Ok(());
+        }
+
+        let count = self.accounts.len();
+        let expected_after_insertion = count + accounts.len();
+        for a in accounts.into_iter() {
+            self.accounts.insert(a.entity_address(), a);
+        }
+        assert_eq!(self.accounts.len(), expected_after_insertion);
+        Ok(())
+    }
+
+    pub fn persona_by_address(&self, address: IdentityAddress) -> Result<Persona> {
+        self.personas
+            .get(&address)
+            .ok_or(CommonError::UnknownPersona)
+            .cloned()
+    }
+
+    pub fn insert_personas(&mut self, personas: IndexSet<Persona>) -> Result<()> {
+        if personas.is_empty() {
+            return Ok(());
+        }
+
+        let count = self.personas.len();
+        let expected_after_insertion = count + personas.len();
+        for a in personas.into_iter() {
+            self.personas.insert(a.entity_address(), a);
+        }
+        assert_eq!(self.personas.len(), expected_after_insertion);
+        Ok(())
+    }
+
+    pub fn add_account(&mut self, account: &Account) -> Result<()> {
+        self.accounts
+            .insert(account.entity_address(), account.clone());
+        Ok(())
+    }
+
+    pub fn update_account(&mut self, account: &Account) -> Result<()> {
+        assert!(self
+            .accounts
+            .insert(account.entity_address(), account.clone())
+            .is_some());
+        Ok(())
+    }
+
+    pub fn add_persona(&mut self, persona: &Persona) -> Result<()> {
+        self.personas
+            .insert(persona.entity_address(), persona.clone());
+        Ok(())
+    }
 }
 
 impl Default for Profile {
     fn default() -> Self {
         Self {
             factor_sources: IndexSet::new(),
-            accounts: IndexMap::new(),
-            personas: IndexMap::new(),
+            networks: IndexMap::new(),
             current_network: NetworkID::Mainnet,
         }
     }
@@ -1989,30 +2112,9 @@ impl Profile {
 
     pub fn contains_account(&self, address: impl Into<AccountAddress>) -> bool {
         let address = address.into();
-        self.accounts.contains_key(&address)
-    }
-
-    pub fn get_entities_erased(&self, entity_kind: CAP26EntityKind) -> IndexSet<AccountOrPersona> {
-        match entity_kind {
-            CAP26EntityKind::Account => self
-                .accounts
-                .values()
-                .cloned()
-                .map(AccountOrPersona::from)
-                .collect::<IndexSet<_>>(),
-            CAP26EntityKind::Identity => self
-                .personas
-                .values()
-                .cloned()
-                .map(AccountOrPersona::from)
-                .collect::<IndexSet<_>>(),
-        }
-    }
-    pub fn get_entities<E: IsEntity + std::hash::Hash + Eq>(&self) -> IndexSet<E> {
-        self.get_entities_erased(E::kind())
-            .into_iter()
-            .map(|e| E::try_from(e).ok().unwrap())
-            .collect()
+        self.networks
+            .values()
+            .any(|n| n.contains_account(address.clone()))
     }
 
     pub fn get_entities_of_kind_on_network_in_key_space(
@@ -2021,11 +2123,10 @@ impl Profile {
         network_id: NetworkID,
         key_space: KeySpace,
     ) -> IndexSet<AccountOrPersona> {
-        self.get_entities_erased(entity_kind)
-            .into_iter()
-            .filter(|e| e.network_id() == network_id)
-            .filter(|e| e.matches_key_space(key_space))
-            .collect()
+        self.networks
+            .get(&network_id)
+            .map(|n| n.get_entities_of_kind_in_key_space(entity_kind, key_space))
+            .unwrap_or_default()
     }
 
     pub fn get_securified_entities_of_kind_on_network(
@@ -2109,37 +2210,59 @@ impl Profile {
             .collect()
     }
     pub fn personas_on_network(&self, network_id: NetworkID) -> IndexSet<Persona> {
-        self.get_entities::<Persona>()
-            .into_iter()
-            .filter(|a| a.network_id() == network_id)
+        self.networks
+            .get(&network_id)
+            .map(|n| n.get_entities())
+            .unwrap_or_default()
+    }
+
+    pub fn get_entities<E: IsEntity + std::hash::Hash + Eq>(&self) -> IndexSet<E> {
+        self.networks
+            .values()
+            .flat_map(|n| n.get_entities::<E>())
             .collect()
     }
+
     pub fn get_accounts(&self) -> IndexSet<Account> {
         self.get_entities()
     }
 
+    /// assumes mainnet accounts and mainnet personas
     pub fn new<'a, 'p>(
         factor_sources: impl IntoIterator<Item = HDFactorSource>,
         accounts: impl IntoIterator<Item = &'a Account>,
         personas: impl IntoIterator<Item = &'p Persona>,
     ) -> Self {
         let factor_sources = factor_sources.into_iter().collect::<IndexSet<_>>();
+        let accounts = accounts.into_iter().collect_vec();
+        let personas = personas.into_iter().collect_vec();
+        let network_id = NetworkID::Mainnet;
+        assert!(accounts.iter().all(|a| (*a).network_id() == network_id));
+        assert!(personas.iter().all(|a| (*a).network_id() == network_id));
         Self {
             factor_sources,
-            accounts: accounts
-                .into_iter()
-                .map(|a| (a.entity_address(), a.clone()))
-                .collect::<IndexMap<_, _>>(),
-            personas: personas
-                .into_iter()
-                .map(|p| (p.entity_address(), p.clone()))
-                .collect::<IndexMap<_, _>>(),
+            networks: IndexMap::kv(
+                network_id,
+                ProfileNetwork {
+                    network_id,
+                    accounts: accounts
+                        .into_iter()
+                        .map(|a| (a.entity_address(), a.clone()))
+                        .collect::<IndexMap<_, _>>(),
+                    personas: personas
+                        .into_iter()
+                        .map(|p| (p.entity_address(), p.clone()))
+                        .collect::<IndexMap<_, _>>(),
+                },
+            ),
             current_network: NetworkID::Mainnet,
         }
     }
+
     pub fn account_by_address(&self, address: &AccountAddress) -> Result<Account> {
         self.entity_by_address(address)
     }
+
     pub fn entity_by_address<E: IsEntity + std::hash::Hash + std::cmp::Eq>(
         &self,
         address: &E::Address,
@@ -2151,13 +2274,12 @@ impl Profile {
     }
 
     pub fn update_entity<E: IsEntity>(&mut self, entity: E) {
-        match Into::<AccountOrPersona>::into(entity.clone()) {
-            AccountOrPersona::AccountEntity(a) => {
-                assert!(self.accounts.insert(a.entity_address(), a).is_some());
-            }
-            AccountOrPersona::PersonaEntity(p) => {
-                assert!(self.personas.insert(p.entity_address(), p).is_some());
-            }
+        let account_or_persona = Into::<AccountOrPersona>::into(entity.clone());
+        let network_id = account_or_persona.network_id();
+        if let Some(existing) = self.networks.get_mut(&network_id) {
+            existing.update_entity(entity);
+        } else {
+            panic!("hmm what to do");
         }
     }
 
@@ -2169,13 +2291,53 @@ impl Profile {
     }
 
     pub fn insert_accounts(&mut self, accounts: IndexSet<Account>) -> Result<()> {
-        let count = self.accounts.len();
-        let expected_after_insertion = count + accounts.len();
-        for a in accounts.into_iter() {
-            self.accounts.insert(a.entity_address(), a);
+        if accounts.is_empty() {
+            return Ok(());
         }
-        assert_eq!(self.accounts.len(), expected_after_insertion);
-        Ok(())
+        let network_id = accounts.iter().next().unwrap().network_id();
+        assert!(accounts.iter().all(|a| a.network_id() == network_id));
+
+        if let Some(existing) = self.networks.get_mut(&network_id) {
+            existing.insert_accounts(accounts)
+        } else {
+            self.networks.insert(
+                network_id,
+                ProfileNetwork {
+                    network_id,
+                    accounts: accounts
+                        .into_iter()
+                        .map(|a| (a.entity_address(), a))
+                        .collect(),
+                    personas: IndexMap::new(),
+                },
+            );
+            Ok(())
+        }
+    }
+
+    pub fn insert_personas(&mut self, personas: IndexSet<Persona>) -> Result<()> {
+        if personas.is_empty() {
+            return Ok(());
+        }
+        let network_id = personas.iter().next().unwrap().network_id();
+        assert!(personas.iter().all(|a| a.network_id() == network_id));
+
+        if let Some(existing) = self.networks.get_mut(&network_id) {
+            existing.insert_personas(personas)
+        } else {
+            self.networks.insert(
+                network_id,
+                ProfileNetwork {
+                    network_id,
+                    accounts: IndexMap::new(),
+                    personas: personas
+                        .into_iter()
+                        .map(|a| (a.entity_address(), a))
+                        .collect(),
+                },
+            );
+            Ok(())
+        }
     }
 
     pub fn add_factor_source(&mut self, factor_source: HDFactorSource) -> Result<()> {
@@ -2184,23 +2346,26 @@ impl Profile {
     }
 
     pub fn add_account(&mut self, account: &Account) -> Result<()> {
-        self.accounts
-            .insert(account.entity_address(), account.clone());
-        Ok(())
+        self.insert_accounts(IndexSet::just(account.clone()))
     }
 
     pub fn update_account(&mut self, account: &Account) -> Result<()> {
-        assert!(self
-            .accounts
-            .insert(account.entity_address(), account.clone())
-            .is_some());
-        Ok(())
+        let network_id = account.network_id();
+        let network = self.networks.get_mut(&network_id).unwrap();
+        network.update_account(account)
+    }
+
+    pub fn persona_by_address(&self, address: IdentityAddress) -> Result<Persona> {
+        let network_id = address.network_id();
+        let network = self
+            .networks
+            .get(&network_id)
+            .ok_or(CommonError::UnknownPersona)?;
+        network.persona_by_address(address)
     }
 
     pub fn add_persona(&mut self, persona: &Persona) -> Result<()> {
-        self.personas
-            .insert(persona.entity_address(), persona.clone());
-        Ok(())
+        self.insert_personas(IndexSet::just(persona.clone()))
     }
 
     pub fn insert_entities(&mut self, entities: IndexSet<AccountOrPersona>) -> Result<()> {

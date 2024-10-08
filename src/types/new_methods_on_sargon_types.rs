@@ -16,15 +16,6 @@ impl AccountOrPersona {
     }
 }
 
-impl Profile {
-    pub fn persona_by_address(&self, address: IdentityAddress) -> Result<Persona> {
-        self.personas
-            .get(&address)
-            .ok_or(CommonError::UnknownPersona)
-            .cloned()
-    }
-}
-
 impl TransactionIntent {
     pub fn manifest_summary(&self) -> ManifestSummary {
         self.manifest.summary()
