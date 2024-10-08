@@ -1,3 +1,5 @@
+use std::ops::Add;
+
 use crate::prelude::*;
 
 #[derive(Debug, Default, Clone)]
@@ -123,5 +125,31 @@ impl Cache {
         QuantityOutcome::Full {
             instances: FactorInstances::from_iter(to_use.iter().cloned()),
         }
+    }
+}
+
+#[cfg(test)]
+impl Cache {
+    pub fn is_full(&self, network_id: NetworkID, factor_source_id: FactorSourceIDFromHash) -> bool {
+        let count: usize = self
+            .values
+            .get(&factor_source_id)
+            .and_then(|c| {
+                c.values()
+                    .map(|xs| {
+                        xs.factor_instances()
+                            .iter()
+                            .filter(|x| x.agnostic_path().network_id == network_id)
+                            .collect_vec()
+                            .len()
+                    })
+                    .reduce(Add::add)
+            })
+            .unwrap_or(0);
+
+        count == NetworkIndexAgnosticPath::all_presets().len() * CACHE_FILLING_QUANTITY
+    }
+    pub fn assert_is_full(&self, network_id: NetworkID, factor_source_id: FactorSourceIDFromHash) {
+        assert!(self.is_full(network_id, factor_source_id));
     }
 }

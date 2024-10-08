@@ -1,47 +1,8 @@
-use std::{
-    ops::Add,
-    sync::{Arc, RwLock},
-};
+use std::sync::{Arc, RwLock};
 
 use crate::prelude::*;
 
-pub struct FactorInstancesProvider {
-    /// We only derive factor instances for one network at a time, currently, this
-    /// can be expanded in the future if we want to, but most users only care
-    /// about mainnet.
-    network_id: NetworkID,
-
-    /// A Clone of a cache, the caller MUST commit the changes to the
-    /// original cache if they want to persist them.
-    #[allow(dead_code)]
-    cache: RwLock<Cache>,
-
-    next_entity_index_assigner: NextDerivationEntityIndexAssigner,
-
-    derivation_interactors: Arc<dyn KeysDerivationInteractors>,
-}
-
-impl FactorInstancesProvider {
-    /// `Profile` is optional since None in case of Onboarding Account Recovery Scan
-    /// No need to pass Profile as mut, since we just need to read it for the
-    /// next derivation entity indices.
-    fn new(
-        network_id: NetworkID,
-        cache: Cache,
-        profile: impl Into<Option<Profile>>,
-        derivation_interactors: Arc<dyn KeysDerivationInteractors>,
-    ) -> Self {
-        Self {
-            network_id,
-            cache: RwLock::new(cache),
-            next_entity_index_assigner: NextDerivationEntityIndexAssigner::new(
-                network_id,
-                profile.into(),
-            ),
-            derivation_interactors,
-        }
-    }
-}
+pub struct FactorInstancesProvider;
 
 impl FactorInstancesProvider {
     pub async fn for_account_veci(
@@ -408,32 +369,6 @@ impl FactorInstancesProvider {
 }
 
 #[cfg(test)]
-impl Cache {
-    pub fn is_full(&self, network_id: NetworkID, factor_source_id: FactorSourceIDFromHash) -> bool {
-        let count: usize = self
-            .values
-            .get(&factor_source_id)
-            .and_then(|c| {
-                c.values()
-                    .map(|xs| {
-                        xs.factor_instances()
-                            .iter()
-                            .filter(|x| x.agnostic_path().network_id == network_id)
-                            .collect_vec()
-                            .len()
-                    })
-                    .reduce(Add::add)
-            })
-            .unwrap_or(0);
-
-        count == NetworkIndexAgnosticPath::all_presets().len() * CACHE_FILLING_QUANTITY
-    }
-    pub fn assert_is_full(&self, network_id: NetworkID, factor_source_id: FactorSourceIDFromHash) {
-        assert!(self.is_full(network_id, factor_source_id));
-    }
-}
-
-#[cfg(test)]
 mod tests {
 
     use super::*;
@@ -442,8 +377,6 @@ mod tests {
 
     #[actix_rt::test]
     async fn cache_is_always_filled_account_veci() {
-        //      let cache = Arc::new(RwLock::new(FactorInstancesForEachNetworkCache::default()));
-
         let network = NetworkID::Mainnet;
         let bdfs = HDFactorSource::sample();
         let mut cache = Cache::default();
