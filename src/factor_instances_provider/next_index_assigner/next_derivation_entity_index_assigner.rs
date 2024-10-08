@@ -295,8 +295,8 @@ impl NextDerivationEntityIndexAssigner {
             .next(agnostic_path, factor_source_id)
             .unwrap_or(default_for_profile);
 
-        let sum = from_profile.add_n(local);
+        
 
-        sum
+        from_profile.add_n(local)
     }
 }

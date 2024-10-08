@@ -5,6 +5,19 @@ use crate::prelude::*;
 pub struct FactorInstances {
     factor_instances: Vec<HierarchicalDeterministicFactorInstance>,
 }
+impl FactorInstances {
+    pub fn extend(
+        &mut self,
+        instances: impl IntoIterator<Item = HierarchicalDeterministicFactorInstance>,
+    ) {
+        let instances = instances.into_iter().collect::<IndexSet<_>>(); // remove duplicates
+        self.factor_instances
+            .extend(instances.into_iter().collect_vec());
+    }
+    pub fn first(&self) -> Option<HierarchicalDeterministicFactorInstance> {
+        self.factor_instances.first().cloned()
+    }
+}
 
 impl From<IndexSet<HierarchicalDeterministicFactorInstance>> for FactorInstances {
     fn from(instances: IndexSet<HierarchicalDeterministicFactorInstance>) -> Self {

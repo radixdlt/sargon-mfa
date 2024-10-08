@@ -1,9 +1,67 @@
 use crate::prelude::*;
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct Cache {
     /// PER FactorSource PER IndexAgnosticPath some value T
     pub values: HashMap<FactorSourceIDFromHash, HashMap<IndexAgnosticPath, FactorInstances>>,
+}
+
+impl Cache {
+    pub fn insert_for_factor(
+        &mut self,
+        factor_source_id: FactorSourceIDFromHash,
+        instances: FactorInstances,
+    ) {
+        let instances = instances.into_iter().collect_vec();
+
+        let instances_by_agnostic_path = instances
+            .into_iter()
+            .into_group_map_by(|f| f.agnostic_path())
+            .into_iter()
+            .map(|(k, v)| (k, FactorInstances::from_iter(v)))
+            .collect::<HashMap<IndexAgnosticPath, FactorInstances>>();
+
+        if let Some(existing_for_factor) = self.values.get_mut(&factor_source_id) {
+            for (agnostic_path, instances) in instances_by_agnostic_path {
+                if let Some(existing_for_path) = existing_for_factor.get_mut(&agnostic_path) {
+                    if let Some(last) = existing_for_path.factor_instances().last() {
+                        assert_eq!(
+                            last.derivation_entity_base_index() + 1,
+                            instances
+                                .factor_instances()
+                                .first()
+                                .unwrap()
+                                .derivation_entity_base_index(),
+                            "non contiguous indices"
+                        )
+                    }
+                    existing_for_path.extend(instances);
+                } else {
+                    existing_for_factor.insert(agnostic_path, instances);
+                }
+            }
+        } else {
+            self.values
+                .insert(factor_source_id, instances_by_agnostic_path);
+        }
+    }
+
+    pub fn insert_all(
+        &mut self,
+        per_factor: IndexMap<FactorSourceIDFromHash, FactorInstances>,
+    ) -> Result<()> {
+        for (factor_source_id, instances) in per_factor {
+            self.insert_for_factor(factor_source_id, instances);
+        }
+        Ok(())
+    }
+
+    pub fn peek_all_instances_of_factor_source(
+        &self,
+        factor_source_id: FactorSourceIDFromHash,
+    ) -> Option<HashMap<IndexAgnosticPath, FactorInstances>> {
+        self.values.get(&factor_source_id).cloned()
+    }
 }
 
 pub enum QuantityOutcome {

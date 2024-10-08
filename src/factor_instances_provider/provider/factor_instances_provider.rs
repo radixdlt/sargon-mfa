@@ -123,11 +123,48 @@ impl FactorInstancesProvider {
         )
         .await
     }
+}
+
+impl FactorInstancesProvider {
+    async fn with(
+        network_id: NetworkID,
+        cache: &mut Cache,
+        factor_sources: IndexSet<HDFactorSource>,
+        index_agnostic_path_and_quantity_per_factor_source: IndexMap<
+            FactorSourceIDFromHash,
+            QuantifiedNetworkIndexAgnosticPath,
+        >,
+        next_index_assigner: &NextDerivationEntityIndexAssigner,
+        interactors: Arc<dyn KeysDerivationInteractors>,
+    ) -> Result<FactorInstancesProviderOutcome> {
+        let mut cloned_cache = cache.clone();
+
+        let outcome = Self::with_copy_of_cache(
+            network_id,
+            &mut cloned_cache,
+            factor_sources,
+            index_agnostic_path_and_quantity_per_factor_source,
+            next_index_assigner,
+            interactors,
+        )
+        .await?;
+
+        cache.insert_all(
+            outcome
+                .per_factor
+                .clone()
+                .into_iter()
+                .map(|(k, v)| (k, v.to_cache))
+                .collect::<IndexMap<_, _>>(),
+        )?;
+
+        Ok(outcome)
+    }
 
     /// Supports loading many account vecis OR account mfa OR identity vecis OR identity mfa
     /// at once, does NOT support loading a mix of these. We COULD, but that would
     /// make the code more complex and we don't need it.
-    async fn with(
+    async fn with_copy_of_cache(
         network_id: NetworkID,
         cache: &mut Cache,
         factor_sources: IndexSet<HDFactorSource>,
@@ -370,12 +407,6 @@ impl FactorInstancesProvider {
     }
 }
 
-impl HDPathComponent {
-    pub fn next(&self) -> Self {
-        self.add_one()
-    }
-}
-
 #[cfg(test)]
 impl Cache {
     pub fn is_full(&self, network_id: NetworkID, factor_source_id: FactorSourceIDFromHash) -> bool {
@@ -394,11 +425,7 @@ impl Cache {
                     .reduce(Add::add)
             })
             .unwrap_or(0);
-        println!(
-            "🪱 count: #{} (self.values.len(): #{})",
-            count,
-            self.values.len()
-        );
+
         count == NetworkIndexAgnosticPath::all_presets().len() * CACHE_FILLING_QUANTITY
     }
     pub fn assert_is_full(&self, network_id: NetworkID, factor_source_id: FactorSourceIDFromHash) {
@@ -431,23 +458,9 @@ mod tests {
         .await
         .unwrap();
 
-        // let outcome = Sut::for_account_mfa(
-        //     cache.clone(),
-        //     network,
-        //     profile,
-        //     ,
-        //     InstancesQuery::AccountVeci {
-        //         factor_source: bdfs.clone(),
-        //     },
-        // )
-        // .await
-        // .unwrap();
-
-        // assert_eq!(outcome.statistics.number_of_instances_newly_derived, 1);
         let per_factor = outcome.per_factor;
         assert_eq!(per_factor.len(), 1);
         let outcome = per_factor.get(&bdfs.factor_source_id()).unwrap().clone();
-        println!("🦄 outcome: {:?}", outcome);
         assert_eq!(outcome.factor_source_id, bdfs.factor_source_id());
 
         assert_eq!(outcome.found_in_cache.len(), 0);
@@ -473,74 +486,131 @@ mod tests {
             ))
         );
 
-        cache
-            // .try_read()
-            // .unwrap()
-            .assert_is_full(network, bdfs.factor_source_id());
-
-        /*
+        cache.assert_is_full(network, bdfs.factor_source_id());
 
         let cached = cache
-            .try_read()
-            .unwrap()
-            .clone_for_network_or_empty(network)
             .peek_all_instances_of_factor_source(bdfs.factor_source_id())
             .unwrap();
 
-        let account_vecis = cached
+        let account_veci_paths = cached
             .clone()
-            .account_veci
+            .get(&NetworkIndexAgnosticPath::account_veci().on_network(network))
+            .unwrap()
+            .factor_instances()
             .into_iter()
-            .map(|f| f.derivation_entity_index())
+            .map(|x| x.derivation_path())
+            .collect_vec();
+
+        assert!(account_veci_paths
+            .iter()
+            .all(|x| x.entity_kind == CAP26EntityKind::Account
+                && x.network_id == network
+                && x.key_space() == KeySpace::Unsecurified
+                && x.key_kind == CAP26KeyKind::TransactionSigning));
+
+        let account_veci_indices = account_veci_paths
+            .into_iter()
+            .map(|x| x.index)
             .collect_vec();
 
         assert_eq!(
-            account_vecis.first().unwrap().clone(),
+            account_veci_indices.first().unwrap().clone(),
             HDPathComponent::unsecurified_hardening_base_index(1)
         );
 
         assert_eq!(
-            account_vecis.last().unwrap().clone(),
+            account_veci_indices.last().unwrap().clone(),
             HDPathComponent::unsecurified_hardening_base_index(30)
         );
 
-        let account_mfas = cached
+        let account_mfa_paths = cached
             .clone()
-            .account_mfa
+            .get(&NetworkIndexAgnosticPath::account_mfa().on_network(network))
+            .unwrap()
+            .factor_instances()
             .into_iter()
-            .map(|f| f.derivation_entity_index())
+            .map(|x| x.derivation_path())
             .collect_vec();
 
+        assert!(account_mfa_paths
+            .iter()
+            .all(|x| x.entity_kind == CAP26EntityKind::Account
+                && x.network_id == network
+                && x.key_space() == KeySpace::Securified
+                && x.key_kind == CAP26KeyKind::TransactionSigning));
+
+        let account_mfa_indices = account_mfa_paths.into_iter().map(|x| x.index).collect_vec();
+
         assert_eq!(
-            account_mfas.first().unwrap().clone(),
+            account_mfa_indices.first().unwrap().clone(),
             HDPathComponent::securifying_base_index(0)
         );
 
         assert_eq!(
-            account_mfas.last().unwrap().clone(),
+            account_mfa_indices.last().unwrap().clone(),
             HDPathComponent::securifying_base_index(29)
         );
-        assert!(cached
-            .clone()
-            .identity_mfa
-            .into_iter()
-            .all(|f| f.derivation_path().entity_kind == CAP26EntityKind::Identity));
 
-        let identity_mfas = cached
-            .identity_mfa
+        let identity_mfa_paths = cached
+            .clone()
+            .get(&NetworkIndexAgnosticPath::identity_mfa().on_network(network))
+            .unwrap()
+            .factor_instances()
             .into_iter()
-            .map(|f| f.derivation_entity_index())
+            .map(|x| x.derivation_path())
+            .collect_vec();
+
+        assert!(identity_mfa_paths
+            .iter()
+            .all(|x| x.entity_kind == CAP26EntityKind::Identity
+                && x.network_id == network
+                && x.key_space() == KeySpace::Securified
+                && x.key_kind == CAP26KeyKind::TransactionSigning));
+
+        let identity_mfa_indices = identity_mfa_paths
+            .into_iter()
+            .map(|x| x.index)
             .collect_vec();
 
         assert_eq!(
-            identity_mfas.first().unwrap().clone(),
+            identity_mfa_indices.first().unwrap().clone(),
             HDPathComponent::securifying_base_index(0)
         );
 
         assert_eq!(
-            identity_mfas.last().unwrap().clone(),
+            identity_mfa_indices.last().unwrap().clone(),
             HDPathComponent::securifying_base_index(29)
         );
-        */
+
+        let identity_veci_paths = cached
+            .clone()
+            .get(&NetworkIndexAgnosticPath::identity_veci().on_network(network))
+            .unwrap()
+            .factor_instances()
+            .into_iter()
+            .map(|x| x.derivation_path())
+            .collect_vec();
+
+        assert!(identity_veci_paths
+            .iter()
+            .all(|x| x.entity_kind == CAP26EntityKind::Identity
+                && x.network_id == network
+                && x.key_space() == KeySpace::Unsecurified
+                && x.key_kind == CAP26KeyKind::TransactionSigning));
+
+        let identity_veci_indices = identity_veci_paths
+            .into_iter()
+            .map(|x| x.index)
+            .collect_vec();
+
+        assert_eq!(
+            identity_veci_indices.first().unwrap().clone(),
+            HDPathComponent::unsecurified_hardening_base_index(0)
+        );
+
+        assert_eq!(
+            identity_veci_indices.last().unwrap().clone(),
+            HDPathComponent::unsecurified_hardening_base_index(29)
+        );
     }
 }
