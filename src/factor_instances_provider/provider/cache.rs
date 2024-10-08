@@ -64,6 +64,20 @@ impl Cache {
     ) -> Option<HashMap<IndexAgnosticPath, FactorInstances>> {
         self.values.get(&factor_source_id).cloned()
     }
+
+    #[cfg(test)]
+    pub fn total_number_of_factor_instances(&self) -> usize {
+        self.values
+            .values()
+            .map(|x| {
+                x.values()
+                    .map(|y| y.len())
+                    .reduce(Add::add)
+                    .unwrap_or_default()
+            })
+            .reduce(Add::add)
+            .unwrap_or_default()
+    }
 }
 
 pub enum QuantityOutcome {

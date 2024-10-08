@@ -5,6 +5,30 @@ use crate::prelude::*;
 pub struct FactorInstancesProvider;
 
 impl FactorInstancesProvider {
+    pub async fn for_new_factor_source(
+        cache: &mut Cache,
+        profile: Option<Profile>,
+        factor_source: HDFactorSource,
+        network_id: NetworkID, // typically mainnet
+        interactors: Arc<dyn KeysDerivationInteractors>,
+    ) -> Result<FactorInstancesProviderOutcome> {
+        Self::with(
+            network_id,
+            cache,
+            IndexSet::just(factor_source.clone()),
+            IndexMap::kv(
+                factor_source.factor_source_id(),
+                QuantifiedNetworkIndexAgnosticPath {
+                    quantity: 0,                                             // HACKY
+                    agnostic_path: NetworkIndexAgnosticPath::account_veci(), // ANY really, important here is quantity `0`. This is HACKY, we really SHOULD switch to `DerivationTemplate` enum...
+                },
+            ),
+            &NextDerivationEntityIndexAssigner::new(network_id, profile),
+            interactors,
+        )
+        .await
+    }
+
     pub async fn for_account_veci(
         cache: &mut Cache,
         profile: Option<Profile>,
@@ -127,6 +151,7 @@ impl FactorInstancesProvider {
     /// Supports loading many account vecis OR account mfa OR identity vecis OR identity mfa
     /// at once, does NOT support loading a mix of these. We COULD, but that would
     /// make the code more complex and we don't need it.
+    #[allow(clippy::nonminimal_bool)]
     async fn with_copy_of_cache(
         network_id: NetworkID,
         cache: &mut Cache,
@@ -166,6 +191,8 @@ impl FactorInstancesProvider {
             IndexSet<HierarchicalDeterministicFactorInstance>,
         >::new();
 
+        let mut need_to_derive_more_instances: bool = false;
+
         for (factor_source_id, quantified_agnostic_path) in
             index_agnostic_path_and_quantity_per_factor_source.iter()
         {
@@ -176,6 +203,7 @@ impl FactorInstancesProvider {
             let quantity = quantified_agnostic_path.quantity;
             match cache.remove(factor_source_id, &cache_key, quantity) {
                 QuantityOutcome::Empty => {
+                    need_to_derive_more_instances = true;
                     from_cache = FactorInstances::default();
                     unsatisfied_quantity = quantity;
                 }
@@ -183,10 +211,12 @@ impl FactorInstancesProvider {
                     instances,
                     remaining,
                 } => {
+                    need_to_derive_more_instances = true;
                     from_cache = instances;
                     unsatisfied_quantity = remaining;
                 }
                 QuantityOutcome::Full { instances } => {
+                    need_to_derive_more_instances = false || need_to_derive_more_instances;
                     from_cache = instances;
                     unsatisfied_quantity = 0;
                 }
@@ -211,10 +241,8 @@ impl FactorInstancesProvider {
             IndexSet<QuantifiedToCacheToUseNetworkIndexAgnosticPath>,
         >::new();
 
-        let need_to_derive_more_instances =
-            !pf_quantity_remaining_not_satisfied_by_cache.is_empty();
-
         if !need_to_derive_more_instances {
+            println!("🔮 could satisfy just using cache");
             return Ok(FactorInstancesProviderOutcome::satisfied_by_cache(
                 pf_found_in_cache,
             ));
@@ -716,6 +744,260 @@ mod tests {
             HDPathComponent::Hardened(HDPathComponentHardened::Unsecurified(
                 UnsecurifiedIndex::unsecurified_hardening_base_index(0) // IMPORTANT! Index 0 is used again! Why?! Well because are not using a Profile here, and we are not eagerly filling cache just before we are using the last index.
             ))
+        );
+    }
+
+    struct SargonOS {
+        cache: Cache,
+        gateway: RwLock<TestGateway>,
+        profile: RwLock<Profile>,
+    }
+
+    impl SargonOS {
+        pub fn profile_snapshot(&self) -> Profile {
+            self.profile.try_read().unwrap().clone()
+        }
+        pub fn new() -> Self {
+            Arc::new(TestDerivationInteractors::default());
+            Self {
+                // cache: Arc::new(RwLock::new(Cache::default())),
+                cache: Cache::default(),
+                gateway: RwLock::new(TestGateway::default()),
+                profile: RwLock::new(Profile::default()),
+            }
+        }
+        pub async fn with_bdfs() -> (Self, HDFactorSource) {
+            let mut self_ = Self::new();
+            let bdfs = HDFactorSource::device();
+            self_.add_factor_source(bdfs.clone()).await.unwrap();
+            (self_, bdfs)
+        }
+
+        pub fn cache_snapshot(&self) -> Cache {
+            // self.cache.try_read().unwrap().clone_snapshot()
+            self.cache.clone()
+        }
+
+        pub fn clear_cache(&mut self) {
+            println!("💣 CLEAR CACHE");
+            // *self.cache.try_write().unwrap() = Cache::default();
+            self.cache = Cache::default()
+        }
+
+        pub async fn new_mainnet_account_with_bdfs(
+            &mut self,
+            name: impl AsRef<str>,
+        ) -> Result<(Account, FactorInstancesProviderOutcomeForFactor)> {
+            self.new_account_with_bdfs(NetworkID::Mainnet, name).await
+        }
+
+        pub async fn new_account_with_bdfs(
+            &mut self,
+            network: NetworkID,
+            name: impl AsRef<str>,
+        ) -> Result<(Account, FactorInstancesProviderOutcomeForFactor)> {
+            let bdfs = self.profile_snapshot().bdfs();
+            self.new_account(bdfs, network, name).await
+        }
+
+        pub async fn new_account(
+            &mut self,
+            factor_source: HDFactorSource,
+            network: NetworkID,
+            name: impl AsRef<str>,
+        ) -> Result<(Account, FactorInstancesProviderOutcomeForFactor)> {
+            let profile_snapshot = self.profile_snapshot();
+            let outcome = Sut::for_account_veci(
+                &mut self.cache,
+                Some(profile_snapshot),
+                factor_source.clone(),
+                network,
+                Arc::new(TestDerivationInteractors::default()),
+            )
+            .await
+            .unwrap();
+
+            let outcome_for_factor = outcome
+                .per_factor
+                .get(&factor_source.factor_source_id())
+                .unwrap()
+                .clone();
+
+            let instances_to_use_directly = outcome_for_factor.to_use_directly.clone();
+
+            assert_eq!(instances_to_use_directly.len(), 1);
+            let instance = instances_to_use_directly.first().unwrap();
+
+            println!(
+                "🔮 Created account: '{}' with veci.index: {}",
+                name.as_ref(),
+                instance.derivation_entity_index()
+            );
+
+            let address = AccountAddress::new(network, instance.public_key_hash());
+            let account = Account::new(
+                name,
+                address,
+                EntitySecurityState::Unsecured(instance),
+                ThirdPartyDepositPreference::default(),
+            );
+            self.profile
+                .try_write()
+                .unwrap()
+                .add_account(&account)
+                .unwrap();
+            Ok((account, outcome_for_factor))
+        }
+
+        /*
+                pub async fn securify(
+                    &self,
+                    accounts: Accounts,
+                    shield: MatrixOfFactorSources,
+                ) -> Result<(SecurifiedAccounts, DidDeriveNewFactorInstances)> {
+                    println!(
+                        "🛡️ Securifying accounts: '{:?}'",
+                        accounts.clone().into_iter().map(|x| x.name()).collect_vec()
+                    );
+                    let interactors: Arc<dyn KeysDerivationInteractors> =
+                        Arc::new(TestDerivationInteractors::default());
+
+                    let factor_instances_provider =
+                        FactorInstancesProvider::update_or_set_security_shield_for_accounts(
+                            accounts.clone(),
+                            shield.clone(),
+                            self._cache(),
+                            self.profile_snapshot(),
+                            interactors,
+                        );
+
+                    let (instances, did_derive_new) = factor_instances_provider
+                        .get_factor_instances_outcome()
+                        .await?;
+                    let mut instances = instances.factor_instances();
+
+                    println!(
+                        "🧵🎉 securfying: #{} accounts, got: #{} factor instances",
+                        accounts.len(),
+                        instances.len()
+                    );
+
+                    // Now we need to map the flat set of instances into many MatrixOfFactorInstances, and assign
+                    // one to each account
+                    let updated_accounts = accounts
+                        .clone()
+                        .into_iter()
+                        .map(|a| {
+                            let matrix_of_instances =
+                            MatrixOfFactorInstances::fulfilling_matrix_of_factor_sources_with_instances(
+                                instances.clone(),
+                                shield.clone(),
+                            )
+                            .unwrap();
+                        println!("🦆👻 removing: #{} instances used by Matrix from instances: #{} => left is #{}", matrix_of_instances.all_factors().len(), instances.len(), instances.len() - matrix_of_instances.all_factors().len());
+                            for used_instance in matrix_of_instances.all_factors() {
+                                instances.shift_remove(&used_instance);
+                            }
+                            let access_controller = match a.security_state() {
+                                EntitySecurityState::Unsecured(_) => {
+                                    AccessController::from_unsecurified_address(a.entity_address())
+                                }
+                                EntitySecurityState::Securified(sec) => sec.access_controller.clone(),
+                            };
+                            let veci = match a.security_state() {
+                                EntitySecurityState::Unsecured(veci) => Some(veci),
+                                EntitySecurityState::Securified(sec) => sec.veci.clone(),
+                            };
+                            let sec =
+                                SecurifiedEntityControl::new(matrix_of_instances, access_controller, veci);
+
+                            SecurifiedAccount::new(
+                                a.name(),
+                                a.entity_address(),
+                                sec,
+                                a.third_party_deposit(),
+                            )
+                        })
+                        .collect::<IndexSet<SecurifiedAccount>>();
+
+                    for account in updated_accounts.iter() {
+                        self.profile
+                            .try_write()
+                            .unwrap()
+                            .update_account(&account.account());
+                    }
+                    assert!(
+                        instances.is_empty(),
+                        "should have used all instances, but have unused instances: {:?}",
+                        instances
+                    );
+                    SecurifiedAccounts::new(accounts.network_id(), updated_accounts)
+                        .map(|x| (x, did_derive_new))
+                }
+        */
+        async fn add_factor_source(&mut self, factor_source: HDFactorSource) -> Result<()> {
+            let profile_snapshot = self.profile_snapshot();
+            assert!(
+                !profile_snapshot
+                    .factor_sources
+                    .iter()
+                    .any(|x| x.factor_source_id() == factor_source.factor_source_id()),
+                "factor already in Profile"
+            );
+            let outcome = Sut::for_new_factor_source(
+                &mut self.cache,
+                Some(profile_snapshot),
+                factor_source.clone(),
+                NetworkID::Mainnet,
+                Arc::new(TestDerivationInteractors::default()),
+            )
+            .await
+            .unwrap();
+
+            let per_factor = outcome.per_factor;
+            let outcome = per_factor
+                .get(&factor_source.factor_source_id())
+                .unwrap()
+                .clone();
+            assert_eq!(outcome.factor_source_id, factor_source.factor_source_id());
+
+            assert_eq!(outcome.found_in_cache.len(), 0);
+
+            assert_eq!(
+                outcome.to_cache.len(),
+                NetworkIndexAgnosticPath::all_presets().len() * CACHE_FILLING_QUANTITY
+            );
+
+            assert_eq!(
+                outcome.newly_derived.len(),
+                NetworkIndexAgnosticPath::all_presets().len() * CACHE_FILLING_QUANTITY
+            );
+
+            self.profile
+                .try_write()
+                .unwrap()
+                .add_factor_source(factor_source.clone())
+                .unwrap();
+
+            Ok(())
+        }
+    }
+
+    #[actix_rt::test]
+    async fn add_factor_source() {
+        let mut os = SargonOS::new();
+        assert_eq!(os.cache_snapshot().total_number_of_factor_instances(), 0);
+        assert_eq!(os.profile_snapshot().factor_sources.len(), 0);
+        let factor_source = HDFactorSource::sample();
+        os.add_factor_source(factor_source.clone()).await.unwrap();
+        assert!(
+            os.cache_snapshot()
+                .is_full(NetworkID::Mainnet, factor_source.factor_source_id()),
+            "Should have put factors into the cache."
+        );
+        assert_eq!(
+            os.profile_snapshot().factor_sources,
+            IndexSet::just(factor_source)
         );
     }
 }
