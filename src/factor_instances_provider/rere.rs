@@ -27,16 +27,61 @@ pub struct AbstractQuantifiedNetworkIndexAgnosticPath<T> {
     pub agnostic_path: NetworkIndexAgnosticPath,
     pub quantity: T,
 }
-pub type QuantifiedNetworkIndexAgnosticPath = AbstractQuantifiedNetworkIndexAgnosticPath<usize>;
-pub type CacheFillingPlaceholderQuantityNetworkIndexAgnosticPath =
-    AbstractQuantifiedNetworkIndexAgnosticPath<CacheFillingPlaceholderQuantity>;
 
 #[derive(Clone, Copy, Hash, PartialEq, Eq)]
-enum CacheFillingPlaceholderQuantity {
-    OnlyCacheFilling,
-    ToFulfillRequestAlsoCacheFilling {
-        quantity_remaining_not_satisfied_by_cache: usize,
+pub struct QuantifiedNetworkIndexAgnosticPath {
+    pub agnostic_path: NetworkIndexAgnosticPath,
+    pub quantity: usize,
+}
+
+#[derive(Clone, Copy, Hash, PartialEq, Eq)]
+pub struct QuantifiedToCacheToUseNetworkIndexAgnosticPath {
+    pub agnostic_path: NetworkIndexAgnosticPath,
+    pub quantity: QuantityToCacheToUseDirectly,
+}
+
+#[derive(Clone, Copy, Hash, PartialEq, Eq)]
+pub struct QuantifiedToCacheToUseIndexAgnosticPath {
+    pub agnostic_path: IndexAgnosticPath,
+    pub quantity: QuantityToCacheToUseDirectly,
+}
+
+impl From<(IndexAgnosticPath, HDPathComponent)> for DerivationPath {
+    fn from((path, index): (IndexAgnosticPath, HDPathComponent)) -> Self {
+        assert_eq!(index.key_space(), path.key_space);
+        Self::new(path.network_id, path.entity_kind, path.key_kind, index)
+    }
+}
+
+pub const CACHE_FILLING_QUANTITY: usize = 30;
+#[derive(Clone, Copy, Hash, PartialEq, Eq)]
+enum QuantityToCacheToUseDirectly {
+    OnlyCacheFilling {
+        /// Typically (always?) `CACHE_FILLING_QUANTITY`
+        fill_cache: usize,
     },
+
+    /// We will derive `remaining + extra_to_fill_cache` more instances
+    ToCacheToUseDirectly {
+        /// Remaining quantity to satisfy the request, `originally_requested - from_cache_instances.len()`
+        /// Used later to split the newly derived instances into two groups, to cache and to use directly,
+        /// can be zero.
+        remaining: usize,
+
+        /// Typically (always?) `CACHE_FILLING_QUANTITY`
+        extra_to_fill_cache: usize,
+    },
+}
+impl QuantityToCacheToUseDirectly {
+    pub fn total_quantity_to_derive(&self) -> usize {
+        match self {
+            Self::OnlyCacheFilling { fill_cache } => *fill_cache,
+            Self::ToCacheToUseDirectly {
+                remaining,
+                extra_to_fill_cache,
+            } => *remaining + *extra_to_fill_cache,
+        }
+    }
 }
 
 /// Used as "presets"
@@ -87,10 +132,13 @@ pub struct KeyValue<T> {
 enum QuantityOutcome {
     Empty,
     Partial {
+        /// (NonEmpty) Instances found in cache, which is fewer than `originally_requested`
         instances: FactorInstances,
+        /// Remaining quantity to satisfy the request, `originally_requested - instances.len()`
         remaining: usize,
     },
     Full {
+        /// (NonEmpty) Instances found in cache, which has the same length as `originally_requested`
         instances: FactorInstances,
     },
 }
@@ -151,6 +199,15 @@ pub struct NextIndexAssigner {
     profile: Profile,
     local: LocalOffsets,
 }
+impl NextIndexAssigner {
+    pub fn next_index(
+        &self,
+        factor_source_id: FactorSourceIDFromHash,
+        agnostic_path: IndexAgnosticPath,
+    ) -> HDPathComponent {
+        todo!()
+    }
+}
 
 pub struct FactorInstancesProvider {
     cache: Cache,
@@ -191,6 +248,7 @@ impl FactorInstancesProvider {
 impl FactorInstancesProvider {
     pub fn for_account_mfa(
         cache: &mut Cache,
+        next_index_assigner: &NextIndexAssigner,
         matrix_of_factor_sources: MatrixOfFactorSources,
         profile: Profile,
         accounts: IndexSet<AccountAddress>,
@@ -237,6 +295,7 @@ impl FactorInstancesProvider {
                     )
                 })
                 .collect(),
+            next_index_assigner,
         )
     }
 
@@ -250,6 +309,7 @@ impl FactorInstancesProvider {
             FactorSourceIDFromHash,
             QuantifiedNetworkIndexAgnosticPath,
         >,
+        next_index_assigner: &NextIndexAssigner,
     ) -> Self {
         // `pf` is short for `Per FactorSource`
         let mut pf_found_in_cache = IndexMap::<FactorSourceIDFromHash, FactorInstances>::new();
@@ -304,9 +364,9 @@ impl FactorInstancesProvider {
             }
         }
 
-        let mut agnostic_paths_for_derivation_with_quantity_placeholders = IndexMap::<
+        let mut pf_quantified_network_agnostic_paths_for_derivation = IndexMap::<
             FactorSourceIDFromHash,
-            IndexSet<CacheFillingPlaceholderQuantityNetworkIndexAgnosticPath>,
+            IndexSet<QuantifiedToCacheToUseNetworkIndexAgnosticPath>,
         >::new();
 
         for factor_source_id in factor_source_ids.iter() {
@@ -317,33 +377,81 @@ impl FactorInstancesProvider {
                 let to_insert = partial
                     .and_then(|p| {
                         if p.agnostic_path == preset {
-                            Some(
-                                CacheFillingPlaceholderQuantityNetworkIndexAgnosticPath {
-                                    quantity: CacheFillingPlaceholderQuantity::ToFulfillRequestAlsoCacheFilling { quantity_remaining_not_satisfied_by_cache: p.quantity },
-                                    agnostic_path: p.agnostic_path,
-                                }
-                            )
+                            Some(QuantifiedToCacheToUseNetworkIndexAgnosticPath {
+                                quantity: QuantityToCacheToUseDirectly::ToCacheToUseDirectly {
+                                    remaining: p.quantity,
+                                    extra_to_fill_cache: CACHE_FILLING_QUANTITY,
+                                },
+                                agnostic_path: p.agnostic_path,
+                            })
                         } else {
                             None
                         }
                     })
-                    .unwrap_or(CacheFillingPlaceholderQuantityNetworkIndexAgnosticPath {
-                        quantity: CacheFillingPlaceholderQuantity::OnlyCacheFilling,
+                    .unwrap_or(QuantifiedToCacheToUseNetworkIndexAgnosticPath {
+                        quantity: QuantityToCacheToUseDirectly::OnlyCacheFilling {
+                            fill_cache: CACHE_FILLING_QUANTITY,
+                        },
                         agnostic_path: preset,
                     });
 
-                if let Some(existing) = agnostic_paths_for_derivation_with_quantity_placeholders
-                    .get_mut(factor_source_id)
+                if let Some(existing) =
+                    pf_quantified_network_agnostic_paths_for_derivation.get_mut(factor_source_id)
                 {
                     existing.insert(to_insert);
                 } else {
-                    agnostic_paths_for_derivation_with_quantity_placeholders
+                    pf_quantified_network_agnostic_paths_for_derivation
                         .insert(*factor_source_id, IndexSet::just(to_insert));
                 }
             }
         }
 
-        let _paths = IndexMap::<FactorSourceIDFromHash, IndexSet<DerivationPath>>::new();
+        // Now map from NetworkAgnostic to NetworkAware paths, but still index agnostic
+        let pf_quantified_index_agnostic_paths_for_derivation =
+            pf_quantified_network_agnostic_paths_for_derivation
+                .into_iter()
+                .map(|(factor_source_id, quantified_network_agnostic_paths)| {
+                    let index_agnostic_paths = quantified_network_agnostic_paths
+                        .into_iter()
+                        .map(|q| QuantifiedToCacheToUseIndexAgnosticPath {
+                            agnostic_path: IndexAgnosticPath::from((network_id, q.agnostic_path)),
+                            quantity: q.quantity,
+                        })
+                        .collect::<IndexSet<_>>();
+                    (factor_source_id, index_agnostic_paths)
+                })
+                .collect::<IndexMap<_, _>>();
+
+        // Now map from IndexAgnostic paths to index aware paths, a.k.a. DerivationPath
+        // but ALSO we need to retain the information of how many factor instances of
+        // the newly derived to append to the factor instances to use directly, and how many to cache.
+        let paths = pf_quantified_index_agnostic_paths_for_derivation
+            .clone()
+            .into_iter()
+            .map(|(f, agnostic_paths)| {
+                let paths = agnostic_paths
+                    .clone()
+                    .into_iter()
+                    .flat_map(|quantified_agnostic_path| {
+                        // IMPORTANT! We are not mapping one `IndexAgnosticPath` to one `DerivationPath`, but
+                        // rather we are mapping one `IndexAgnosticPath` to many `DerivationPath`! Equal to
+                        // the same number as the specified quantity!
+                        (0..quantified_agnostic_path.quantity.total_quantity_to_derive())
+                            .map(|_| {
+                                let index = next_index_assigner
+                                    .next_index(f, quantified_agnostic_path.agnostic_path);
+                                DerivationPath::from((
+                                    quantified_agnostic_path.agnostic_path,
+                                    index,
+                                ))
+                            })
+                            .collect::<IndexSet<_>>()
+                    })
+                    .into_iter()
+                    .collect::<IndexSet<_>>();
+                (f, paths)
+            })
+            .collect::<IndexMap<FactorSourceIDFromHash, IndexSet<DerivationPath>>>();
 
         let _pf_to_cache = IndexMap::<FactorSourceIDFromHash, FactorInstances>::new();
         let _pf_to_use_directly = IndexMap::<FactorSourceIDFromHash, FactorInstances>::new();
