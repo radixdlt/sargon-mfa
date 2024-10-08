@@ -11,6 +11,7 @@ impl From<IndexSet<HierarchicalDeterministicFactorInstance>> for FactorInstances
         Self::new(instances)
     }
 }
+
 impl From<FactorInstances> for IndexSet<HierarchicalDeterministicFactorInstance> {
     fn from(value: FactorInstances) -> Self {
         value.factor_instances()

@@ -1,17 +1,17 @@
 We want to be able to load eagerily "pre-derived" PublicKeys - HiearchalDeterministicFactorInstances - from a "cache" (file one disc, not profile), and if no instance was found in cache we wanna derive more instances, some of which will be used directly and some of which will be used to fill the cache.
 
 The gatekeeper/"coordinator" of this is a new type called `FactorInstancesProvider`. It supports these operations - with **`NetworkID` as input**:
-* `AccountVeci`: Get "Next" `FactorInstance` for unsecurified `Account` creation for a `FactorSource` (typically *BDFS*)
-* `IdentityVeci`: Get "Next" `FactorInstance` for unsecurified `Persona` creation for a `FactorSource` (typically *BDFS*)
-* `AccountMfa`: Given a `MatrixOfFactorSources` and a set of accounts, get the "next" `FactorInstance` for each account, for each `FactorSource`.
-* `IdentityMfa`: Given a `MatrixOfFactorSources` and a set of personas, get the "next" `FactorInstance` for each persona, for each `FactorSource`.
+
+-   `AccountVeci`: Get "Next" `FactorInstance` for unsecurified `Account` creation for a `FactorSource` (typically _BDFS_)
+-   `IdentityVeci`: Get "Next" `FactorInstance` for unsecurified `Persona` creation for a `FactorSource` (typically _BDFS_)
+-   `AccountMfa`: Given a `MatrixOfFactorSources` and a set of accounts, get the "next" `FactorInstance` for each account, for each `FactorSource`.
+-   `IdentityMfa`: Given a `MatrixOfFactorSources` and a set of personas, get the "next" `FactorInstance` for each persona, for each `FactorSource`.
 
 Let us call these four "operation" `InstancesQuery`.
 
 For every operation that NEEDED to derive any factor, the cache is ALWAYS completely filled afterwards, for each referenced factor source, meaning that if we securify 100 accounts, with single factor source `F`, then 100 instances are returned to be "used directly" AND the cache contains `CACHE_SIZE` many Factor Instances for every `DerivationTemplate` (account veci, identity veci, account MFA, identity MFA, etc).
 
 By `CACHE_SIZE` I mean some const we have defined to e.g. `30` or `50`.
-
 
 The extremely oversimplified and naive pseudocode for `get_account_veci` is this:
 
@@ -35,8 +35,8 @@ struct FactorInstancesProvider {
 }
 impl FactorInstancesProvider {
     async fn get_account_veci(
-        &self, 
-        network: Network, 
+        &self,
+        network: Network,
         factor_source: FactorSource
     ) -> Result<HDFactorInstance> {
         if let Some(cached) = self.cache.get_account_veci(
@@ -76,12 +76,12 @@ So we need a `NextIndexAssigner`. But let us start with the cache.
 
 # `Cache`
 
-How should we store the keys in the cache, under which kind of key? We cannot store them under the `DerivationPath`, since it contains the `Index`, which we should not wanna know, we wanna say "give me the next"! We could think of the cache as "unkeyed", as a `Vec` (or rather `IndexSet`) instead of an `IndexMap`, but how would we query that we want the "next account veci " vs we want the "next account MFA" (for some network for some factor source)? 
+How should we store the keys in the cache, under which kind of key? We cannot store them under the `DerivationPath`, since it contains the `Index`, which we should not wanna know, we wanna say "give me the next"! We could think of the cache as "unkeyed", as a `Vec` (or rather `IndexSet`) instead of an `IndexMap`, but how would we query that we want the "next account veci " vs we want the "next account MFA" (for some network for some factor source)?
 
 Reminder of what the (CAP26) `DerivationPath` is:
 `m/44'/1022'/<NETWORK_ID>'/<ENTITY_KIND>'/<KEY_KIND>'/<ENTITY_INDEX>'`.
 
-We note that we can simly remove `m/44'/1022'/` since it is always prepended to the path, so what remains is:
+We note that we can simply remove `m/44'/1022'/` since it is always prepended to the path, so what remains is:
 
 ```rust
 struct DerivationPath {
@@ -92,7 +92,7 @@ struct DerivationPath {
 }
 ```
 
-Where we can calculate which `KeySpace` from `HDPathComponent` which is essentually just a `u32` (if larger than `2^31+2^30` it is `KeySpace::Securified` else `KeySpace::Unsecurified` (simplified)), 
+Where we can calculate which `KeySpace` from `HDPathComponent` which is essentially just a `u32` (if larger than `2^31+2^30` it is `KeySpace::Securified` else `KeySpace::Unsecurified` (simplified)),
 
 So we would want a "Unindexed", "Partial| or "IndexAgnostic" DerivationPath variant, i.e:
 
@@ -122,18 +122,17 @@ And a flat cache, essentially just:
 
 ```rust
 struct FlatCache {
-    /// Might actually wrap in an `RwLock` 
+    /// Might actually wrap in an `RwLock`
     keys: HashMap<CacheKey, IndexSet<HDFactorInstance>>
 }
 ```
 
 > [!NOTE]
 > Note the `IndexSet<HDFactorInstance>`, we store multiple FactorInstances per cache key
-> Maybe we prefill the cache with `30` or `50` instances per FactorSource per... per "common 
-`UnindexedDerivationPath` combination", right?
+> Maybe we prefill the cache with `30` or `50` instances per FactorSource per... per "common
+> `UnindexedDerivationPath` combination", right?
 
 By "common `UnindexedDerivationPath` combination" I mean to paths used to fulfill `InstancesQuery`: Account Veci, Identity Veci, Account MFA, Identify MFA, for some network.
-
 
 An alternative to `FlatCache` above is to create a nested cache, with an outer layer for factor source ID and an inner layer, with instances per `UnindexedDerivationPath`, like so:
 
@@ -142,7 +141,7 @@ struct CacheForFactor {
     keys: HashMap<UnindexedDerivationPath, IndexSet<HDFactorInstance>>
 }
 struct NestedCache {
-    /// Might actually wrap in an `RwLock` 
+    /// Might actually wrap in an `RwLock`
     per_factor: HashMap<FactorSourceIDFromHash, CacheForFactor>
 }
 ```
@@ -168,7 +167,7 @@ And then given a known "next" base index and a network we can simply create the 
 
 ```rust
 impl DerivationTemplate {
-   
+
     fn entity_kind(&self) -> CAP26EntityKind {
         match self  {
             Self::AccountVeci | Self::AccountMfa => CAP26EntityKind::Account,
@@ -176,7 +175,7 @@ impl DerivationTemplate {
             ...
         }
     }
-    
+
     fn key_space(&self) -> KeySpace {
         match self  {
             Self::AccountVeci | Self::IdentityVeci => KeySpace::Unsecurified,
@@ -184,9 +183,9 @@ impl DerivationTemplate {
             ...
         }
     }
-   
+
     fn key_kind(&self) -> CAP26KeyKind { ... }
-   
+
     pub fn path_on_network(&self, network: NetworkID, base_index: u32) -> DerivationPath {
         let derivation_entity_index = HDPathComponent::new_in_key_space_from_base_index(
             self.key_space(),
@@ -223,19 +222,18 @@ struct CollectionsOfFactorInstances {
 }
 ```
 
-
 ```rust
 struct FactorInstancesForSpecificNetworkCache {
     /// Is validated to match the `factor_source_id` of every CollectionsOfFactorInstances
     network_id: NetworkID,
 
-    /// Might actually wrap in an `RwLock` 
+    /// Might actually wrap in an `RwLock`
     keys: HashMap<FactorSourceIDFromHash, CollectionsOfFactorInstances>
 }
 
 
 struct FactorInstancesForEachNetworkCache {
-    /// Might actually wrap in an `RwLock` 
+    /// Might actually wrap in an `RwLock`
     networks: HashMap<NetworkID, FactorInstancesForSpecificNetworkCache>
 }
 ```
@@ -244,10 +242,22 @@ The advantage of this is that factor instances can be validated to be put into t
 
 The disadvantage of `FactorInstancesForEachNetworkCache` (Nested Cache) and `CollectionsOfFactorInstances` is that it is more types... and if we do not validate values it is possible to have discrepancies between the network_ids and the factor_source_ids etc.
 
+## Taking values from the cache
+
+When we are gonna read lets say 10 Account MFA instances from the cache and there only are 3 ones left, how to represent this?
+
+```rust
+pub enum CacheOutcome {
+    Found(FactorInstances)
+    Partial { instances: FactorInstances, number_of_missing_instances: usize },
+    None
+}
+```
+
+And then we know
+
 # `NextIndexAssigner`
+
 So when we do need to derive we need to know what is the "next" index for that factor source for that network id for that KeySpace for that EntityKind for that KeyKind.
 
 # `FactorInstanceProvider`
-
-
-
