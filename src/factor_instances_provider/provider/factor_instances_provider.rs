@@ -242,7 +242,6 @@ impl FactorInstancesProvider {
         >::new();
 
         if !need_to_derive_more_instances {
-            println!("🔮 could satisfy just using cache");
             return Ok(FactorInstancesProviderOutcome::satisfied_by_cache(
                 pf_found_in_cache,
             ));
@@ -429,6 +428,74 @@ mod tests {
     use super::*;
 
     type Sut = FactorInstancesProvider;
+
+    #[actix_rt::test]
+    async fn create_accounts_when_last_is_used_cache_is_fill_only_with_account_vecis_and_if_profile_is_used_a_new_account_is_created(
+    ) {
+        let (mut os, bdfs) = SargonOS::with_bdfs().await;
+        for i in 0..CACHE_FILLING_QUANTITY {
+            let name = format!("Acco {}", i);
+            let (acco, stats) = os
+                .new_mainnet_account_with_bdfs(name.clone())
+                .await
+                .unwrap();
+            assert_eq!(acco.name, name);
+            assert_eq!(stats.to_cache.len(), 0);
+            assert_eq!(stats.newly_derived.len(), 0);
+        }
+        assert_eq!(os.profile_snapshot().accounts.len(), CACHE_FILLING_QUANTITY);
+
+        let (acco, stats) = os
+            .new_mainnet_account_with_bdfs("newly derive")
+            .await
+            .unwrap();
+
+        assert_eq!(
+            os.profile_snapshot().accounts.len(),
+            CACHE_FILLING_QUANTITY + 1
+        );
+
+        assert_eq!(stats.to_cache.len(), CACHE_FILLING_QUANTITY);
+        assert_eq!(stats.newly_derived.len(), CACHE_FILLING_QUANTITY + 1);
+
+        assert_eq!(
+            acco.as_unsecurified()
+                .unwrap()
+                .factor_instance()
+                .derivation_entity_index(),
+            HDPathComponent::unsecurified_hardening_base_index(30)
+        );
+        assert!(os
+            .cache_snapshot()
+            .is_full(NetworkID::Mainnet, bdfs.factor_source_id()));
+
+        // and another one
+        let (acco, stats) = os
+            .new_mainnet_account_with_bdfs("newly derive 2")
+            .await
+            .unwrap();
+
+        assert_eq!(
+            os.profile_snapshot().accounts.len(),
+            CACHE_FILLING_QUANTITY + 2
+        );
+
+        assert_eq!(stats.to_cache.len(), 0);
+        assert_eq!(stats.newly_derived.len(), 0);
+
+        assert_eq!(
+            acco.as_unsecurified()
+                .unwrap()
+                .factor_instance()
+                .derivation_entity_index(),
+            HDPathComponent::unsecurified_hardening_base_index(31)
+        );
+        assert!(
+            !os.cache_snapshot()
+                .is_full(NetworkID::Mainnet, bdfs.factor_source_id()),
+            "just consumed one, so not full"
+        );
+    }
 
     #[actix_rt::test]
     async fn cache_is_always_filled_account_veci_then_after_all_used_we_start_over_at_zero_if_no_profile_is_used(

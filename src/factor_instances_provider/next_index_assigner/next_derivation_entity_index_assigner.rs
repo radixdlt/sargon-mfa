@@ -101,7 +101,7 @@ impl NextDerivationEntityIndexProfileAnalyzingAssigner {
         }
     }
 
-    pub fn next_account_veci(
+    fn max_account_veci(
         &self,
         factor_source_id: FactorSourceIDFromHash,
     ) -> Option<HDPathComponent> {
@@ -124,7 +124,7 @@ impl NextDerivationEntityIndexProfileAnalyzingAssigner {
             .max()
     }
 
-    pub fn next_identity_veci(
+    pub fn max_identity_veci(
         &self,
         factor_source_id: FactorSourceIDFromHash,
     ) -> Option<HDPathComponent> {
@@ -147,30 +147,7 @@ impl NextDerivationEntityIndexProfileAnalyzingAssigner {
             .max()
     }
 
-    pub fn next(
-        &self,
-        agnostic_path: NetworkIndexAgnosticPath,
-        factor_source_id: FactorSourceIDFromHash,
-    ) -> Option<HDPathComponent> {
-        if agnostic_path == NetworkIndexAgnosticPath::account_veci() {
-            return self.next_account_veci(factor_source_id);
-        }
-        if agnostic_path == NetworkIndexAgnosticPath::account_mfa() {
-            return self.next_account_mfa(factor_source_id);
-        }
-        if agnostic_path == NetworkIndexAgnosticPath::identity_mfa() {
-            return self.next_identity_mfa(factor_source_id);
-        }
-        if agnostic_path == NetworkIndexAgnosticPath::identity_veci() {
-            return self.next_identity_veci(factor_source_id);
-        }
-        panic!("Unrecognized agnostic_path: {:?}", agnostic_path);
-    }
-
-    pub fn next_account_mfa(
-        &self,
-        factor_source_id: FactorSourceIDFromHash,
-    ) -> Option<HDPathComponent> {
+    fn max_account_mfa(&self, factor_source_id: FactorSourceIDFromHash) -> Option<HDPathComponent> {
         self.securified_accounts_on_network
             .clone()
             .into_iter()
@@ -188,7 +165,7 @@ impl NextDerivationEntityIndexProfileAnalyzingAssigner {
             .max()
     }
 
-    pub fn next_identity_mfa(
+    fn max_identity_mfa(
         &self,
         factor_source_id: FactorSourceIDFromHash,
     ) -> Option<HDPathComponent> {
@@ -207,6 +184,26 @@ impl NextDerivationEntityIndexProfileAnalyzingAssigner {
                 )
             })
             .max()
+    }
+
+    pub fn next(
+        &self,
+        agnostic_path: NetworkIndexAgnosticPath,
+        factor_source_id: FactorSourceIDFromHash,
+    ) -> Option<HDPathComponent> {
+        let last = if agnostic_path == NetworkIndexAgnosticPath::account_veci() {
+            self.max_account_veci(factor_source_id)
+        } else if agnostic_path == NetworkIndexAgnosticPath::account_mfa() {
+            self.max_account_mfa(factor_source_id)
+        } else if agnostic_path == NetworkIndexAgnosticPath::identity_mfa() {
+            self.max_identity_mfa(factor_source_id)
+        } else if agnostic_path == NetworkIndexAgnosticPath::identity_veci() {
+            self.max_identity_veci(factor_source_id)
+        } else {
+            panic!("Unrecognized agnostic_path: {:?}", agnostic_path);
+        };
+
+        last.map(|l| l.add_one())
     }
 }
 
