@@ -1,7 +1,8 @@
 // mod factor_instances_provider_unit_tests;
-mod new_types;
+mod agnostic_paths;
+mod next_index_assigner;
 mod provider;
-mod rere;
 
-pub use new_types::*;
+pub use agnostic_paths::*;
+pub use next_index_assigner::*;
 pub use provider::*;
