@@ -239,11 +239,28 @@ impl FactorInstancesProvider {
                             None
                         }
                     })
-                    .unwrap_or(QuantifiedToCacheToUseNetworkIndexAgnosticPath {
-                        quantity: QuantityToCacheToUseDirectly::OnlyCacheFilling {
-                            fill_cache: CACHE_FILLING_QUANTITY,
-                        },
-                        agnostic_path: preset,
+                    .unwrap_or_else(|| {
+                        let number_of_instances_to_derive_to_fill_cache = cache
+                            .peek_all_instances_of_factor_source(*factor_source_id)
+                            .and_then(|c| {
+                                c.get(&preset.on_network(network_id)).map(|x| {
+                                    let existing = x.len();
+                                    CACHE_FILLING_QUANTITY - existing
+                                })
+                            })
+                            .unwrap_or(CACHE_FILLING_QUANTITY);
+
+                        println!(
+                            "🐉 number_of_instances_to_derive_to_fill_cache: {}",
+                            number_of_instances_to_derive_to_fill_cache
+                        );
+
+                        QuantifiedToCacheToUseNetworkIndexAgnosticPath {
+                            quantity: QuantityToCacheToUseDirectly::OnlyCacheFilling {
+                                fill_cache: number_of_instances_to_derive_to_fill_cache,
+                            },
+                            agnostic_path: preset,
+                        }
                     });
 
                 if let Some(existing) =
@@ -386,7 +403,8 @@ mod tests {
     type Sut = FactorInstancesProvider;
 
     #[actix_rt::test]
-    async fn cache_is_always_filled_account_veci() {
+    async fn cache_is_always_filled_account_veci_then_after_all_used_we_start_over_at_zero_if_no_profile_is_used(
+    ) {
         let network = NetworkID::Mainnet;
         let bdfs = HDFactorSource::sample();
         let mut cache = Cache::default();
@@ -629,6 +647,75 @@ mod tests {
         assert_eq!(
             account_veci_indices.last().unwrap().clone(),
             HDPathComponent::unsecurified_hardening_base_index(30)
+        );
+
+        // create 29 more accounts, then we should be able to crate one more which should ONLY derive
+        // more instances for ACCOUNT VECI, and not Identity Veci, Identity MFA and Account MFA, since that is
+        // not needed.
+        for _ in 0..29 {
+            let outcome = Sut::for_account_veci(
+                &mut cache,
+                None,
+                bdfs.clone(),
+                network,
+                Arc::new(TestDerivationInteractors::default()),
+            )
+            .await
+            .unwrap();
+
+            let per_factor = outcome.per_factor;
+            assert_eq!(per_factor.len(), 1);
+            let outcome = per_factor.get(&bdfs.factor_source_id()).unwrap().clone();
+            assert_eq!(outcome.factor_source_id, bdfs.factor_source_id());
+
+            assert_eq!(outcome.found_in_cache.len(), 1);
+            assert_eq!(outcome.to_cache.len(), 0);
+            assert_eq!(outcome.newly_derived.len(), 0);
+        }
+
+        let cached = cache
+            .peek_all_instances_of_factor_source(bdfs.factor_source_id())
+            .unwrap();
+
+        assert!(
+            cached
+                .get(&NetworkIndexAgnosticPath::account_veci().on_network(network))
+                .is_none(),
+            "should have used the last instance..."
+        );
+
+        // Great, now lets create one more account, and this time we should derive more instances for
+        // it. We should derive 31 instances, 30 for account veci to cache and 1 to use directly.
+        // we should NOT derive more instances for Identity Veci, Identity MFA and Account MFA, since
+        // that cache is already full.
+        let outcome = Sut::for_account_veci(
+            &mut cache,
+            None,
+            bdfs.clone(),
+            network,
+            Arc::new(TestDerivationInteractors::default()),
+        )
+        .await
+        .unwrap();
+
+        let per_factor = outcome.per_factor;
+        assert_eq!(per_factor.len(), 1);
+        let outcome = per_factor.get(&bdfs.factor_source_id()).unwrap().clone();
+        assert_eq!(outcome.factor_source_id, bdfs.factor_source_id());
+
+        assert_eq!(outcome.found_in_cache.len(), 0);
+        assert_eq!(outcome.to_cache.len(), CACHE_FILLING_QUANTITY); // ONLY 30, not 120...
+        assert_eq!(outcome.newly_derived.len(), CACHE_FILLING_QUANTITY + 1);
+
+        let instances_used_directly = outcome.to_use_directly.factor_instances();
+        assert_eq!(instances_used_directly.len(), 1);
+        let instances_used_directly = instances_used_directly.first().unwrap();
+
+        assert_eq!(
+            instances_used_directly.derivation_entity_index(),
+            HDPathComponent::Hardened(HDPathComponentHardened::Unsecurified(
+                UnsecurifiedIndex::unsecurified_hardening_base_index(0) // IMPORTANT! Index 0 is used again! Why?! Well because are not using a Profile here, and we are not eagerly filling cache just before we are using the last index.
+            ))
         );
     }
 }
