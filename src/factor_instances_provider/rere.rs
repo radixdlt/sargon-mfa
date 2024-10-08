@@ -134,7 +134,7 @@ impl Cache {
         let (to_use, to_put_back) = instances.split_at(quantity);
         let to_put_back = FactorInstances::from_iter(to_put_back.iter().cloned());
         if let Some(cached_for_factor) = self.values.get_mut(factor_source_id) {
-            cached_for_factor.insert(index_agnostic_path.clone(), to_put_back);
+            cached_for_factor.insert(*index_agnostic_path, to_put_back);
         }
 
         QuantityOutcome::Full {
@@ -160,8 +160,8 @@ pub struct FactorInstancesProvider {
 pub struct KeysCollector;
 impl KeysCollector {
     fn new(
-        factor_sources: FactorSources,
-        paths_per_factor: IndexMap<FactorSourceIDFromHash, IndexSet<DerivationPath>>,
+        _factor_sources: FactorSources,
+        _paths_per_factor: IndexMap<FactorSourceIDFromHash, IndexSet<DerivationPath>>,
     ) -> Self {
         todo!()
     }
@@ -273,7 +273,7 @@ impl FactorInstancesProvider {
             let cache_key =
                 IndexAgnosticPath::from((network_id, quantified_agnostic_path.agnostic_path));
             let quantity = quantified_agnostic_path.quantity;
-            match cache.remove(&factor_source_id, &cache_key, quantity) {
+            match cache.remove(factor_source_id, &cache_key, quantity) {
                 QuantityOutcome::Empty => {
                     from_cache = FactorInstances::default();
                     unsatisfied_quantity = quantity;
@@ -292,7 +292,7 @@ impl FactorInstancesProvider {
             }
             if unsatisfied_quantity > 0 {
                 pf_quantity_remaining_not_satisfied_by_cache.insert(
-                    factor_source_id.clone(),
+                    *factor_source_id,
                     QuantifiedNetworkIndexAgnosticPath {
                         quantity: unsatisfied_quantity,
                         agnostic_path: quantified_agnostic_path.agnostic_path,
@@ -300,7 +300,7 @@ impl FactorInstancesProvider {
                 );
             }
             if !from_cache.is_empty() {
-                pf_found_in_cache.insert(factor_source_id.clone(), from_cache.clone());
+                pf_found_in_cache.insert(*factor_source_id, from_cache.clone());
             }
         }
 
@@ -338,16 +338,16 @@ impl FactorInstancesProvider {
                     existing.insert(to_insert);
                 } else {
                     agnostic_paths_for_derivation_with_quantity_placeholders
-                        .insert(factor_source_id.clone(), IndexSet::just(to_insert));
+                        .insert(*factor_source_id, IndexSet::just(to_insert));
                 }
             }
         }
 
-        let paths = IndexMap::<FactorSourceIDFromHash, IndexSet<DerivationPath>>::new();
+        let _paths = IndexMap::<FactorSourceIDFromHash, IndexSet<DerivationPath>>::new();
 
-        let mut pf_to_cache = IndexMap::<FactorSourceIDFromHash, FactorInstances>::new();
-        let mut pf_to_use_directly = IndexMap::<FactorSourceIDFromHash, FactorInstances>::new();
-        let mut pf_newly_derived = IndexMap::<FactorSourceIDFromHash, FactorInstances>::new();
+        let _pf_to_cache = IndexMap::<FactorSourceIDFromHash, FactorInstances>::new();
+        let _pf_to_use_directly = IndexMap::<FactorSourceIDFromHash, FactorInstances>::new();
+        let _pf_newly_derived = IndexMap::<FactorSourceIDFromHash, FactorInstances>::new();
 
         // let keys_collector = KeysCollector::new(
         //     index_agnostic_path_and_quantity_per_factor_source
