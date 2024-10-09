@@ -1524,7 +1524,6 @@ mod tests {
         );
     }
 
-    #[ignore]
     #[actix_rt::test]
     async fn securify_when_cache_is_half_full_single_factor_source() {
         let (mut os, bdfs) = SargonOS::with_bdfs().await;
@@ -1633,7 +1632,6 @@ mod tests {
         // );
     }
 
-    #[ignore]
     #[actix_rt::test]
     async fn securify_when_cache_is_half_full_multiple_factor_sources() {
         let (mut os, bdfs) = SargonOS::with_bdfs().await;

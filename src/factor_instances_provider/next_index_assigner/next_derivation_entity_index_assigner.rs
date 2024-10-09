@@ -278,7 +278,15 @@ pub enum OffsetFromCache {
     },
 }
 impl OffsetFromCache {
-    pub fn max(
+    pub fn next(
+        &self,
+        factor_source_id: FactorSourceIDFromHash,
+        index_agnostic_path: IndexAgnosticPath,
+    ) -> Option<HDPathComponent> {
+        self._max(factor_source_id, index_agnostic_path)
+            .map(|i| i.add_one())
+    }
+    fn _max(
         &self,
         factor_source_id: FactorSourceIDFromHash,
         index_agnostic_path: IndexAgnosticPath,
@@ -335,25 +343,25 @@ impl NextDerivationEntityIndexAssigner {
         // `max = offset_from_profile + local_offset` = `28^ + 0^` = 28^.
         // Which is wrong! Since the cache contains `28^` and `29^`, we should
         // derive `2 (+CACHE_FILLING_QUANTITY)` starting at `30^`.
-        let max_from_cache = cache_offset
-            .max(factor_source_id, index_agnostic_path)
+        let next_from_cache = cache_offset
+            .next(factor_source_id, index_agnostic_path)
             .unwrap_or(default_index);
         let network_agnostic_path = index_agnostic_path.network_agnostic();
         let local = self
             .local_offsets
             .reserve(factor_source_id, network_agnostic_path);
-        let max_from_profile = self
+        let next_from_profile = self
             .profile_analyzing
             .next(network_agnostic_path, factor_source_id)
             .unwrap_or(default_index);
 
-        let max_index = std::cmp::max(max_from_profile, max_from_cache);
+        let max_index = std::cmp::max(next_from_profile, next_from_cache);
 
         let new = max_index.add_n(local);
 
         println!(
             "🔮 max_index {}, max_from_profile: {}, max_from_cache: {}, from_local: {}, new: {}",
-            max_index, max_from_profile, max_from_cache, local, new
+            max_index, next_from_profile, next_from_cache, local, new
         );
         new
     }
