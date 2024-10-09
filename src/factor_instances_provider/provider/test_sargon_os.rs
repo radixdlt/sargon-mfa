@@ -39,7 +39,7 @@ impl SargonOS {
     pub(super) async fn new_mainnet_account_with_bdfs(
         &mut self,
         name: impl AsRef<str>,
-    ) -> Result<(Account, FactorInstancesProviderOutcomeForFactor)> {
+    ) -> Result<(Account, FactorInstancesProviderOutcomeForFactorFinal)> {
         self.new_account_with_bdfs(NetworkID::Mainnet, name).await
     }
 
@@ -47,7 +47,7 @@ impl SargonOS {
         &mut self,
         network: NetworkID,
         name: impl AsRef<str>,
-    ) -> Result<(Account, FactorInstancesProviderOutcomeForFactor)> {
+    ) -> Result<(Account, FactorInstancesProviderOutcomeForFactorFinal)> {
         let bdfs = self.profile_snapshot().bdfs();
         self.new_account(bdfs, network, name).await
     }
@@ -57,7 +57,7 @@ impl SargonOS {
         factor_source: HDFactorSource,
         network: NetworkID,
         name: impl AsRef<str>,
-    ) -> Result<(Account, FactorInstancesProviderOutcomeForFactor)> {
+    ) -> Result<(Account, FactorInstancesProviderOutcomeForFactorFinal)> {
         let profile_snapshot = self.profile_snapshot();
         let outcome = FactorInstancesProvider::for_account_veci(
             &mut self.cache,
@@ -69,11 +69,7 @@ impl SargonOS {
         .await
         .unwrap();
 
-        let outcome_for_factor = outcome
-            .per_factor
-            .get(&factor_source.factor_source_id())
-            .unwrap()
-            .clone();
+        let outcome_for_factor = outcome;
 
         let instances_to_use_directly = outcome_for_factor.to_use_directly.clone();
 
@@ -99,7 +95,7 @@ impl SargonOS {
         &mut self,
         accounts: Accounts,
         shield: MatrixOfFactorSources,
-    ) -> Result<(SecurifiedAccounts, FactorInstancesProviderOutcome)> {
+    ) -> Result<(SecurifiedAccounts, FactorInstancesProviderOutcomeFinal)> {
         let profile_snapshot = self.profile_snapshot();
 
         let outcome = FactorInstancesProvider::for_account_mfa(
@@ -185,22 +181,17 @@ impl SargonOS {
         .await
         .unwrap();
 
-        let per_factor = outcome.per_factor;
-        let outcome = per_factor
-            .get(&factor_source.factor_source_id())
-            .unwrap()
-            .clone();
         assert_eq!(outcome.factor_source_id, factor_source.factor_source_id());
 
-        assert_eq!(outcome.found_in_cache.len(), 0);
+        assert_eq!(outcome.debug_found_in_cache.len(), 0);
 
         assert_eq!(
-            outcome.to_cache.len(),
+            outcome.debug_was_cached.len(),
             NetworkIndexAgnosticPath::all_presets().len() * CACHE_FILLING_QUANTITY
         );
 
         assert_eq!(
-            outcome.newly_derived.len(),
+            outcome.debug_was_derived.len(),
             NetworkIndexAgnosticPath::all_presets().len() * CACHE_FILLING_QUANTITY
         );
 

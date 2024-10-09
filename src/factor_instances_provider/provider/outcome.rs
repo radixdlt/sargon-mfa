@@ -1,7 +1,74 @@
 use crate::prelude::*;
 
 #[derive(Clone, Debug)]
-pub struct FactorInstancesProviderOutcomeForFactor {
+pub struct FactorInstancesProviderOutcomeForFactorFinal {
+    #[allow(dead_code)]
+    hidden: HiddenConstructor,
+
+    /// The FactorSourceID of all the factor instances of this type.
+    pub factor_source_id: FactorSourceIDFromHash,
+
+    /// FactorInstances which are not saved into the cache.
+    ///
+    /// Might be empty
+    pub to_use_directly: FactorInstances,
+
+    /// FactorInstances which were saved into the cache
+    ///
+    /// Might be empty
+    ///
+    /// Useful for unit tests.
+    pub debug_was_cached: FactorInstances,
+
+    /// FactorInstances which was found in the cache before the operation was
+    /// executed.
+    ///
+    /// Might be empty
+    ///
+    /// Useful for unit tests.
+    ///
+    /// Might overlap with `to_use_directly`
+    pub debug_found_in_cache: FactorInstances,
+
+    /// FactorInstances which was derived.
+    ///
+    /// Might be empty
+    ///
+    /// Useful for unit tests.
+    ///
+    /// Might overlap with `to_cache` and `to_use_directly`
+    pub debug_was_derived: FactorInstances,
+}
+
+impl From<FactorInstancesProviderOutcomeForFactorNonFinal>
+    for FactorInstancesProviderOutcomeForFactorFinal
+{
+    fn from(value: FactorInstancesProviderOutcomeForFactorNonFinal) -> Self {
+        Self {
+            hidden: HiddenConstructor,
+            factor_source_id: value.factor_source_id,
+            to_use_directly: value.to_use_directly,
+            debug_was_cached: value.to_cache,
+            debug_found_in_cache: value.found_in_cache,
+            debug_was_derived: value.newly_derived,
+        }
+    }
+}
+
+impl From<FactorInstancesProviderOutcomeNonFinal> for FactorInstancesProviderOutcomeFinal {
+    fn from(value: FactorInstancesProviderOutcomeNonFinal) -> Self {
+        Self {
+            per_factor: value
+                .per_factor
+                .into_iter()
+                .map(|(k, v)| (k, v.into()))
+                .collect(),
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct FactorInstancesProviderOutcomeForFactorNonFinal {
     #[allow(dead_code)]
     hidden: HiddenConstructor,
 
@@ -37,7 +104,7 @@ pub struct FactorInstancesProviderOutcomeForFactor {
     /// Might overlap with `to_cache` and `to_use_directly`
     pub newly_derived: FactorInstances,
 }
-impl FactorInstancesProviderOutcomeForFactor {
+impl FactorInstancesProviderOutcomeForFactorNonFinal {
     pub fn new(
         factor_source_id: FactorSourceIDFromHash,
         to_cache: FactorInstances,
@@ -91,16 +158,16 @@ impl FactorInstancesProviderOutcomeForFactor {
 }
 
 #[derive(Clone, Debug)]
-pub struct FactorInstancesProviderOutcome {
-    pub per_factor: IndexMap<FactorSourceIDFromHash, FactorInstancesProviderOutcomeForFactor>,
+pub struct FactorInstancesProviderOutcomeFinal {
+    pub per_factor: IndexMap<FactorSourceIDFromHash, FactorInstancesProviderOutcomeForFactorFinal>,
 }
 
 #[cfg(test)]
-impl FactorInstancesProviderOutcome {
+impl FactorInstancesProviderOutcomeFinal {
     pub fn newly_derived_instances_from_all_factor_sources(&self) -> FactorInstances {
         self.per_factor
             .values()
-            .flat_map(|x| x.newly_derived.factor_instances())
+            .flat_map(|x| x.debug_was_derived.factor_instances())
             .collect()
     }
 
@@ -115,7 +182,7 @@ impl FactorInstancesProviderOutcome {
     pub fn instances_found_in_cache_from_all_factor_sources(&self) -> FactorInstances {
         self.per_factor
             .values()
-            .flat_map(|x| x.found_in_cache.factor_instances())
+            .flat_map(|x| x.debug_found_in_cache.factor_instances())
             .collect()
     }
 
@@ -129,9 +196,18 @@ impl FactorInstancesProviderOutcome {
     }
 }
 
-impl FactorInstancesProviderOutcome {
+#[derive(Clone, Debug)]
+pub struct FactorInstancesProviderOutcomeNonFinal {
+    pub per_factor:
+        IndexMap<FactorSourceIDFromHash, FactorInstancesProviderOutcomeForFactorNonFinal>,
+}
+
+impl FactorInstancesProviderOutcomeNonFinal {
     pub fn new(
-        per_factor: IndexMap<FactorSourceIDFromHash, FactorInstancesProviderOutcomeForFactor>,
+        per_factor: IndexMap<
+            FactorSourceIDFromHash,
+            FactorInstancesProviderOutcomeForFactorNonFinal,
+        >,
     ) -> Self {
         Self { per_factor }
     }
@@ -144,7 +220,7 @@ impl FactorInstancesProviderOutcome {
                 .map(|(k, v)| {
                     (
                         k,
-                        FactorInstancesProviderOutcomeForFactor::satisfied_by_cache(k, v),
+                        FactorInstancesProviderOutcomeForFactorNonFinal::satisfied_by_cache(k, v),
                     )
                 })
                 .collect(),
@@ -171,12 +247,12 @@ impl FactorInstancesProviderOutcome {
             pub newly_derived: IndexSet<HierarchicalDeterministicFactorInstance>,
         }
         impl Builder {
-            fn build(self) -> FactorInstancesProviderOutcomeForFactor {
+            fn build(self) -> FactorInstancesProviderOutcomeForFactorNonFinal {
                 let to_cache = FactorInstances::from(self.to_cache);
                 let to_use_directly = FactorInstances::from(self.to_use_directly);
                 let found_in_cache = FactorInstances::from(self.found_in_cache);
                 let newly_derived = FactorInstances::from(self.newly_derived);
-                FactorInstancesProviderOutcomeForFactor::new(
+                FactorInstancesProviderOutcomeForFactorNonFinal::new(
                     self.factor_source_id,
                     to_cache,
                     to_use_directly,
@@ -240,7 +316,7 @@ impl FactorInstancesProviderOutcome {
             builders
                 .into_iter()
                 .map(|(k, v)| (k, v.build()))
-                .collect::<IndexMap<FactorSourceIDFromHash, FactorInstancesProviderOutcomeForFactor>>(),
+                .collect::<IndexMap<FactorSourceIDFromHash, FactorInstancesProviderOutcomeForFactorNonFinal>>(),
         )
     }
 }

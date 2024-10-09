@@ -7,38 +7,67 @@ use crate::prelude::*;
 pub struct FactorInstancesProvider;
 
 impl FactorInstancesProvider {
+    /// Use this to fill the cache with FactorInstances for a new FactorSource.
+    /// Saves FactorInstances into the mutable `cache` parameter and returns a
+    /// copy of the instances.
     pub async fn for_new_factor_source(
         cache: &mut Cache,
         profile: Option<Profile>,
         factor_source: HDFactorSource,
         network_id: NetworkID, // typically mainnet
         interactors: Arc<dyn KeysDerivationInteractors>,
-    ) -> Result<FactorInstancesProviderOutcome> {
-        Self::with(
+    ) -> Result<FactorInstancesProviderOutcomeForFactorFinal> {
+        // This is hacky! We are using `account_veci` as agnostic_path, we could
+        // have used any other value... we are not going to use any instances directly
+        // at all, why we specify `0` here, we piggyback on the rest of the logic
+        // to derive more... We should most definitely switch to `DerivationTemplate` enum
+        let quantity_of_instances_to_use_directly = IndexMap::kv(
+            factor_source.factor_source_id(),
+            QuantifiedNetworkIndexAgnosticPath {
+                quantity: 0,                                             // HACKY
+                agnostic_path: NetworkIndexAgnosticPath::account_veci(), // HACKY
+            },
+        );
+
+        let outcome = Self::with(
             network_id,
             cache,
             IndexSet::just(factor_source.clone()),
-            IndexMap::kv(
-                factor_source.factor_source_id(),
-                QuantifiedNetworkIndexAgnosticPath {
-                    quantity: 0,                                             // HACKY
-                    agnostic_path: NetworkIndexAgnosticPath::account_veci(), // ANY really, important here is quantity `0`. This is HACKY, we really SHOULD switch to `DerivationTemplate` enum...
-                },
-            ),
+            quantity_of_instances_to_use_directly,
             &NextDerivationEntityIndexAssigner::new(network_id, profile),
             interactors,
         )
-        .await
+        .await?;
+
+        let outcome = outcome
+            .per_factor
+            .get(&factor_source.factor_source_id())
+            .cloned()
+            .expect("Expected to have instances for the (new) factor source");
+
+        assert!(
+            outcome.to_use_directly.is_empty(),
+            "Programmer error, expected to return an empty list of instances to use directly"
+        );
+
+        Ok(outcome.into())
     }
 
+    /// Reads FactorInstances for `factor_source` on `network_id` of kind `account_veci`,
+    /// meaning `(EntityKind::Account, KeyKind::TransactionSigning, KeySpace::Unsecurified)`,
+    /// from cache, if any, otherwise derives more of that kind AND other kinds:
+    /// identity_veci, account_mfa, identity_mfa
+    /// and saves into the cache and returns a collection of instances, split into
+    /// factor instance to use directly and factor instances which was cached, into
+    /// the mutable `cache` parameter.
     pub async fn for_account_veci(
         cache: &mut Cache,
         profile: Option<Profile>,
         factor_source: HDFactorSource,
         network_id: NetworkID,
         interactors: Arc<dyn KeysDerivationInteractors>,
-    ) -> Result<FactorInstancesProviderOutcome> {
-        Self::with(
+    ) -> Result<FactorInstancesProviderOutcomeForFactorFinal> {
+        let outcome = Self::with(
             network_id,
             cache,
             IndexSet::just(factor_source.clone()),
@@ -52,7 +81,15 @@ impl FactorInstancesProvider {
             &NextDerivationEntityIndexAssigner::new(network_id, profile),
             interactors,
         )
-        .await
+        .await?;
+
+        let outcome = outcome
+            .per_factor
+            .get(&factor_source.factor_source_id())
+            .cloned()
+            .expect("Expected to have instances for the factor source");
+
+        Ok(outcome.into())
     }
 
     pub async fn for_account_mfa(
@@ -61,7 +98,7 @@ impl FactorInstancesProvider {
         profile: Profile,
         accounts: IndexSet<AccountAddress>,
         interactors: Arc<dyn KeysDerivationInteractors>,
-    ) -> Result<FactorInstancesProviderOutcome> {
+    ) -> Result<FactorInstancesProviderOutcomeFinal> {
         let factor_sources_to_use = matrix_of_factor_sources.all_factors();
         let factor_sources = profile.factor_sources.clone();
         assert!(
@@ -89,7 +126,7 @@ impl FactorInstancesProvider {
             key_space,
         };
 
-        Self::with(
+        let outcome = Self::with(
             network_id,
             cache,
             factor_sources,
@@ -108,7 +145,9 @@ impl FactorInstancesProvider {
             &NextDerivationEntityIndexAssigner::new(network_id, Some(profile)),
             interactors,
         )
-        .await
+        .await?;
+
+        Ok(outcome.into())
     }
 }
 
@@ -123,7 +162,7 @@ impl FactorInstancesProvider {
         >,
         next_index_assigner: &NextDerivationEntityIndexAssigner,
         interactors: Arc<dyn KeysDerivationInteractors>,
-    ) -> Result<FactorInstancesProviderOutcome> {
+    ) -> Result<FactorInstancesProviderOutcomeNonFinal> {
         let mut cloned_cache = cache.clone();
 
         let outcome = Self::with_copy_of_cache(
@@ -164,7 +203,7 @@ impl FactorInstancesProvider {
         >,
         next_index_assigner: &NextDerivationEntityIndexAssigner,
         interactors: Arc<dyn KeysDerivationInteractors>,
-    ) -> Result<FactorInstancesProviderOutcome> {
+    ) -> Result<FactorInstancesProviderOutcomeNonFinal> {
         // `pf` is short for `Per FactorSource`
         let mut pf_found_in_cache = IndexMap::<FactorSourceIDFromHash, FactorInstances>::new();
 
@@ -220,7 +259,7 @@ impl FactorInstancesProvider {
         }
 
         if !need_to_derive_more_instances {
-            return Ok(FactorInstancesProviderOutcome::satisfied_by_cache(
+            return Ok(FactorInstancesProviderOutcomeNonFinal::satisfied_by_cache(
                 pf_found_in_cache,
             ));
         }
@@ -254,7 +293,7 @@ impl FactorInstancesProvider {
             QuantifiedNetworkIndexAgnosticPath,
         >,
         pf_found_in_cache: IndexMap<FactorSourceIDFromHash, FactorInstances>,
-    ) -> Result<FactorInstancesProviderOutcome> {
+    ) -> Result<FactorInstancesProviderOutcomeNonFinal> {
         let mut pf_quantified_network_agnostic_paths_for_derivation = IndexMap::<
             FactorSourceIDFromHash,
             IndexSet<QuantifiedToCacheToUseNetworkIndexAgnosticPath>,
@@ -445,7 +484,7 @@ impl FactorInstancesProvider {
             }
         }
 
-        let outcome = FactorInstancesProviderOutcome::transpose(
+        let outcome = FactorInstancesProviderOutcomeNonFinal::transpose(
             pf_to_cache,
             pf_to_use_directly
                 .into_iter()

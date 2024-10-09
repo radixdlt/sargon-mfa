@@ -17,8 +17,8 @@ async fn create_accounts_when_last_is_used_cache_is_fill_only_with_account_vecis
             .await
             .unwrap();
         assert_eq!(acco.name, name);
-        assert_eq!(stats.to_cache.len(), 0);
-        assert_eq!(stats.newly_derived.len(), 0);
+        assert_eq!(stats.debug_was_cached.len(), 0);
+        assert_eq!(stats.debug_was_derived.len(), 0);
     }
     assert_eq!(
         os.profile_snapshot().get_accounts().len(),
@@ -35,8 +35,8 @@ async fn create_accounts_when_last_is_used_cache_is_fill_only_with_account_vecis
         CACHE_FILLING_QUANTITY + 1
     );
 
-    assert_eq!(stats.to_cache.len(), CACHE_FILLING_QUANTITY);
-    assert_eq!(stats.newly_derived.len(), CACHE_FILLING_QUANTITY + 1);
+    assert_eq!(stats.debug_was_cached.len(), CACHE_FILLING_QUANTITY);
+    assert_eq!(stats.debug_was_derived.len(), CACHE_FILLING_QUANTITY + 1);
 
     assert_eq!(
         acco.as_unsecurified()
@@ -60,8 +60,8 @@ async fn create_accounts_when_last_is_used_cache_is_fill_only_with_account_vecis
         CACHE_FILLING_QUANTITY + 2
     );
 
-    assert_eq!(stats.to_cache.len(), 0);
-    assert_eq!(stats.newly_derived.len(), 0);
+    assert_eq!(stats.debug_was_cached.len(), 0);
+    assert_eq!(stats.debug_was_derived.len(), 0);
 
     assert_eq!(
         acco.as_unsecurified()
@@ -94,20 +94,17 @@ async fn cache_is_always_filled_account_veci_then_after_all_used_we_start_over_a
     .await
     .unwrap();
 
-    let per_factor = outcome.per_factor;
-    assert_eq!(per_factor.len(), 1);
-    let outcome = per_factor.get(&bdfs.factor_source_id()).unwrap().clone();
     assert_eq!(outcome.factor_source_id, bdfs.factor_source_id());
 
-    assert_eq!(outcome.found_in_cache.len(), 0);
+    assert_eq!(outcome.debug_found_in_cache.len(), 0);
 
     assert_eq!(
-        outcome.to_cache.len(),
+        outcome.debug_was_cached.len(),
         NetworkIndexAgnosticPath::all_presets().len() * CACHE_FILLING_QUANTITY
     );
 
     assert_eq!(
-        outcome.newly_derived.len(),
+        outcome.debug_was_derived.len(),
         NetworkIndexAgnosticPath::all_presets().len() * CACHE_FILLING_QUANTITY + 1
     );
 
@@ -263,16 +260,10 @@ async fn cache_is_always_filled_account_veci_then_after_all_used_we_start_over_a
     .await
     .unwrap();
 
-    let per_factor = outcome.per_factor;
-    assert_eq!(per_factor.len(), 1);
-    let outcome = per_factor.get(&bdfs.factor_source_id()).unwrap().clone();
     assert_eq!(outcome.factor_source_id, bdfs.factor_source_id());
-
-    assert_eq!(outcome.found_in_cache.len(), 1); // This time we found in cache
-
-    assert_eq!(outcome.to_cache.len(), 0);
-
-    assert_eq!(outcome.newly_derived.len(), 0);
+    assert_eq!(outcome.debug_found_in_cache.len(), 1); // This time we found in cache
+    assert_eq!(outcome.debug_was_cached.len(), 0);
+    assert_eq!(outcome.debug_was_derived.len(), 0);
 
     let instances_used_directly = outcome.to_use_directly.factor_instances();
     assert_eq!(instances_used_directly.len(), 1);
@@ -338,14 +329,11 @@ async fn cache_is_always_filled_account_veci_then_after_all_used_we_start_over_a
         .await
         .unwrap();
 
-        let per_factor = outcome.per_factor;
-        assert_eq!(per_factor.len(), 1);
-        let outcome = per_factor.get(&bdfs.factor_source_id()).unwrap().clone();
         assert_eq!(outcome.factor_source_id, bdfs.factor_source_id());
 
-        assert_eq!(outcome.found_in_cache.len(), 1);
-        assert_eq!(outcome.to_cache.len(), 0);
-        assert_eq!(outcome.newly_derived.len(), 0);
+        assert_eq!(outcome.debug_found_in_cache.len(), 1);
+        assert_eq!(outcome.debug_was_cached.len(), 0);
+        assert_eq!(outcome.debug_was_derived.len(), 0);
     }
 
     let cached = cache
@@ -373,14 +361,11 @@ async fn cache_is_always_filled_account_veci_then_after_all_used_we_start_over_a
     .await
     .unwrap();
 
-    let per_factor = outcome.per_factor;
-    assert_eq!(per_factor.len(), 1);
-    let outcome = per_factor.get(&bdfs.factor_source_id()).unwrap().clone();
     assert_eq!(outcome.factor_source_id, bdfs.factor_source_id());
 
-    assert_eq!(outcome.found_in_cache.len(), 0);
-    assert_eq!(outcome.to_cache.len(), CACHE_FILLING_QUANTITY); // ONLY 30, not 120...
-    assert_eq!(outcome.newly_derived.len(), CACHE_FILLING_QUANTITY + 1);
+    assert_eq!(outcome.debug_found_in_cache.len(), 0);
+    assert_eq!(outcome.debug_was_cached.len(), CACHE_FILLING_QUANTITY); // ONLY 30, not 120...
+    assert_eq!(outcome.debug_was_derived.len(), CACHE_FILLING_QUANTITY + 1);
 
     let instances_used_directly = outcome.to_use_directly.factor_instances();
     assert_eq!(instances_used_directly.len(), 1);
@@ -417,15 +402,15 @@ async fn adding_accounts_and_clearing_cache_in_between() {
     let (mut os, _) = SargonOS::with_bdfs().await;
     assert!(os.profile_snapshot().get_accounts().is_empty());
     let (alice, stats) = os.new_mainnet_account_with_bdfs("alice").await.unwrap();
-    assert!(!stats.found_in_cache.is_empty());
-    assert!(stats.to_cache.is_empty());
-    assert!(stats.newly_derived.is_empty());
+    assert!(!stats.debug_found_in_cache.is_empty());
+    assert!(stats.debug_was_cached.is_empty());
+    assert!(stats.debug_was_derived.is_empty());
     os.clear_cache();
 
     let (bob, stats) = os.new_mainnet_account_with_bdfs("bob").await.unwrap();
-    assert!(stats.found_in_cache.is_empty());
-    assert!(!stats.to_cache.is_empty());
-    assert!(!stats.newly_derived.is_empty());
+    assert!(stats.debug_found_in_cache.is_empty());
+    assert!(!stats.debug_was_cached.is_empty());
+    assert!(!stats.debug_was_derived.is_empty());
     assert_ne!(alice, bob);
 
     assert_eq!(os.profile_snapshot().get_accounts().len(), 2);
@@ -456,20 +441,20 @@ async fn adding_accounts_different_networks_different_factor_sources() {
         .new_account(fs_device.clone(), NetworkID::Mainnet, "Alice")
         .await
         .unwrap();
-    assert!(stats.newly_derived.is_empty());
+    assert!(stats.debug_was_derived.is_empty());
 
     let (bob, stats) = os
         .new_account(fs_device.clone(), NetworkID::Mainnet, "Bob")
         .await
         .unwrap();
-    assert!(stats.newly_derived.is_empty());
+    assert!(stats.debug_was_derived.is_empty());
 
     let (carol, stats) = os
         .new_account(fs_device.clone(), NetworkID::Stokenet, "Carol")
         .await
         .unwrap();
     assert!(
-        !stats.newly_derived.is_empty(),
+        !stats.debug_was_derived.is_empty(),
         "Should have derived more, since first time Stokenet is used!"
     );
 
@@ -477,26 +462,26 @@ async fn adding_accounts_different_networks_different_factor_sources() {
         .new_account(fs_device.clone(), NetworkID::Stokenet, "Diana")
         .await
         .unwrap();
-    assert!(stats.newly_derived.is_empty());
+    assert!(stats.debug_was_derived.is_empty());
 
     let (erin, stats) = os
         .new_account(fs_arculus.clone(), NetworkID::Mainnet, "Erin")
         .await
         .unwrap();
-    assert!(stats.newly_derived.is_empty());
+    assert!(stats.debug_was_derived.is_empty());
 
     let (frank, stats) = os
         .new_account(fs_arculus.clone(), NetworkID::Mainnet, "Frank")
         .await
         .unwrap();
-    assert!(stats.newly_derived.is_empty());
+    assert!(stats.debug_was_derived.is_empty());
 
     let (grace, stats) = os
         .new_account(fs_arculus.clone(), NetworkID::Stokenet, "Grace")
         .await
         .unwrap();
     assert!(
-        !stats.newly_derived.is_empty(),
+        !stats.debug_was_derived.is_empty(),
         "Should have derived more, since first time Stokenet is used with the Arculus!"
     );
 
@@ -504,26 +489,26 @@ async fn adding_accounts_different_networks_different_factor_sources() {
         .new_account(fs_arculus.clone(), NetworkID::Stokenet, "Helena")
         .await
         .unwrap();
-    assert!(stats.newly_derived.is_empty());
+    assert!(stats.debug_was_derived.is_empty());
 
     let (isabel, stats) = os
         .new_account(fs_ledger.clone(), NetworkID::Mainnet, "isabel")
         .await
         .unwrap();
-    assert!(stats.newly_derived.is_empty());
+    assert!(stats.debug_was_derived.is_empty());
 
     let (jenny, stats) = os
         .new_account(fs_ledger.clone(), NetworkID::Mainnet, "Jenny")
         .await
         .unwrap();
-    assert!(stats.newly_derived.is_empty());
+    assert!(stats.debug_was_derived.is_empty());
 
     let (klara, stats) = os
         .new_account(fs_ledger.clone(), NetworkID::Stokenet, "Klara")
         .await
         .unwrap();
     assert!(
-        !stats.newly_derived.is_empty(),
+        !stats.debug_was_derived.is_empty(),
         "Should have derived more, since first time Stokenet is used with the Ledger!"
     );
 
@@ -531,7 +516,7 @@ async fn adding_accounts_different_networks_different_factor_sources() {
         .new_account(fs_ledger.clone(), NetworkID::Stokenet, "Lisa")
         .await
         .unwrap();
-    assert!(stats.newly_derived.is_empty());
+    assert!(stats.debug_was_derived.is_empty());
 
     assert_eq!(os.profile_snapshot().get_accounts().len(), 12);
 
