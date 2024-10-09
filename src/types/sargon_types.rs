@@ -1797,15 +1797,6 @@ impl MatrixOfFactorInstances {
         instances: &mut IndexMap<FactorSourceIDFromHash, FactorInstances>,
         matrix_of_factor_sources: MatrixOfFactorSources,
     ) -> Result<Self> {
-        println!(
-            "🐛 instances: #{:?}",
-            instances
-                .values()
-                .map(|x| x.len())
-                .reduce(Add::add)
-                .unwrap_or_default()
-        );
-
         let mut get_factors =
             |required: Vec<HDFactorSource>| -> Result<Vec<HierarchicalDeterministicFactorInstance>> {
                 required
@@ -1814,7 +1805,6 @@ impl MatrixOfFactorInstances {
                         if let Some(existing) = instances
                         .get_mut(&f.factor_source_id()) {
                             assert!(!existing.is_empty());
-                            println!("🐛 specifically: {:?}", existing.clone().factor_instances().iter().map(|f| f.derivation_entity_index()).collect_vec());
                             let instance = existing.shift_remove_index(0);
                             Ok(instance)
                         } else {

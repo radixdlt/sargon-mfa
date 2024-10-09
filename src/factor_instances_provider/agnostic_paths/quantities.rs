@@ -41,14 +41,7 @@ impl QuantityToCacheToUseDirectly {
             Self::ToCacheToUseDirectly {
                 remaining,
                 extra_to_fill_cache,
-            } => {
-                let total = *remaining + *extra_to_fill_cache;
-                println!(
-                    "🐌 total: {} ({} + {})",
-                    total, *remaining, *extra_to_fill_cache
-                );
-                total
-            }
+            } => *remaining + *extra_to_fill_cache,
         }
     }
 }

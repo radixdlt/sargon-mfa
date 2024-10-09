@@ -357,12 +357,6 @@ impl NextDerivationEntityIndexAssigner {
 
         let max_index = std::cmp::max(next_from_profile, next_from_cache);
 
-        let new = max_index.add_n(local);
-
-        println!(
-            "🔮 max_index {}, max_from_profile: {}, max_from_cache: {}, from_local: {}, new: {}",
-            max_index, next_from_profile, next_from_cache, local, new
-        );
-        new
+        max_index.add_n(local)
     }
 }

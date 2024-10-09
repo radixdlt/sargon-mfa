@@ -31,15 +31,6 @@ impl Cache {
         if let Some(existing_for_factor) = self.values.get_mut(&factor_source_id) {
             for (agnostic_path, instances) in instances_by_agnostic_path {
                 if let Some(existing_for_path) = existing_for_factor.get_mut(&agnostic_path) {
-                    println!("🧚‍♀️🧚‍♀️🧚‍♀️ path: {:?}", agnostic_path);
-                    println!(
-                        "👻👻👻 existing_for_path: {:?}",
-                        existing_for_path
-                            .clone()
-                            .into_iter()
-                            .map(|f| f.derivation_entity_index())
-                            .collect_vec()
-                    );
                     if let Some(last) = existing_for_path.factor_instances().last() {
                         assert_eq!(
                             last.derivation_entity_base_index() + 1,
@@ -48,11 +39,7 @@ impl Cache {
                                 .first()
                                 .unwrap()
                                 .derivation_entity_base_index(),
-                            "⁉️ non contiguous indices found for factor: {}\n\n, agnostic_path: {:?},\n\n🍭existing_for_path: {:?},\n\n🎃newly_derived_to_insert: {:?}",
-                            factor_source_id,
-                            agnostic_path,
-                            existing_for_path.factor_instances().iter().map(|x| x.derivation_entity_index()).collect_vec(),
-                            instances.factor_instances().iter().map(|x| x.derivation_entity_index()).collect_vec(),
+                            "⁉️ non contiguous indices found",
                         )
                     }
                     existing_for_path.extend(instances);

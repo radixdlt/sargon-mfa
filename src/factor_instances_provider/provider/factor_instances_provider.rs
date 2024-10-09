@@ -138,53 +138,6 @@ impl FactorInstancesProvider {
 
         *cache = cloned_cache;
 
-        for (f, stats) in outcome.per_factor.clone() {
-            println!("🛡️ about to cache for factor {}", f);
-
-            let mfa_left_in_cache = cache
-                .peek_all_instances_of_factor_source(f)
-                .unwrap_or_default()
-                .get(&NetworkIndexAgnosticPath::account_mfa().on_network(NetworkID::Mainnet))
-                .cloned()
-                .unwrap_or_default()
-                .into_iter()
-                .map(|f| f.derivation_entity_index())
-                .collect_vec();
-            println!("🛡️ LEFT in cache {:?}", mfa_left_in_cache);
-            println!(
-                "🛡️ found_in_cache {:?}",
-                stats
-                    .found_in_cache
-                    .into_iter()
-                    .map(|f| f.derivation_entity_index())
-                    .collect_vec()
-            );
-            println!(
-                "🛡️ to_use_directly {:?}",
-                stats
-                    .to_use_directly
-                    .into_iter()
-                    .map(|f| f.derivation_entity_index())
-                    .collect_vec()
-            );
-            println!(
-                "🛡️ newly_derived {:?}",
-                stats
-                    .newly_derived
-                    .into_iter()
-                    .map(|f| f.derivation_entity_index())
-                    .collect_vec()
-            );
-            println!(
-                "🛡️ to_cache {:?}",
-                stats
-                    .to_cache
-                    .into_iter()
-                    .map(|f| f.derivation_entity_index())
-                    .collect_vec()
-            );
-        }
-
         cache.insert_all(
             outcome
                 .per_factor
@@ -425,12 +378,10 @@ impl FactorInstancesProvider {
                                             pf_found_in_cache: pf_found_in_cache.clone(),
                                         }),
                                 );
-                                let path = DerivationPath::from((
+                                DerivationPath::from((
                                     quantified_agnostic_path.agnostic_path,
                                     index,
-                                ));
-                                println!("🎭 created path: {}", path);
-                                path
+                                ))
                             })
                             .collect::<IndexSet<_>>()
                     })
@@ -980,12 +931,6 @@ mod tests {
             assert_eq!(instances_to_use_directly.len(), 1);
             let instance = instances_to_use_directly.first().unwrap();
 
-            println!(
-                "🔮 Created account: '{}' with veci.index: {}",
-                name.as_ref(),
-                instance.derivation_entity_index()
-            );
-
             let address = AccountAddress::new(network, instance.public_key_hash());
             let account = Account::new(
                 name,
@@ -1006,11 +951,6 @@ mod tests {
             accounts: Accounts,
             shield: MatrixOfFactorSources,
         ) -> Result<(SecurifiedAccounts, FactorInstancesProviderOutcome)> {
-            println!(
-                "🛡️ Securifying accounts: '{:?}'",
-                accounts.clone().into_iter().map(|x| x.name()).collect_vec()
-            );
-
             let profile_snapshot = self.profile_snapshot();
 
             let outcome = Sut::for_account_mfa(
@@ -1034,16 +974,6 @@ mod tests {
                 .map(|(k, outcome_per_factor)| (k, outcome_per_factor.to_use_directly))
                 .collect::<IndexMap<FactorSourceIDFromHash, FactorInstances>>();
 
-            println!(
-                "🧵🎉 securifying: #{} accounts, got: #{} factor instances",
-                accounts.len(),
-                instance_per_factor
-                    .values()
-                    .map(|x| x.len())
-                    .reduce(Add::add)
-                    .unwrap_or_default()
-            );
-
             // Now we need to map the flat set of instances into many MatrixOfFactorInstances, and assign
             // one to each account
             let updated_accounts = accounts
@@ -1066,7 +996,6 @@ mod tests {
                                 EntitySecurityState::Unsecured(veci) => Some(veci),
                                 EntitySecurityState::Securified(sec) => sec.veci.clone(),
                             };
-                            println!("🛡️assigning account: '{}' following matrix of instances: {:?}", a.name(), matrix_of_instances);
                             let sec =
                                 SecurifiedEntityControl::new(matrix_of_instances, access_controller, veci);
                             SecurifiedAccount::new(
