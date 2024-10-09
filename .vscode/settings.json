@@ -1,11 +1,15 @@
 {
 	"cSpell.words": [
+		"analyser",
 		"Banksy",
+		"bdfs",
 		"Fulfillable",
 		"interactor",
 		"Interactors",
 		"Keyrings",
+		"nonminimal",
 		"preprocess",
+		"rola",
 		"scrypto",
 		"securifies",
 		"securify",
@@ -13,7 +17,11 @@
 		"substate",
 		"txid",
 		"txids",
+		"unfactored",
+		"Unindex",
+		"Unindexed",
 		"unrecovered",
+		"unsec",
 		"unsecurified",
 		"VECI",
 		"Yubikey"

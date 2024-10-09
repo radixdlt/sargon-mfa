@@ -5,7 +5,7 @@ use crate::prelude::*;
 ///
 /// Holds a collection of keyrings derived from various factor sources.
 pub(crate) struct KeysCollectorState {
-    pub(super) keyrings: RefCell<IndexMap<FactorSourceIDFromHash, Keyring>>,
+    pub(super) keyrings: RwLock<IndexMap<FactorSourceIDFromHash, Keyring>>,
 }
 
 impl KeysCollectorState {
@@ -22,12 +22,12 @@ impl KeysCollectorState {
             })
             .collect::<IndexMap<FactorSourceIDFromHash, Keyring>>();
         Self {
-            keyrings: RefCell::new(keyrings),
+            keyrings: RwLock::new(keyrings),
         }
     }
 
     pub(crate) fn outcome(self) -> KeyDerivationOutcome {
-        let key_rings = self.keyrings.into_inner();
+        let key_rings = self.keyrings.into_inner().unwrap();
         KeyDerivationOutcome::new(
             key_rings
                 .into_iter()
@@ -38,16 +38,17 @@ impl KeysCollectorState {
 
     pub(crate) fn keyring_for(&self, factor_source_id: &FactorSourceIDFromHash) -> Result<Keyring> {
         self.keyrings
-            .borrow()
+            .try_read()
+            .unwrap()
             .get(factor_source_id)
-            .cloned()
+            .map(|x| x.clone_snapshot())
             .inspect(|k| assert_eq!(k.factor_source_id, *factor_source_id))
             .ok_or(CommonError::UnknownFactorSource)
     }
 
     pub(crate) fn process_batch_response(&self, response: KeyDerivationResponse) -> Result<()> {
         for (factor_source_id, factors) in response.per_factor_source.into_iter() {
-            let mut rings = self.keyrings.borrow_mut();
+            let mut rings = self.keyrings.try_write().unwrap();
             let keyring = rings
                 .get_mut(&factor_source_id)
                 .ok_or(CommonError::UnknownFactorSource)?;

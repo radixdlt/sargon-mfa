@@ -37,3 +37,4 @@ pretty_env_logger = { git = "https://github.com/seanmonstar/pretty-env-logger/",
 hex = "0.4.3"
 enum-as-inner = "0.6.0"
 futures = "0.3.30"
+enum-iterator = "2.1.0"

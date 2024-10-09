@@ -1,5 +1,6 @@
 use std::iter::Step;
 use std::marker::PhantomData;
+use std::ops::Add;
 
 use indexmap::map::Keys;
 
@@ -109,6 +110,15 @@ pub struct HDFactorSource {
     id: FactorSourceIDFromHash,
 }
 
+impl HasSampleValues for HDFactorSource {
+    fn sample() -> Self {
+        Self::device()
+    }
+    fn sample_other() -> Self {
+        Self::ledger()
+    }
+}
+
 impl HDFactorSource {
     pub fn is_olympia(&self) -> bool {
         // TODO add support for Olympia and test!
@@ -168,6 +178,9 @@ impl Ord for HDFactorSource {
 pub trait Just<Item> {
     fn just(item: Item) -> Self;
 }
+pub trait JustKV<Key, Value> {
+    fn kv(key: Key, value: Value) -> Self;
+}
 impl<T: std::hash::Hash + Eq> Just<T> for IndexSet<T> {
     fn just(item: T) -> Self {
         Self::from_iter([item])
@@ -183,9 +196,19 @@ impl<K: std::hash::Hash + Eq, V> Just<(K, V)> for IndexMap<K, V> {
         Self::from_iter([item])
     }
 }
+impl<K: std::hash::Hash + Eq, V> JustKV<K, V> for IndexMap<K, V> {
+    fn kv(key: K, value: V) -> Self {
+        Self::from_iter([(key, value)])
+    }
+}
 impl<K: std::hash::Hash + Eq, V> Just<(K, V)> for HashMap<K, V> {
     fn just(item: (K, V)) -> Self {
         Self::from_iter([item])
+    }
+}
+impl<K: std::hash::Hash + Eq, V> JustKV<K, V> for HashMap<K, V> {
+    fn kv(key: K, value: V) -> Self {
+        Self::from_iter([(key, value)])
     }
 }
 
@@ -266,6 +289,23 @@ impl HasSampleValues for FactorSourceKind {
     }
     fn sample_other() -> Self {
         FactorSourceKind::Ledger
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, EnumAsInner, Default)]
+pub enum ThirdPartyDepositPreference {
+    DenyAll,
+    #[default]
+    AllowAll,
+    AllowKnown,
+}
+
+impl HasSampleValues for ThirdPartyDepositPreference {
+    fn sample() -> Self {
+        ThirdPartyDepositPreference::DenyAll
+    }
+    fn sample_other() -> Self {
+        ThirdPartyDepositPreference::AllowAll
     }
 }
 
@@ -501,17 +541,29 @@ impl Step for HDPathComponent {
     }
 }
 
+pub type HDBaseIndex = U30;
+
 impl HDPathComponent {
-    pub fn new_from_base_index(base_index: HDPathValue) -> Self {
-        if base_index < BIP32_HARDENED {
-            Self::Unhardened(UnhardenedIndex::new(base_index))
-        } else if base_index < BIP32_SECURIFIED_HALF {
+    pub fn new_with_key_space_and_base_index(key_space: KeySpace, base_index: HDBaseIndex) -> Self {
+        match key_space {
+            KeySpace::Securified => Self::securifying_base_index(base_index.inner),
+            KeySpace::Unsecurified => Self::unsecurified_hardening_base_index(base_index.inner),
+        }
+    }
+    pub fn new_with_key_space_and_index(key_space: KeySpace, index: u32) -> Result<Self> {
+        HDBaseIndex::new(index)
+            .map(|base_index| Self::new_with_key_space_and_base_index(key_space, base_index))
+    }
+    pub fn new_from_index(index: HDPathValue) -> Self {
+        if index < BIP32_HARDENED {
+            Self::Unhardened(UnhardenedIndex::new(index))
+        } else if index < BIP32_SECURIFIED_HALF {
             Self::Hardened(HDPathComponentHardened::Unsecurified(
-                UnsecurifiedIndex::new(base_index),
+                UnsecurifiedIndex::new(index),
             ))
         } else {
             Self::Hardened(HDPathComponentHardened::Securified(SecurifiedIndex::new(
-                base_index,
+                index,
             )))
         }
     }
@@ -626,7 +678,7 @@ mod tests_hdpathcomp {
         t(Sut::unsecurified_hardening_base_index(0), 1);
         t(Sut::unsecurified_hardening_base_index(5), 6);
         t(
-            Sut::new_from_base_index(BIP32_SECURIFIED_HALF - 2),
+            Sut::new_from_index(BIP32_SECURIFIED_HALF - 2),
             BIP32_SECURIFIED_HALF - 1,
         );
 
@@ -840,6 +892,18 @@ pub struct HierarchicalDeterministicFactorInstance {
     pub factor_source_id: FactorSourceIDFromHash,
     pub public_key: HierarchicalDeterministicPublicKey,
 }
+impl HierarchicalDeterministicFactorInstance {
+    pub fn key_space(&self) -> KeySpace {
+        self.public_key.derivation_path.index.key_space()
+    }
+    pub fn derivation_entity_index(&self) -> HDPathComponent {
+        self.public_key.derivation_path.index
+    }
+
+    pub fn derivation_entity_base_index(&self) -> HDPathValue {
+        self.derivation_entity_index().base_index()
+    }
+}
 
 impl HierarchicalDeterministicFactorInstance {
     #[allow(unused)]
@@ -920,11 +984,14 @@ impl HierarchicalDeterministicFactorInstance {
 
 impl HasSampleValues for HierarchicalDeterministicFactorInstance {
     fn sample() -> Self {
-        Self::mainnet_tx_account(HDPathComponent::sample(), FactorSourceIDFromHash::sample())
+        Self::mainnet_tx_account(
+            HDPathComponent::unsecurified_hardening_base_index(0),
+            FactorSourceIDFromHash::sample(),
+        )
     }
     fn sample_other() -> Self {
         Self::mainnet_tx_account(
-            HDPathComponent::sample_other(),
+            HDPathComponent::unsecurified_hardening_base_index(1),
             FactorSourceIDFromHash::sample_other(),
         )
     }
@@ -964,14 +1031,44 @@ impl HasSampleValues for Hash {
 #[derive(Clone, Debug, PartialEq, Eq, std::hash::Hash)]
 pub struct SecurifiedEntityControl {
     pub matrix: MatrixOfFactorInstances,
+    /// Virtual Entity Creation (Factor)Instance
+    pub veci: Option<HierarchicalDeterministicFactorInstance>,
     pub access_controller: AccessController,
 }
 impl SecurifiedEntityControl {
-    pub fn new(matrix: MatrixOfFactorInstances, access_controller: AccessController) -> Self {
+    pub fn all_factor_instances(&self) -> IndexSet<HierarchicalDeterministicFactorInstance> {
+        self.matrix.all_factors()
+    }
+    pub fn primary_role_instances(&self) -> FactorInstances {
+        self.matrix.primary_role_instances()
+    }
+    pub fn new(
+        matrix: MatrixOfFactorInstances,
+        access_controller: AccessController,
+        veci: impl Into<Option<HierarchicalDeterministicFactorInstance>>,
+    ) -> Self {
         Self {
             matrix,
             access_controller,
+            veci: veci.into(),
         }
+    }
+}
+
+impl HasSampleValues for SecurifiedEntityControl {
+    fn sample() -> Self {
+        Self::new(
+            MatrixOfFactorInstances::sample(),
+            AccessController::sample(),
+            HierarchicalDeterministicFactorInstance::sample(),
+        )
+    }
+    fn sample_other() -> Self {
+        Self::new(
+            MatrixOfFactorInstances::sample_other(),
+            AccessController::sample_other(),
+            HierarchicalDeterministicFactorInstance::sample_other(),
+        )
     }
 }
 
@@ -1095,15 +1192,50 @@ impl<T: EntityKindSpecifier> EntityKindSpecifier for AbstractAddress<T> {
     }
 }
 
+#[derive(Default, Clone, Debug, PartialEq, Eq, Hash)]
+pub struct FactorSources(Vec<HDFactorSource>);
+impl FactorSources {
+    pub fn factor_sources(&self) -> IndexSet<HDFactorSource> {
+        self.0.clone().into_iter().collect()
+    }
+    pub fn just(factor_source: HDFactorSource) -> Self {
+        Self(vec![factor_source])
+    }
+    pub fn insert(&mut self, factor_source: HDFactorSource) {
+        assert!(!self.0.iter().any(|f| f == &factor_source));
+        self.0.push(factor_source);
+    }
+}
+impl FromIterator<HDFactorSource> for FactorSources {
+    fn from_iter<I: IntoIterator<Item = HDFactorSource>>(iter: I) -> Self {
+        Self(iter.into_iter().collect())
+    }
+}
+impl IntoIterator for FactorSources {
+    type Item = HDFactorSource;
+    type IntoIter = <IndexSet<Self::Item> as IntoIterator>::IntoIter;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.factor_sources().into_iter()
+    }
+}
+
 pub type AccountAddress = AbstractAddress<AccountAddressTag>;
 pub type IdentityAddress = AbstractAddress<IdentityAddressTag>;
 
-#[derive(Clone, PartialEq, Eq, std::hash::Hash, derive_more::Display)]
+#[derive(Clone, PartialEq, Eq, std::hash::Hash, derive_more::Display, EnumAsInner)]
 pub enum AddressOfAccountOrPersona {
     Account(AccountAddress),
     Identity(IdentityAddress),
 }
 impl AddressOfAccountOrPersona {
+    pub fn derived_from_factor_instance(
+        &self,
+        factor_instance: &HierarchicalDeterministicFactorInstance,
+    ) -> bool {
+        factor_instance.public_key_hash() == self.public_key_hash()
+    }
+
     pub fn new(
         factor_instance: HierarchicalDeterministicFactorInstance,
         network_id: NetworkID,
@@ -1173,12 +1305,15 @@ impl HasSampleValues for AddressOfAccountOrPersona {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, std::hash::Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, std::hash::Hash, EnumAsInner)]
 pub enum AccountOrPersona {
     AccountEntity(Account),
     PersonaEntity(Persona),
 }
 impl AccountOrPersona {
+    pub fn third_party_deposit_settings(&self) -> ThirdPartyDepositPreference {
+        ThirdPartyDepositPreference::default() // TODO let me stored field...
+    }
     pub fn network_id(&self) -> NetworkID {
         match self {
             AccountOrPersona::AccountEntity(a) => a.network_id(),
@@ -1223,6 +1358,7 @@ pub trait IsEntity: Into<AccountOrPersona> + TryFrom<AccountOrPersona> + Clone {
         name: impl AsRef<str>,
         address: Self::Address,
         security_state: impl Into<EntitySecurityState>,
+        third_party_deposit: impl Into<Option<ThirdPartyDepositPreference>>,
     ) -> Self;
 
     fn unsecurified_mainnet(
@@ -1237,6 +1373,7 @@ pub trait IsEntity: Into<AccountOrPersona> + TryFrom<AccountOrPersona> + Clone {
             name,
             address,
             EntitySecurityState::Unsecured(genesis_factor_instance),
+            ThirdPartyDepositPreference::default(),
         )
     }
 
@@ -1257,7 +1394,9 @@ pub trait IsEntity: Into<AccountOrPersona> + TryFrom<AccountOrPersona> + Clone {
             EntitySecurityState::Securified(SecurifiedEntityControl::new(
                 matrix,
                 access_controller,
+                None, // TODO add this as a parameter to this ctor
             )),
+            ThirdPartyDepositPreference::default(),
         )
     }
 
@@ -1292,6 +1431,7 @@ pub trait IsEntity: Into<AccountOrPersona> + TryFrom<AccountOrPersona> + Clone {
     fn entity_address(&self) -> Self::Address;
 
     fn name(&self) -> String;
+    fn third_party_deposit(&self) -> ThirdPartyDepositPreference;
     fn kind() -> CAP26EntityKind {
         Self::Address::entity_kind()
     }
@@ -1315,19 +1455,48 @@ pub struct AbstractEntity<A: Clone + Into<AddressOfAccountOrPersona> + EntityKin
     address: A,
     pub name: String,
     pub security_state: EntitySecurityState,
+    pub third_party_deposit: ThirdPartyDepositPreference,
 }
 pub type Account = AbstractEntity<AccountAddress>;
+
+impl Account {
+    pub fn set_name(&mut self, name: impl AsRef<str>) {
+        self.name = name.as_ref().to_owned();
+    }
+    pub fn as_securified(&self) -> Result<SecurifiedEntity> {
+        match self.security_state() {
+            EntitySecurityState::Securified(sec) => Ok(SecurifiedEntity::new(
+                self.address(),
+                sec,
+                ThirdPartyDepositPreference::default(), // TODO 3rd party
+            )),
+            EntitySecurityState::Unsecured(_) => Err(CommonError::EntityConversionError),
+        }
+    }
+    pub fn as_unsecurified(&self) -> Result<UnsecurifiedEntity> {
+        match self.security_state() {
+            EntitySecurityState::Unsecured(fi) => Ok(UnsecurifiedEntity::new(
+                self.address(),
+                fi,
+                ThirdPartyDepositPreference::default(), // TODO 3rd party
+            )),
+            EntitySecurityState::Securified(_) => Err(CommonError::EntityConversionError),
+        }
+    }
+}
 
 impl IsEntity for Account {
     fn new(
         name: impl AsRef<str>,
         address: Self::Address,
         security_state: impl Into<EntitySecurityState>,
+        third_party_deposit: impl Into<Option<ThirdPartyDepositPreference>>,
     ) -> Self {
         Self {
             name: name.as_ref().to_owned(),
             address,
             security_state: security_state.into(),
+            third_party_deposit: third_party_deposit.into().unwrap_or_default(),
         }
     }
     fn name(&self) -> String {
@@ -1339,6 +1508,9 @@ impl IsEntity for Account {
     }
     fn entity_address(&self) -> Self::Address {
         self.address.clone()
+    }
+    fn third_party_deposit(&self) -> ThirdPartyDepositPreference {
+        self.third_party_deposit
     }
     fn e0() -> Self {
         Self::a0()
@@ -1372,11 +1544,13 @@ impl IsEntity for Persona {
         name: impl AsRef<str>,
         address: IdentityAddress,
         security_state: impl Into<EntitySecurityState>,
+        third_party_deposit: impl Into<Option<ThirdPartyDepositPreference>>,
     ) -> Self {
         Self {
             name: name.as_ref().to_owned(),
             address,
             security_state: security_state.into(),
+            third_party_deposit: third_party_deposit.into().unwrap_or_default(),
         }
     }
     type Address = IdentityAddress;
@@ -1385,6 +1559,9 @@ impl IsEntity for Persona {
     }
     fn name(&self) -> String {
         self.name.clone()
+    }
+    fn third_party_deposit(&self) -> ThirdPartyDepositPreference {
+        self.third_party_deposit
     }
     fn entity_address(&self) -> Self::Address {
         self.address.clone()
@@ -1594,6 +1771,13 @@ where
 
 pub type MatrixOfFactorInstances = MatrixOfFactors<HierarchicalDeterministicFactorInstance>;
 
+impl MatrixOfFactorInstances {
+    pub fn primary_role_instances(&self) -> FactorInstances {
+        // this is completely incorrect.
+        FactorInstances::from(self.all_factors())
+    }
+}
+
 fn sample_for_matrix_of_instances_from_account(account: Account) -> MatrixOfFactorInstances {
     account.security_state().into_securified().unwrap().matrix
 }
@@ -1610,21 +1794,22 @@ impl HasSampleValues for MatrixOfFactorInstances {
 
 impl MatrixOfFactorInstances {
     pub fn fulfilling_matrix_of_factor_sources_with_instances(
-        instances: impl IntoIterator<Item = HierarchicalDeterministicFactorInstance>,
+        instances: &mut IndexMap<FactorSourceIDFromHash, FactorInstances>,
         matrix_of_factor_sources: MatrixOfFactorSources,
     ) -> Result<Self> {
-        let instances = instances.into_iter().collect_vec();
-
-        let get_factors =
+        let mut get_factors =
             |required: Vec<HDFactorSource>| -> Result<Vec<HierarchicalDeterministicFactorInstance>> {
                 required
                     .iter()
                     .map(|f| {
-                        instances
-                            .iter()
-                            .find(|i| i.factor_source_id() == f.factor_source_id())
-                            .cloned()
-                            .ok_or(CommonError::MissingFactorMappingInstancesIntoMatrix)
+                        if let Some(existing) = instances
+                        .get_mut(&f.factor_source_id()) {
+                            assert!(!existing.is_empty());
+                            let instance = existing.shift_remove_index(0);
+                            Ok(instance)
+                        } else {
+                            Err(CommonError::MissingFactorMappingInstancesIntoMatrix)
+                        }
                         })
                     .collect::<Result<Vec<HierarchicalDeterministicFactorInstance>>>()
             };
@@ -1777,23 +1962,40 @@ impl ManifestSummary {
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct Profile {
     pub factor_sources: IndexSet<HDFactorSource>,
-    pub accounts: HashMap<AccountAddress, Account>,
-    pub personas: HashMap<IdentityAddress, Persona>,
+    pub networks: IndexMap<NetworkID, ProfileNetwork>,
+    pub current_network: NetworkID,
 }
 
-#[derive(Clone, PartialEq, Eq, Debug, Hash)]
-pub struct SecurifiedEntity {
-    pub entity: AccountOrPersona,
-    pub control: SecurifiedEntityControl,
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub struct ProfileNetwork {
+    pub network_id: NetworkID,
+    pub accounts: IndexMap<AccountAddress, Account>,
+    pub personas: IndexMap<IdentityAddress, Persona>,
 }
 
-#[derive(Clone, PartialEq, Eq, Debug, Hash)]
-pub struct UnsecurifiedEntity {
-    pub entity: AccountOrPersona,
-    pub factor_instance: HierarchicalDeterministicFactorInstance,
+impl Default for ProfileNetwork {
+    fn default() -> Self {
+        Self {
+            network_id: NetworkID::Mainnet,
+            accounts: IndexMap::new(),
+            personas: IndexMap::new(),
+        }
+    }
 }
 
-impl Profile {
+impl ProfileNetwork {
+    pub fn contains_account(&self, address: impl Into<AccountAddress>) -> bool {
+        let address = address.into();
+        self.accounts.contains_key(&address)
+    }
+
+    pub fn get_entities<E: IsEntity + std::hash::Hash + Eq>(&self) -> IndexSet<E> {
+        self.get_entities_erased(E::kind())
+            .into_iter()
+            .map(|e| E::try_from(e).ok().unwrap())
+            .collect()
+    }
+
     pub fn get_entities_erased(&self, entity_kind: CAP26EntityKind) -> IndexSet<AccountOrPersona> {
         match entity_kind {
             CAP26EntityKind::Account => self
@@ -1810,11 +2012,118 @@ impl Profile {
                 .collect::<IndexSet<_>>(),
         }
     }
-    pub fn get_entities<E: IsEntity + std::hash::Hash + Eq>(&self) -> IndexSet<E> {
-        self.get_entities_erased(E::kind())
+
+    pub fn update_entity<E: IsEntity>(&mut self, entity: E) {
+        match Into::<AccountOrPersona>::into(entity.clone()) {
+            AccountOrPersona::AccountEntity(a) => {
+                assert!(self.accounts.insert(a.entity_address(), a).is_some());
+            }
+            AccountOrPersona::PersonaEntity(p) => {
+                assert!(self.personas.insert(p.entity_address(), p).is_some());
+            }
+        }
+    }
+
+    pub fn get_entities_of_kind_in_key_space(
+        &self,
+        entity_kind: CAP26EntityKind,
+        key_space: KeySpace,
+    ) -> IndexSet<AccountOrPersona> {
+        self.get_entities_erased(entity_kind)
             .into_iter()
-            .map(|e| E::try_from(e).ok().unwrap())
+            .filter(|e| e.matches_key_space(key_space))
             .collect()
+    }
+
+    pub fn insert_accounts(&mut self, accounts: IndexSet<Account>) -> Result<()> {
+        if accounts.is_empty() {
+            return Ok(());
+        }
+
+        let count = self.accounts.len();
+        let expected_after_insertion = count + accounts.len();
+        for a in accounts.into_iter() {
+            self.accounts.insert(a.entity_address(), a);
+        }
+        assert_eq!(self.accounts.len(), expected_after_insertion);
+        Ok(())
+    }
+
+    pub fn persona_by_address(&self, address: IdentityAddress) -> Result<Persona> {
+        self.personas
+            .get(&address)
+            .ok_or(CommonError::UnknownPersona)
+            .cloned()
+    }
+
+    pub fn insert_personas(&mut self, personas: IndexSet<Persona>) -> Result<()> {
+        if personas.is_empty() {
+            return Ok(());
+        }
+
+        let count = self.personas.len();
+        let expected_after_insertion = count + personas.len();
+        for a in personas.into_iter() {
+            self.personas.insert(a.entity_address(), a);
+        }
+        assert_eq!(self.personas.len(), expected_after_insertion);
+        Ok(())
+    }
+
+    pub fn add_account(&mut self, account: &Account) -> Result<()> {
+        self.accounts
+            .insert(account.entity_address(), account.clone());
+        Ok(())
+    }
+
+    pub fn update_account(&mut self, account: &Account) -> Result<()> {
+        assert!(self
+            .accounts
+            .insert(account.entity_address(), account.clone())
+            .is_some());
+        Ok(())
+    }
+
+    pub fn add_persona(&mut self, persona: &Persona) -> Result<()> {
+        self.personas
+            .insert(persona.entity_address(), persona.clone());
+        Ok(())
+    }
+}
+
+impl Default for Profile {
+    fn default() -> Self {
+        Self {
+            factor_sources: IndexSet::new(),
+            networks: IndexMap::new(),
+            current_network: NetworkID::Mainnet,
+        }
+    }
+}
+impl From<Account> for AccountAddress {
+    fn from(value: Account) -> Self {
+        value.entity_address()
+    }
+}
+impl Profile {
+    /// # Panics if no BDFS was found
+    pub fn bdfs(&self) -> HDFactorSource {
+        self.factor_sources
+            .iter()
+            .find(|f| f.factor_source_kind() == FactorSourceKind::Device)
+            .expect("a Device FactorSource")
+            .clone()
+    }
+
+    pub fn current_network(&self) -> NetworkID {
+        self.current_network
+    }
+
+    pub fn contains_account(&self, address: impl Into<AccountAddress>) -> bool {
+        let address = address.into();
+        self.networks
+            .values()
+            .any(|n| n.contains_account(address.clone()))
     }
 
     pub fn get_entities_of_kind_on_network_in_key_space(
@@ -1823,11 +2132,10 @@ impl Profile {
         network_id: NetworkID,
         key_space: KeySpace,
     ) -> IndexSet<AccountOrPersona> {
-        self.get_entities_erased(entity_kind)
-            .into_iter()
-            .filter(|e| e.network_id() == network_id)
-            .filter(|e| e.matches_key_space(key_space))
-            .collect()
+        self.networks
+            .get(&network_id)
+            .map(|n| n.get_entities_of_kind_in_key_space(entity_kind, key_space))
+            .unwrap_or_default()
     }
 
     pub fn get_securified_entities_of_kind_on_network(
@@ -1846,7 +2154,7 @@ impl Profile {
                 EntitySecurityState::Securified(control) => control,
                 _ => unreachable!(),
             };
-            SecurifiedEntity { entity: e, control }
+            SecurifiedEntity::new(e.address(), control, e.third_party_deposit_settings())
         })
         .collect()
     }
@@ -1867,38 +2175,103 @@ impl Profile {
                 EntitySecurityState::Unsecured(factor_instance) => factor_instance,
                 _ => unreachable!(),
             };
-            UnsecurifiedEntity {
-                entity: e,
+            UnsecurifiedEntity::new(
+                e.address(),
                 factor_instance,
-            }
+                e.third_party_deposit_settings(),
+            )
         })
         .collect()
+    }
+
+    pub fn unsecurified_accounts_on_network(
+        &self,
+        network_id: NetworkID,
+    ) -> IndexSet<UnsecurifiedEntity> {
+        self.get_unsecurified_entities_of_kind_on_network(CAP26EntityKind::Account, network_id)
+    }
+
+    pub fn securified_accounts_on_network(
+        &self,
+        network_id: NetworkID,
+    ) -> IndexSet<SecurifiedEntity> {
+        self.get_securified_entities_of_kind_on_network(CAP26EntityKind::Account, network_id)
+    }
+
+    pub fn unsecurified_identities_on_network(
+        &self,
+        network_id: NetworkID,
+    ) -> IndexSet<UnsecurifiedEntity> {
+        self.get_unsecurified_entities_of_kind_on_network(CAP26EntityKind::Identity, network_id)
+    }
+
+    pub fn securified_identities_on_network(
+        &self,
+        network_id: NetworkID,
+    ) -> IndexSet<SecurifiedEntity> {
+        self.get_securified_entities_of_kind_on_network(CAP26EntityKind::Identity, network_id)
+    }
+
+    pub fn accounts_on_network(&self, network_id: NetworkID) -> IndexSet<Account> {
+        self.get_accounts()
+            .into_iter()
+            .filter(|a| a.network_id() == network_id)
+            .collect()
+    }
+    pub fn personas_on_network(&self, network_id: NetworkID) -> IndexSet<Persona> {
+        self.networks
+            .get(&network_id)
+            .map(|n| n.get_entities())
+            .unwrap_or_default()
+    }
+
+    pub fn get_entities<E: IsEntity + std::hash::Hash + Eq>(&self) -> IndexSet<E> {
+        self.networks
+            .values()
+            .flat_map(|n| n.get_entities::<E>())
+            .collect()
     }
 
     pub fn get_accounts(&self) -> IndexSet<Account> {
         self.get_entities()
     }
+
+    /// assumes mainnet accounts and mainnet personas
     pub fn new<'a, 'p>(
         factor_sources: impl IntoIterator<Item = HDFactorSource>,
         accounts: impl IntoIterator<Item = &'a Account>,
         personas: impl IntoIterator<Item = &'p Persona>,
     ) -> Self {
         let factor_sources = factor_sources.into_iter().collect::<IndexSet<_>>();
+        let accounts = accounts.into_iter().collect_vec();
+        let personas = personas.into_iter().collect_vec();
+        let network_id = NetworkID::Mainnet;
+        assert!(accounts.iter().all(|a| (*a).network_id() == network_id));
+        assert!(personas.iter().all(|a| (*a).network_id() == network_id));
         Self {
             factor_sources,
-            accounts: accounts
-                .into_iter()
-                .map(|a| (a.entity_address(), a.clone()))
-                .collect::<HashMap<_, _>>(),
-            personas: personas
-                .into_iter()
-                .map(|p| (p.entity_address(), p.clone()))
-                .collect::<HashMap<_, _>>(),
+            networks: IndexMap::kv(
+                network_id,
+                ProfileNetwork {
+                    network_id,
+                    accounts: accounts
+                        .into_iter()
+                        .map(|a| (a.entity_address(), a.clone()))
+                        .collect::<IndexMap<_, _>>(),
+                    personas: personas
+                        .into_iter()
+                        .map(|p| (p.entity_address(), p.clone()))
+                        .collect::<IndexMap<_, _>>(),
+                },
+            ),
+            current_network: NetworkID::Mainnet,
         }
     }
+
     pub fn account_by_address(&self, address: &AccountAddress) -> Result<Account> {
         self.entity_by_address(address)
     }
+
     pub fn entity_by_address<E: IsEntity + std::hash::Hash + std::cmp::Eq>(
         &self,
         address: &E::Address,
@@ -1910,14 +2283,111 @@ impl Profile {
     }
 
     pub fn update_entity<E: IsEntity>(&mut self, entity: E) {
-        match Into::<AccountOrPersona>::into(entity.clone()) {
-            AccountOrPersona::AccountEntity(a) => {
-                assert!(self.accounts.insert(a.entity_address(), a).is_some());
-            }
-            AccountOrPersona::PersonaEntity(p) => {
-                assert!(self.personas.insert(p.entity_address(), p).is_some());
+        let account_or_persona = Into::<AccountOrPersona>::into(entity.clone());
+        let network_id = account_or_persona.network_id();
+        if let Some(existing) = self.networks.get_mut(&network_id) {
+            existing.update_entity(entity);
+        } else {
+            panic!("hmm what to do");
+        }
+    }
+
+    pub fn get_account(&self, address: &AccountAddress) -> Result<Account> {
+        self.get_accounts()
+            .into_iter()
+            .find(|a| a.entity_address() == *address)
+            .ok_or(CommonError::UnknownAccount)
+    }
+
+    pub fn insert_accounts(&mut self, accounts: IndexSet<Account>) -> Result<()> {
+        if accounts.is_empty() {
+            return Ok(());
+        }
+        let network_id = accounts.iter().next().unwrap().network_id();
+        assert!(accounts.iter().all(|a| a.network_id() == network_id));
+
+        if let Some(existing) = self.networks.get_mut(&network_id) {
+            existing.insert_accounts(accounts)
+        } else {
+            self.networks.insert(
+                network_id,
+                ProfileNetwork {
+                    network_id,
+                    accounts: accounts
+                        .into_iter()
+                        .map(|a| (a.entity_address(), a))
+                        .collect(),
+                    personas: IndexMap::new(),
+                },
+            );
+            Ok(())
+        }
+    }
+
+    pub fn insert_personas(&mut self, personas: IndexSet<Persona>) -> Result<()> {
+        if personas.is_empty() {
+            return Ok(());
+        }
+        let network_id = personas.iter().next().unwrap().network_id();
+        assert!(personas.iter().all(|a| a.network_id() == network_id));
+
+        if let Some(existing) = self.networks.get_mut(&network_id) {
+            existing.insert_personas(personas)
+        } else {
+            self.networks.insert(
+                network_id,
+                ProfileNetwork {
+                    network_id,
+                    accounts: IndexMap::new(),
+                    personas: personas
+                        .into_iter()
+                        .map(|a| (a.entity_address(), a))
+                        .collect(),
+                },
+            );
+            Ok(())
+        }
+    }
+
+    pub fn add_factor_source(&mut self, factor_source: HDFactorSource) -> Result<()> {
+        self.factor_sources.insert(factor_source);
+        Ok(())
+    }
+
+    pub fn add_account(&mut self, account: &Account) -> Result<()> {
+        self.insert_accounts(IndexSet::just(account.clone()))
+    }
+
+    pub fn update_account(&mut self, account: &Account) -> Result<()> {
+        let network_id = account.network_id();
+        let network = self.networks.get_mut(&network_id).unwrap();
+        network.update_account(account)
+    }
+
+    pub fn persona_by_address(&self, address: IdentityAddress) -> Result<Persona> {
+        let network_id = address.network_id();
+        let network = self
+            .networks
+            .get(&network_id)
+            .ok_or(CommonError::UnknownPersona)?;
+        network.persona_by_address(address)
+    }
+
+    pub fn add_persona(&mut self, persona: &Persona) -> Result<()> {
+        self.insert_personas(IndexSet::just(persona.clone()))
+    }
+
+    pub fn insert_entities(&mut self, entities: IndexSet<AccountOrPersona>) -> Result<()> {
+        for entity in entities {
+            if let Some(account) = entity.as_account_entity() {
+                self.add_account(account)?;
+            } else if let Some(persona) = entity.as_persona_entity() {
+                self.add_persona(persona)?;
+            } else {
+                panic!("Unknown entity kind");
             }
         }
+        Ok(())
     }
 }
 
@@ -2052,6 +2522,39 @@ pub enum CommonError {
 
     #[error("TestDerivationInteractor hardcoded failure")]
     HardcodedFailureTestDerivationInteractor,
+
+    #[error("FactorInstances does not satisfy derivation requests")]
+    FactorInstancesDoesNotSatisfyDerivationRequests,
+
+    #[error("Next Derivation Entity Index From Profile Analyser not present, but required")]
+    ProfileIndexAssignerNotPresent,
+
+    #[error("Wrong network")]
+    WrongNetwork,
+
+    #[error("Empty collection")]
+    EmptyCollection,
+
+    #[error("Expected Veci")]
+    ExpectedVeci,
+
+    #[error("Network Discrepancy")]
+    NetworkDiscrepancy,
+
+    #[error("FactorSource Discrepancy")]
+    FactorSourceDiscrepancy,
+
+    #[error("EntityKind Discrepancy")]
+    EntityKindDiscrepancy,
+
+    #[error("KeySpace Discrepancy")]
+    KeySpaceDiscrepancy,
+
+    #[error("KeyKind Discrepancy")]
+    KeyKindDiscrepancy,
+
+    #[error("Invalid u30")]
+    Invalid30 { bad_value: u32 },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -2304,12 +2807,21 @@ impl HasSampleValues for ComponentMetadata {
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct AccessController {
     pub address: AccessControllerAddress,
-    pub metadata: ComponentMetadata,
+    pub metadata: Option<ComponentMetadata>,
 }
 
 impl AccessController {
-    pub fn new(address: AccessControllerAddress, metadata: ComponentMetadata) -> Self {
-        Self { address, metadata }
+    pub fn new(
+        address: AccessControllerAddress,
+        metadata: impl Into<Option<ComponentMetadata>>,
+    ) -> Self {
+        Self {
+            address,
+            metadata: metadata.into(),
+        }
+    }
+    pub fn from_unsecurified_address<E: IsEntityAddress>(entity_address: E) -> Self {
+        Self::new(AccessControllerAddress::new(entity_address), None)
     }
 }
 

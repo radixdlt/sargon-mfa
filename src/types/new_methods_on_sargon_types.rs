@@ -16,15 +16,6 @@ impl AccountOrPersona {
     }
 }
 
-impl Profile {
-    pub fn persona_by_address(&self, address: IdentityAddress) -> Result<Persona> {
-        self.personas
-            .get(&address)
-            .ok_or(CommonError::UnknownPersona)
-            .cloned()
-    }
-}
-
 impl TransactionIntent {
     pub fn manifest_summary(&self) -> ManifestSummary {
         self.manifest.summary()
@@ -39,6 +30,17 @@ pub enum KeySpace {
     #[display("Securified")]
     #[debug("Securified")]
     Securified,
+}
+impl KeySpace {
+    pub fn both() -> [Self; 2] {
+        [Self::Unsecurified, Self::Securified]
+    }
+}
+
+impl DerivationPath {
+    pub fn key_space(&self) -> KeySpace {
+        self.index.key_space()
+    }
 }
 
 #[cfg(test)]

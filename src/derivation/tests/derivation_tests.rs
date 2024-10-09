@@ -49,7 +49,7 @@ mod key_derivation_tests {
         )
         .unwrap();
         let outcome = collector.collect_keys().await;
-        assert!(outcome.all_factors().is_empty())
+        assert!(outcome.all_factors().factor_instances().is_empty())
     }
 
     mod multi_key {
@@ -257,7 +257,7 @@ mod key_derivation_tests {
                     BIP32_SECURIFIED_HALF + 2,
                 ]
                 .into_iter()
-                .map(HDPathComponent::new_from_base_index)
+                .map(HDPathComponent::new_from_index)
                 .map(|p| DerivationPath::new(Mainnet, Account, TransactionSigning, p)),
             );
 
@@ -271,7 +271,7 @@ mod key_derivation_tests {
                     BIP32_SECURIFIED_HALF + 2,
                 ]
                 .into_iter()
-                .map(HDPathComponent::new_from_base_index)
+                .map(HDPathComponent::new_from_index)
                 .map(|p| DerivationPath::new(Stokenet, Account, TransactionSigning, p)),
             );
 
@@ -285,7 +285,7 @@ mod key_derivation_tests {
                     BIP32_SECURIFIED_HALF + 2,
                 ]
                 .into_iter()
-                .map(HDPathComponent::new_from_base_index)
+                .map(HDPathComponent::new_from_index)
                 .map(|p| DerivationPath::new(Mainnet, Identity, TransactionSigning, p)),
             );
 
@@ -299,7 +299,7 @@ mod key_derivation_tests {
                     BIP32_SECURIFIED_HALF + 2,
                 ]
                 .into_iter()
-                .map(HDPathComponent::new_from_base_index)
+                .map(HDPathComponent::new_from_index)
                 .map(|p| DerivationPath::new(Stokenet, Identity, TransactionSigning, p)),
             );
 
@@ -313,7 +313,7 @@ mod key_derivation_tests {
                     BIP32_SECURIFIED_HALF + 2,
                 ]
                 .into_iter()
-                .map(HDPathComponent::new_from_base_index)
+                .map(HDPathComponent::new_from_index)
                 .map(|p| DerivationPath::new(Mainnet, Account, AuthenticationSigning, p)),
             );
 
@@ -327,7 +327,7 @@ mod key_derivation_tests {
                     BIP32_SECURIFIED_HALF + 2,
                 ]
                 .into_iter()
-                .map(HDPathComponent::new_from_base_index)
+                .map(HDPathComponent::new_from_index)
                 .map(|p| DerivationPath::new(Stokenet, Account, AuthenticationSigning, p)),
             );
 
@@ -341,7 +341,7 @@ mod key_derivation_tests {
                     BIP32_SECURIFIED_HALF + 2,
                 ]
                 .into_iter()
-                .map(HDPathComponent::new_from_base_index)
+                .map(HDPathComponent::new_from_index)
                 .map(|p| DerivationPath::new(Mainnet, Identity, AuthenticationSigning, p)),
             );
 
@@ -355,7 +355,7 @@ mod key_derivation_tests {
                     BIP32_SECURIFIED_HALF + 2,
                 ]
                 .into_iter()
-                .map(HDPathComponent::new_from_base_index)
+                .map(HDPathComponent::new_from_index)
                 .map(|p| DerivationPath::new(Stokenet, Identity, AuthenticationSigning, p)),
             );
 
@@ -378,7 +378,7 @@ mod key_derivation_tests {
                 paths
             );
 
-            assert!(outcome.all_factors().len() > 200);
+            assert!(outcome.all_factors().factor_instances().len() > 200);
 
             assert_eq!(
                 outcome
@@ -413,7 +413,7 @@ mod key_derivation_tests {
                 KeysCollector::with(factor_source, network_id, key_kind, entity_kind, key_space);
 
             let outcome = collector.collect_keys().await;
-            let factors = outcome.all_factors();
+            let factors = outcome.all_factors().factor_instances();
             assert_eq!(factors.len(), 1);
             let factor = factors.first().unwrap();
             assert_eq!(

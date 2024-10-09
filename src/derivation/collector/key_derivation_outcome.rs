@@ -24,7 +24,7 @@ impl KeyDerivationOutcome {
     }
 
     /// ALL factor instances derived by the KeysCollector
-    pub fn all_factors(&self) -> IndexSet<HierarchicalDeterministicFactorInstance> {
+    pub fn all_factors(&self) -> FactorInstances {
         self.factors_by_source
             .clone()
             .into_iter()

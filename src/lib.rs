@@ -7,7 +7,6 @@
 
 mod derivation;
 mod gateway;
-mod recovery_securify_cache;
 mod samples;
 mod signing;
 mod types;
@@ -21,7 +20,6 @@ pub mod prelude {
 
     pub(crate) use crate::samples::*;
 
-    pub use crate::recovery_securify_cache::*;
     pub use crate::signing::*;
     pub use crate::types::*;
 
@@ -33,17 +31,20 @@ pub mod prelude {
     pub(crate) use indexmap::{IndexMap, IndexSet};
     pub(crate) use itertools::Itertools;
     pub(crate) use std::cell::RefCell;
+    pub(crate) use std::cmp::Ordering;
     pub(crate) use std::future::Future;
     pub(crate) use std::ops::{Deref, DerefMut};
     pub(crate) use std::pin::Pin;
     pub(crate) use std::time::SystemTime;
     pub(crate) use uuid::Uuid;
 
+    pub(crate) use std::ops::Range;
+
     pub(crate) use sha2::{Digest, Sha256};
 
     pub(crate) use std::{
         collections::{HashMap, HashSet},
-        sync::{Arc, RwLock},
+        sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard},
     };
 
     pub(crate) use log::*;

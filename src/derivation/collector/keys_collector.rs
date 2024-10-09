@@ -15,15 +15,16 @@ pub struct KeysCollector {
 
     /// Mutable internal state of the collector which builds up the list
     /// of public keys from each used factor source.
-    state: RefCell<KeysCollectorState>,
+    state: RwLock<KeysCollectorState>,
 }
 
 impl KeysCollector {
     pub fn new(
         all_factor_sources_in_profile: impl IntoIterator<Item = HDFactorSource>,
-        derivation_paths: IndexMap<FactorSourceIDFromHash, IndexSet<DerivationPath>>,
+        derivation_paths: impl Into<IndexMap<FactorSourceIDFromHash, IndexSet<DerivationPath>>>,
         interactors: Arc<dyn KeysDerivationInteractors>,
     ) -> Result<Self> {
+        let derivation_paths = derivation_paths.into();
         let preprocessor = KeysCollectorPreprocessor::new(derivation_paths);
         Self::with_preprocessor(
             all_factor_sources_in_profile
@@ -47,7 +48,7 @@ impl KeysCollector {
 
         Ok(Self {
             dependencies,
-            state: RefCell::new(state),
+            state: RwLock::new(state),
         })
     }
 }
@@ -60,7 +61,7 @@ impl KeysCollector {
             .derive_with_factors() // in decreasing "friction order"
             .await
             .inspect_err(|e| error!("Failed to use factor sources: {:#?}", e));
-        self.state.into_inner().outcome()
+        self.state.into_inner().unwrap().outcome()
     }
 }
 
@@ -123,7 +124,11 @@ impl KeysCollector {
         &self,
         factor_source_id: &FactorSourceIDFromHash,
     ) -> Result<MonoFactorKeyDerivationRequest> {
-        let keyring = self.state.borrow().keyring_for(factor_source_id)?;
+        let keyring = self
+            .state
+            .try_read()
+            .unwrap()
+            .keyring_for(factor_source_id)?;
         assert_eq!(keyring.factors().len(), 0);
         let paths = keyring.paths.clone();
         Ok(MonoFactorKeyDerivationRequest::new(
@@ -156,6 +161,9 @@ impl KeysCollector {
     }
 
     fn process_batch_response(&self, response: KeyDerivationResponse) -> Result<()> {
-        self.state.borrow_mut().process_batch_response(response)
+        self.state
+            .try_write()
+            .unwrap()
+            .process_batch_response(response)
     }
 }
