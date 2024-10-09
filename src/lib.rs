@@ -6,7 +6,6 @@
 #![feature(step_trait)]
 
 mod derivation;
-mod factor_instances_provider;
 mod gateway;
 mod samples;
 mod signing;
@@ -21,7 +20,6 @@ pub mod prelude {
 
     pub(crate) use crate::samples::*;
 
-    pub use crate::factor_instances_provider::*;
     pub use crate::signing::*;
     pub use crate::types::*;
 
