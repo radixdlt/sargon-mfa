@@ -1039,6 +1039,9 @@ impl SecurifiedEntityControl {
     pub fn all_factor_instances(&self) -> IndexSet<HierarchicalDeterministicFactorInstance> {
         self.matrix.all_factors()
     }
+    pub fn primary_role_instances(&self) -> FactorInstances {
+        self.matrix.primary_role_instances()
+    }
     pub fn new(
         matrix: MatrixOfFactorInstances,
         access_controller: AccessController,
@@ -1768,6 +1771,13 @@ where
 
 pub type MatrixOfFactorInstances = MatrixOfFactors<HierarchicalDeterministicFactorInstance>;
 
+impl MatrixOfFactorInstances {
+    pub fn primary_role_instances(&self) -> FactorInstances {
+        // this is completely incorrect.
+        FactorInstances::from(self.all_factors())
+    }
+}
+
 fn sample_for_matrix_of_instances_from_account(account: Account) -> MatrixOfFactorInstances {
     account.security_state().into_securified().unwrap().matrix
 }
@@ -1804,7 +1814,8 @@ impl MatrixOfFactorInstances {
                         if let Some(existing) = instances
                         .get_mut(&f.factor_source_id()) {
                             assert!(!existing.is_empty());
-                            let instance = existing.swap_remove_index(0);
+                            println!("🐛 specifically: {:?}", existing.clone().factor_instances().iter().map(|f| f.derivation_entity_index()).collect_vec());
+                            let instance = existing.shift_remove_index(0);
                             Ok(instance)
                         } else {
                             Err(CommonError::MissingFactorMappingInstancesIntoMatrix)

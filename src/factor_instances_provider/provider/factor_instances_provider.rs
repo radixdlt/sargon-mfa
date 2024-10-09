@@ -1066,9 +1066,9 @@ mod tests {
                                 EntitySecurityState::Unsecured(veci) => Some(veci),
                                 EntitySecurityState::Securified(sec) => sec.veci.clone(),
                             };
+                            println!("🛡️assigning account: '{}' following matrix of instances: {:?}", a.name(), matrix_of_instances);
                             let sec =
                                 SecurifiedEntityControl::new(matrix_of_instances, access_controller, veci);
-
                             SecurifiedAccount::new(
                                 a.name(),
                                 a.entity_address(),
@@ -1566,7 +1566,7 @@ mod tests {
             3 * n
         );
 
-        let (_first_half_securified_accounts, stats) = os
+        let (first_half_securified_accounts, stats) = os
             .securify(
                 Accounts::new(NetworkID::Mainnet, first_half_of_accounts).unwrap(),
                 shield_0.clone(),
@@ -1579,7 +1579,25 @@ mod tests {
             "should have used cache"
         );
 
-        let (_second_half_securified_accounts, stats) = os
+        assert_eq!(
+            first_half_securified_accounts
+                .into_iter()
+                .map(|a| a
+                    .securified_entity_control()
+                    .primary_role_instances()
+                    .into_iter()
+                    .map(|f| f.derivation_entity_index())
+                    .map(|x| format!("{:?}", x))
+                    .next()
+                    .unwrap()) // single factor per role text
+                .collect_vec(),
+            [
+                "0^", "1^", "2^", "3^", "4^", "5^", "6^", "7^", "8^", "9^", "10^", "11^", "12^",
+                "13^", "14^"
+            ]
+        );
+
+        let (second_half_securified_accounts, stats) = os
             .securify(
                 Accounts::new(NetworkID::Mainnet, second_half_of_accounts).unwrap(),
                 shield_0,
@@ -1592,44 +1610,24 @@ mod tests {
             "should have derived more"
         );
 
-        // let alice_sec = securified_accounts
-        //     .clone()
-        //     .into_iter()
-        //     .find(|x| x.address() == alice.entity_address())
-        //     .unwrap();
-
-        // assert_eq!(
-        //     alice_sec.securified_entity_control().veci.unwrap().clone(),
-        //     alice.as_unsecurified().unwrap().veci().factor_instance()
-        // );
-        // let alice_matrix = alice_sec.securified_entity_control().matrix.clone();
-        // assert_eq!(alice_matrix.threshold, 2);
-
-        // assert_eq!(
-        //     alice_matrix
-        //         .all_factors()
-        //         .into_iter()
-        //         .map(|f| f.factor_source_id())
-        //         .collect_vec(),
-        //     [
-        //         bdfs.factor_source_id(),
-        //         ledger.factor_source_id(),
-        //         arculus.factor_source_id()
-        //     ]
-        // );
-
-        // assert_eq!(
-        //     alice_matrix
-        //         .all_factors()
-        //         .into_iter()
-        //         .map(|f| f.derivation_entity_index())
-        //         .collect_vec(),
-        //     [
-        //         HDPathComponent::securifying_base_index(0),
-        //         HDPathComponent::securifying_base_index(0),
-        //         HDPathComponent::securifying_base_index(0)
-        //     ]
-        // );
+        assert_eq!(
+            second_half_securified_accounts
+                .into_iter()
+                .map(|a| a
+                    .securified_entity_control()
+                    .primary_role_instances()
+                    .into_iter()
+                    .map(|f| f.derivation_entity_index())
+                    .map(|x| format!("{:?}", x))
+                    .next()
+                    .unwrap()) // single factor per role text
+                .collect_vec(),
+            [
+                "15^", "16^", "17^", "18^", "19^", "20^", "21^", "22^", "23^", "24^", "25^", "26^",
+                "27^", "28^", "29^", "30^", "31^", "32^", "33^", "34^", "35^", "36^", "37^", "38^",
+                "39^", "40^", "41^", "42^", "43^", "44^"
+            ]
+        );
     }
 
     #[actix_rt::test]
@@ -1687,7 +1685,7 @@ mod tests {
             3 * n
         );
 
-        let (_first_half_securified_accounts, stats) = os
+        let (first_half_securified_accounts, stats) = os
             .securify(
                 Accounts::new(NetworkID::Mainnet, first_half_of_accounts).unwrap(),
                 shield_0.clone(),
@@ -1700,7 +1698,37 @@ mod tests {
             "should have used cache"
         );
 
-        let (_second_half_securified_accounts, stats) = os
+        assert_eq!(
+            first_half_securified_accounts
+                .into_iter()
+                .map(|a| a
+                    .securified_entity_control()
+                    .primary_role_instances()
+                    .into_iter()
+                    .map(|f| f.derivation_entity_index())
+                    .map(|x| format!("{:?}", x))
+                    .collect_vec())
+                .collect_vec(),
+            [
+                ["0^", "0^", "0^"],
+                ["1^", "1^", "1^"],
+                ["2^", "2^", "2^"],
+                ["3^", "3^", "3^"],
+                ["4^", "4^", "4^"],
+                ["5^", "5^", "5^"],
+                ["6^", "6^", "6^"],
+                ["7^", "7^", "7^"],
+                ["8^", "8^", "8^"],
+                ["9^", "9^", "9^"],
+                ["10^", "10^", "10^"],
+                ["11^", "11^", "11^"],
+                ["12^", "12^", "12^"],
+                ["13^", "13^", "13^"],
+                ["14^", "14^", "14^"]
+            ]
+        );
+
+        let (second_half_securified_accounts, stats) = os
             .securify(
                 Accounts::new(NetworkID::Mainnet, second_half_of_accounts).unwrap(),
                 shield_0,
@@ -1713,43 +1741,54 @@ mod tests {
             "should have derived more"
         );
 
-        // let alice_sec = securified_accounts
-        //     .clone()
-        //     .into_iter()
-        //     .find(|x| x.address() == alice.entity_address())
-        //     .unwrap();
+        assert!(
+            stats.found_any_instances_in_cache_for_any_factor_source(),
+            "should have found some in cache"
+        );
 
-        // assert_eq!(
-        //     alice_sec.securified_entity_control().veci.unwrap().clone(),
-        //     alice.as_unsecurified().unwrap().veci().factor_instance()
-        // );
-        // let alice_matrix = alice_sec.securified_entity_control().matrix.clone();
-        // assert_eq!(alice_matrix.threshold, 2);
-
-        // assert_eq!(
-        //     alice_matrix
-        //         .all_factors()
-        //         .into_iter()
-        //         .map(|f| f.factor_source_id())
-        //         .collect_vec(),
-        //     [
-        //         bdfs.factor_source_id(),
-        //         ledger.factor_source_id(),
-        //         arculus.factor_source_id()
-        //     ]
-        // );
-
-        // assert_eq!(
-        //     alice_matrix
-        //         .all_factors()
-        //         .into_iter()
-        //         .map(|f| f.derivation_entity_index())
-        //         .collect_vec(),
-        //     [
-        //         HDPathComponent::securifying_base_index(0),
-        //         HDPathComponent::securifying_base_index(0),
-        //         HDPathComponent::securifying_base_index(0)
-        //     ]
-        // );
+        assert_eq!(
+            second_half_securified_accounts
+                .into_iter()
+                .map(|a| a
+                    .securified_entity_control()
+                    .primary_role_instances()
+                    .into_iter()
+                    .map(|f| f.derivation_entity_index())
+                    .map(|x| format!("{:?}", x))
+                    .collect_vec())
+                .collect_vec(),
+            [
+                ["15^", "15^", "15^"],
+                ["16^", "16^", "16^"],
+                ["17^", "17^", "17^"],
+                ["18^", "18^", "18^"],
+                ["19^", "19^", "19^"],
+                ["20^", "20^", "20^"],
+                ["21^", "21^", "21^"],
+                ["22^", "22^", "22^"],
+                ["23^", "23^", "23^"],
+                ["24^", "24^", "24^"],
+                ["25^", "25^", "25^"],
+                ["26^", "26^", "26^"],
+                ["27^", "27^", "27^"],
+                ["28^", "28^", "28^"],
+                ["29^", "29^", "29^"],
+                ["30^", "30^", "30^"],
+                ["31^", "31^", "31^"],
+                ["32^", "32^", "32^"],
+                ["33^", "33^", "33^"],
+                ["34^", "34^", "34^"],
+                ["35^", "35^", "35^"],
+                ["36^", "36^", "36^"],
+                ["37^", "37^", "37^"],
+                ["38^", "38^", "38^"],
+                ["39^", "39^", "39^"],
+                ["40^", "40^", "40^"],
+                ["41^", "41^", "41^"],
+                ["42^", "42^", "42^"],
+                ["43^", "43^", "43^"],
+                ["44^", "44^", "44^"]
+            ]
+        );
     }
 }

@@ -15,9 +15,9 @@ impl FactorInstances {
         let instances = instances.into_iter().collect::<IndexSet<_>>(); // remove duplicates
         self.factor_instances.extend(instances);
     }
-    pub fn swap_remove_index(&mut self, index: usize) -> HierarchicalDeterministicFactorInstance {
+    pub fn shift_remove_index(&mut self, index: usize) -> HierarchicalDeterministicFactorInstance {
         self.factor_instances
-            .swap_remove_index(index)
+            .shift_remove_index(index)
             .expect("correct index")
     }
     pub fn first(&self) -> Option<HierarchicalDeterministicFactorInstance> {
