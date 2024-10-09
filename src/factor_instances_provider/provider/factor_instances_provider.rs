@@ -4,6 +4,23 @@ use itertools::cloned;
 
 use crate::prelude::*;
 
+/// A coordinator between a cache, an optional profile and the KeysCollector.
+///
+/// We can ask this type to provide FactorInstances for some operation, either
+/// creation of new virtual accounts or securifying accounts (or analogously for identities).
+/// It will try to read instances from the cache, if any, and if there are not enough instances
+/// in the cache, it will derive more instances and save them into the cache.
+///
+/// We are always reading from the beginning of each FactorInstance collection in the cache,
+/// and we are always appending to the end.
+///
+/// Whenever we need to derive more, we always derive for all `IndexAgnosticPath` "presets",
+/// i.e. we are not only filling the cache with factor instances relevant to the operation
+/// but rather we are filling the cache with factor instances for all kinds of operations, i.e.
+/// if we did not have `CACHE_FILLING_QUANTITY` instances for "account_mfa", when we tried
+/// to read "account_veci" instances, we will derive more "account_mfa" instances as well,
+/// so many that at the end of execution we will have `CACHE_FILLING_QUANTITY` instances for
+/// both "account_veci" and "account_mfa" (and same for identities).
 pub struct FactorInstancesProvider;
 
 impl FactorInstancesProvider {
@@ -60,6 +77,9 @@ impl FactorInstancesProvider {
     /// and saves into the cache and returns a collection of instances, split into
     /// factor instance to use directly and factor instances which was cached, into
     /// the mutable `cache` parameter.
+    ///
+    /// We are always reading from the beginning of each FactorInstance collection in the cache,
+    /// and we are always appending to the end.
     pub async fn for_account_veci(
         cache: &mut Cache,
         profile: Option<Profile>,
@@ -92,6 +112,17 @@ impl FactorInstancesProvider {
         Ok(outcome.into())
     }
 
+    /// Reads FactorInstances for every `factor_source` in matrix_of_factor_sources
+    /// on `network_id` of kind `account_mfa`,
+    /// meaning `(EntityKind::Account, KeyKind::TransactionSigning, KeySpace::Securified)`,
+    /// from cache, if any, otherwise derives more of that kind AND other kinds:
+    /// identity_veci, account_veci, identity_mfa
+    /// and saves into the cache and returns a collection of instances, per factor source,
+    /// split into factor instance to use directly and factor instances which was cached, into
+    /// the mutable `cache` parameter.
+    ///
+    /// We are always reading from the beginning of each FactorInstance collection in the cache,
+    /// and we are always appending to the end.
     pub async fn for_account_mfa(
         cache: &mut Cache,
         matrix_of_factor_sources: MatrixOfFactorSources,
@@ -163,8 +194,13 @@ impl FactorInstancesProvider {
         next_index_assigner: &NextDerivationEntityIndexAssigner,
         interactors: Arc<dyn KeysDerivationInteractors>,
     ) -> Result<FactorInstancesProviderOutcomeNonFinal> {
+        // clone cache so that we do not mutate the cache itself, later, if
+        // derivation is successful, we will write back the changes made to
+        // this cloned cache, on top of which we will save the newly derived
+        // instances.
         let mut cloned_cache = cache.clone();
 
+        // take (consume) the cache and derive more instances if necessary
         let outcome = Self::with_copy_of_cache(
             network_id,
             &mut cloned_cache,
@@ -175,23 +211,30 @@ impl FactorInstancesProvider {
         )
         .await?;
 
+        // derivation was successful, safe to write back the changes to the cache
         *cache = cloned_cache;
 
+        // and now lets save all `to_cache` (newly derived minus enough instances
+        // to satisfy the initial request) into the cache.
         cache.insert_all(
             outcome
                 .per_factor
                 .clone()
                 .into_iter()
-                .map(|(k, v)| (k, v.to_cache))
+                .map(|(k, v)| {
+                    // We are only saving the instances `to_cache` into the cache,
+                    // the other instances should be used directly (if any).
+                    let to_cache = v.to_cache;
+                    (k, to_cache)
+                })
                 .collect::<IndexMap<_, _>>(),
         )?;
 
         Ok(outcome)
     }
 
-    /// Supports loading many account vecis OR account mfa OR identity vecis OR identity mfa
-    /// at once, does NOT support loading a mix of these. We COULD, but that would
-    /// make the code more complex and we don't need it.
+    /// You should pass this a clone of the cache and not the cache itself.
+    /// since this mutates the cache.
     #[allow(clippy::nonminimal_bool)]
     async fn with_copy_of_cache(
         network_id: NetworkID,
@@ -214,6 +257,8 @@ impl FactorInstancesProvider {
         let mut pf_quantity_remaining_not_satisfied_by_cache =
             IndexMap::<FactorSourceIDFromHash, QuantifiedNetworkIndexAgnosticPath>::new();
 
+        // if false we will not derive any more instances, we could satisfy the request
+        // with what we found in the cache.
         let mut need_to_derive_more_instances: bool = false;
 
         for (factor_source_id, quantified_agnostic_path) in
@@ -223,27 +268,50 @@ impl FactorInstancesProvider {
             let unsatisfied_quantity: usize;
             let cache_key =
                 IndexAgnosticPath::from((network_id, quantified_agnostic_path.agnostic_path));
+
+            // the quantity of factor instances needed to satisfy the request
+            // this will be `0` in case of PRE_DERIVE_KEYS_FOR_NEW_FACTOR_SOURCE (hacky).
+            // this will be `accounts.len()` in case of `for_account_mfa` (and analog for identities) and will
+            // be `1` for account_veci / identity_veci.
             let quantity = quantified_agnostic_path.quantity;
+
+            // we are mutating the cache, reading out `quantity` OR LESS instances.
+            // we must check how many we got
             match cache.remove(factor_source_id, &cache_key, quantity) {
+                // Found nothing in the cache
                 QuantityOutcome::Empty => {
+                    // need to derive more since cache was empty
                     need_to_derive_more_instances = true;
+                    // nothing found in the cache, use empty...
                     from_cache = FactorInstances::default();
+                    // ALL `quantity` many instances are "unsatisfied".
                     unsatisfied_quantity = quantity;
                 }
+                // Found some instances in the cache, but `remaining` many are still needed
                 QuantityOutcome::Partial {
                     instances,
                     remaining,
                 } => {
+                    // we need to derive more since cache could only partially satisfy the request
                     need_to_derive_more_instances = true;
+                    // use all found (and we will need to derive more)
                     from_cache = instances;
+                    // `remaining` many instances are "unsatisfied", for this factor source
                     unsatisfied_quantity = remaining;
                 }
+                // Found all instances needed in the cache
                 QuantityOutcome::Full { instances } => {
-                    need_to_derive_more_instances = false || need_to_derive_more_instances;
+                    // we do not set `need_to_derive_more_instances` to `false`
+                    // since an earlier iteration might have set it to true (for another factor source).
+                    // so we do not change it.
+
+                    // use all found (and we will not need to derive more for this factor source)
                     from_cache = instances;
+                    // none unsatisfied for this factor source.
                     unsatisfied_quantity = 0;
                 }
             }
+
             if unsatisfied_quantity > 0 {
                 pf_quantity_remaining_not_satisfied_by_cache.insert(
                     *factor_source_id,
