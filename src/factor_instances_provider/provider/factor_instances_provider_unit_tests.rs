@@ -417,6 +417,36 @@ async fn adding_accounts_and_clearing_cache_in_between() {
 }
 
 #[actix_rt::test]
+async fn adding_personas_and_clearing_cache_in_between() {
+    let (mut os, _) = SargonOS::with_bdfs().await;
+    assert!(os.profile_snapshot().get_personas().is_empty());
+    let (batman, stats) = os.new_mainnet_persona_with_bdfs("Batman").await.unwrap();
+
+    assert_eq!(
+        batman
+            .clone()
+            .security_state
+            .into_unsecured()
+            .unwrap()
+            .derivation_path()
+            .entity_kind,
+        CAP26EntityKind::Identity
+    );
+    assert!(!stats.debug_found_in_cache.is_empty());
+    assert!(stats.debug_was_cached.is_empty());
+    assert!(stats.debug_was_derived.is_empty());
+    os.clear_cache();
+
+    let (satoshi, stats) = os.new_mainnet_persona_with_bdfs("Satoshi").await.unwrap();
+    assert!(stats.debug_found_in_cache.is_empty());
+    assert!(!stats.debug_was_cached.is_empty());
+    assert!(!stats.debug_was_derived.is_empty());
+    assert_ne!(batman, satoshi);
+
+    assert_eq!(os.profile_snapshot().get_personas().len(), 2);
+}
+
+#[actix_rt::test]
 async fn adding_accounts_different_networks_different_factor_sources() {
     let mut os = SargonOS::new();
     assert_eq!(os.cache_snapshot().total_number_of_factor_instances(), 0);

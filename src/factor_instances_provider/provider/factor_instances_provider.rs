@@ -87,6 +87,35 @@ impl FactorInstancesProvider {
         network_id: NetworkID,
         interactors: Arc<dyn KeysDerivationInteractors>,
     ) -> Result<FactorInstancesProviderOutcomeForFactor> {
+        Self::for_entity_veci(
+            cache,
+            CAP26EntityKind::Account,
+            profile,
+            factor_source,
+            network_id,
+            interactors,
+        )
+        .await
+    }
+
+    /// Reads FactorInstances for `factor_source` on `network_id` of kind `account_veci`,
+    /// meaning `(EntityKind::Account, KeyKind::TransactionSigning, KeySpace::Unsecurified)`,
+    /// from cache, if any, otherwise derives more of that kind AND other kinds:
+    /// identity_veci, account_mfa, identity_mfa
+    /// and saves into the cache and returns a collection of instances, split into
+    /// factor instance to use directly and factor instances which was cached, into
+    /// the mutable `cache` parameter.
+    ///
+    /// We are always reading from the beginning of each FactorInstance collection in the cache,
+    /// and we are always appending to the end.
+    pub async fn for_entity_veci(
+        cache: &mut FactorInstancesCache,
+        entity_kind: CAP26EntityKind,
+        profile: Option<Profile>,
+        factor_source: HDFactorSource,
+        network_id: NetworkID,
+        interactors: Arc<dyn KeysDerivationInteractors>,
+    ) -> Result<FactorInstancesProviderOutcomeForFactor> {
         let outcome = Self::with(
             network_id,
             cache,
@@ -95,7 +124,7 @@ impl FactorInstancesProvider {
                 factor_source.factor_source_id(),
                 QuantifiedNetworkIndexAgnosticPath {
                     quantity: 1,
-                    agnostic_path: NetworkIndexAgnosticPath::account_veci(),
+                    agnostic_path: NetworkIndexAgnosticPath::veci_entity_kind(entity_kind),
                 },
             ),
             &NextDerivationEntityIndexAssigner::new(network_id, profile),

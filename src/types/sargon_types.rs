@@ -2236,6 +2236,10 @@ impl Profile {
         self.get_entities()
     }
 
+    pub fn get_personas(&self) -> IndexSet<Persona> {
+        self.get_entities()
+    }
+
     /// assumes mainnet accounts and mainnet personas
     pub fn new<'a, 'p>(
         factor_sources: impl IntoIterator<Item = HDFactorSource>,

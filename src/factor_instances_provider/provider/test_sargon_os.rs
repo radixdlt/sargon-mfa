@@ -5,6 +5,7 @@ use crate::prelude::*;
 /// Should be merged with SargonOS in Sargon repo...
 /// contains three fundamentally new methods:
 /// * new_account (using `FactorInstancesProvider`)
+/// * new_persona (using `FactorInstancesProvider`)
 /// * securify_accounts (using `FactorInstancesProvider`)
 /// * add_factor_source (using `FactorInstancesProvider`)
 pub(super) struct SargonOS {
@@ -64,9 +65,44 @@ impl SargonOS {
         network: NetworkID,
         name: impl AsRef<str>,
     ) -> Result<(Account, FactorInstancesProviderOutcomeForFactor)> {
+        self.new_entity(factor_source, network, name).await
+    }
+
+    pub(super) async fn new_mainnet_persona_with_bdfs(
+        &mut self,
+        name: impl AsRef<str>,
+    ) -> Result<(Persona, FactorInstancesProviderOutcomeForFactor)> {
+        self.new_persona_with_bdfs(NetworkID::Mainnet, name).await
+    }
+
+    pub(super) async fn new_persona_with_bdfs(
+        &mut self,
+        network: NetworkID,
+        name: impl AsRef<str>,
+    ) -> Result<(Persona, FactorInstancesProviderOutcomeForFactor)> {
+        let bdfs = self.profile_snapshot().bdfs();
+        self.new_persona(bdfs, network, name).await
+    }
+
+    pub(super) async fn new_persona(
+        &mut self,
+        factor_source: HDFactorSource,
+        network: NetworkID,
+        name: impl AsRef<str>,
+    ) -> Result<(Persona, FactorInstancesProviderOutcomeForFactor)> {
+        self.new_entity(factor_source, network, name).await
+    }
+
+    pub(super) async fn new_entity<E: IsEntity>(
+        &mut self,
+        factor_source: HDFactorSource,
+        network: NetworkID,
+        name: impl AsRef<str>,
+    ) -> Result<(E, FactorInstancesProviderOutcomeForFactor)> {
         let profile_snapshot = self.profile_snapshot();
-        let outcome = FactorInstancesProvider::for_account_veci(
+        let outcome = FactorInstancesProvider::for_entity_veci(
             &mut self.cache,
+            E::kind(),
             Some(profile_snapshot),
             factor_source.clone(),
             network,
@@ -82,19 +118,23 @@ impl SargonOS {
         assert_eq!(instances_to_use_directly.len(), 1);
         let instance = instances_to_use_directly.first().unwrap();
 
-        let address = AccountAddress::new(network, instance.public_key_hash());
-        let account = Account::new(
+        let address = E::Address::new(network, instance.public_key_hash());
+        let security_state = EntitySecurityState::Unsecured(instance);
+        let entity = E::new(
             name,
             address,
-            EntitySecurityState::Unsecured(instance),
+            security_state,
             ThirdPartyDepositPreference::default(),
         );
         self.profile
             .try_write()
             .unwrap()
-            .add_account(&account)
+            .insert_entities(IndexSet::just(Into::<AccountOrPersona>::into(
+                entity.clone(),
+            )))
             .unwrap();
-        Ok((account, outcome_for_factor))
+
+        Ok((entity, outcome_for_factor))
     }
 
     pub(super) async fn securify(

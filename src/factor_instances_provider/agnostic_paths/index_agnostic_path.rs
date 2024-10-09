@@ -18,14 +18,17 @@ impl NetworkIndexAgnosticPath {
     fn transaction_signing(entity_kind: CAP26EntityKind, key_space: KeySpace) -> Self {
         Self::new(entity_kind, CAP26KeyKind::TransactionSigning, key_space)
     }
+    pub fn veci_entity_kind(entity_kind: CAP26EntityKind) -> Self {
+        Self::transaction_signing(entity_kind, KeySpace::Unsecurified)
+    }
     pub fn account_veci() -> Self {
-        Self::transaction_signing(CAP26EntityKind::Account, KeySpace::Unsecurified)
+        Self::veci_entity_kind(CAP26EntityKind::Account)
     }
     pub fn account_mfa() -> Self {
         Self::transaction_signing(CAP26EntityKind::Account, KeySpace::Securified)
     }
     pub fn identity_veci() -> Self {
-        Self::transaction_signing(CAP26EntityKind::Identity, KeySpace::Unsecurified)
+        Self::veci_entity_kind(CAP26EntityKind::Identity)
     }
     pub fn identity_mfa() -> Self {
         Self::transaction_signing(CAP26EntityKind::Identity, KeySpace::Securified)
