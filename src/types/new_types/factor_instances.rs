@@ -1,9 +1,11 @@
 use crate::prelude::*;
 
 /// A collection of factor instances.
-#[derive(Debug, Default, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct FactorInstances {
-    factor_instances: Vec<HierarchicalDeterministicFactorInstance>,
+    #[allow(dead_code)]
+    hidden: HiddenConstructor,
+    factor_instances: IndexSet<HierarchicalDeterministicFactorInstance>,
 }
 impl FactorInstances {
     pub fn extend(
@@ -11,8 +13,12 @@ impl FactorInstances {
         instances: impl IntoIterator<Item = HierarchicalDeterministicFactorInstance>,
     ) {
         let instances = instances.into_iter().collect::<IndexSet<_>>(); // remove duplicates
+        self.factor_instances.extend(instances);
+    }
+    pub fn swap_remove_index(&mut self, index: usize) -> HierarchicalDeterministicFactorInstance {
         self.factor_instances
-            .extend(instances.into_iter().collect_vec());
+            .swap_remove_index(index)
+            .expect("correct index")
     }
     pub fn first(&self) -> Option<HierarchicalDeterministicFactorInstance> {
         self.factor_instances.first().cloned()
@@ -36,13 +42,13 @@ impl FactorInstances {
         instances: impl Into<IndexSet<HierarchicalDeterministicFactorInstance>>,
     ) {
         let to_append: IndexSet<_> = instances.into();
-        let mut values = self.factor_instances();
-        values.extend(to_append);
-        self.factor_instances = values.into_iter().collect_vec()
+        self.factor_instances.extend(to_append);
     }
+
     pub fn is_empty(&self) -> bool {
         self.factor_instances.is_empty()
     }
+
     pub fn len(&self) -> usize {
         self.factor_instances.len()
     }
@@ -64,23 +70,14 @@ impl FromIterator<HierarchicalDeterministicFactorInstance> for FactorInstances {
 }
 
 impl FactorInstances {
-    pub fn new(instances: IndexSet<HierarchicalDeterministicFactorInstance>) -> Self {
+    pub fn new(factor_instances: IndexSet<HierarchicalDeterministicFactorInstance>) -> Self {
         Self {
-            factor_instances: instances.into_iter().collect(),
+            hidden: HiddenConstructor,
+            factor_instances,
         }
     }
     pub fn factor_instances(&self) -> IndexSet<HierarchicalDeterministicFactorInstance> {
-        let instances = self
-            .factor_instances
-            .iter()
-            .cloned()
-            .collect::<IndexSet<_>>();
-        assert_eq!(
-            instances.len(),
-            self.factor_instances.len(),
-            "DUPLICATE FOUND, this is programmer error",
-        );
-        instances
+        self.factor_instances.clone()
     }
 }
 

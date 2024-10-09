@@ -1,5 +1,6 @@
 use std::iter::Step;
 use std::marker::PhantomData;
+use std::ops::Add;
 
 use indexmap::map::Keys;
 
@@ -1783,24 +1784,31 @@ impl HasSampleValues for MatrixOfFactorInstances {
 
 impl MatrixOfFactorInstances {
     pub fn fulfilling_matrix_of_factor_sources_with_instances(
-        instances: impl IntoIterator<Item = HierarchicalDeterministicFactorInstance>,
+        instances: &mut IndexMap<FactorSourceIDFromHash, FactorInstances>,
         matrix_of_factor_sources: MatrixOfFactorSources,
     ) -> Result<Self> {
-        let instances = instances.into_iter().collect_vec();
+        println!(
+            "🐛 instances: #{:?}",
+            instances
+                .values()
+                .map(|x| x.len())
+                .reduce(Add::add)
+                .unwrap_or_default()
+        );
 
-        println!("🐛 instances: #{:?}", instances.len());
-
-        let get_factors =
+        let mut get_factors =
             |required: Vec<HDFactorSource>| -> Result<Vec<HierarchicalDeterministicFactorInstance>> {
                 required
                     .iter()
                     .map(|f| {
-                        instances
-                            .iter()
-                            .find(|i| i.factor_source_id() == f.factor_source_id())
-                            .cloned()
-                            .ok_or(CommonError::MissingFactorMappingInstancesIntoMatrix)
-                            .inspect_err(|e| println!("🙅‍♀️ error {:?}, instances did not contain required factor with ID: {}", e, f.factor_source_id()))
+                        if let Some(existing) = instances
+                        .get_mut(&f.factor_source_id()) {
+                            assert!(!existing.is_empty());
+                            let instance = existing.swap_remove_index(0);
+                            Ok(instance)
+                        } else {
+                            Err(CommonError::MissingFactorMappingInstancesIntoMatrix)
+                        }
                         })
                     .collect::<Result<Vec<HierarchicalDeterministicFactorInstance>>>()
             };

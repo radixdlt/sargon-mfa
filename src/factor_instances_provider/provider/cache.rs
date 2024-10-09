@@ -34,7 +34,11 @@ impl Cache {
                                 .first()
                                 .unwrap()
                                 .derivation_entity_base_index(),
-                            "non contiguous indices"
+                            "⁉️ non contiguous indices found for factor: {}\n\n, agnostic_path: {:?},\n\n🍭existing_for_path: {:?},\n\n🎃newly_derived_to_insert: {:?}",
+                            factor_source_id,
+                            agnostic_path,
+                            existing_for_path.factor_instances().iter().map(|x| x.derivation_entity_index()).collect_vec(),
+                            instances.factor_instances().iter().map(|x| x.derivation_entity_index()).collect_vec(),
                         )
                     }
                     existing_for_path.extend(instances);

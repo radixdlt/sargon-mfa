@@ -90,8 +90,24 @@ impl FactorInstancesProviderOutcomeForFactor {
     }
 }
 
+#[derive(Clone, Debug)]
 pub struct FactorInstancesProviderOutcome {
     pub per_factor: IndexMap<FactorSourceIDFromHash, FactorInstancesProviderOutcomeForFactor>,
+}
+#[cfg(test)]
+impl FactorInstancesProviderOutcome {
+    pub fn newly_derived_instances_from_all_factor_sources(&self) -> FactorInstances {
+        self.per_factor
+            .values()
+            .flat_map(|x| x.newly_derived.factor_instances())
+            .collect()
+    }
+    pub fn total_number_of_newly_derived_instances(&self) -> usize {
+        self.newly_derived_instances_from_all_factor_sources().len()
+    }
+    pub fn derived_any_new_instance_for_any_factor_source(&self) -> bool {
+        self.total_number_of_newly_derived_instances() > 0
+    }
 }
 impl FactorInstancesProviderOutcome {
     pub fn new(
