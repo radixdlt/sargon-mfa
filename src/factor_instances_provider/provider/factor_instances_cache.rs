@@ -3,12 +3,12 @@ use std::ops::Add;
 use crate::prelude::*;
 
 #[derive(Debug, Default, Clone)]
-pub struct Cache {
-    /// PER FactorSource PER IndexAgnosticPath some value T
+pub struct FactorInstancesCache {
+    /// PER FactorSource PER IndexAgnosticPath FactorInstances (matching that IndexAgnosticPath)
     pub values: HashMap<FactorSourceIDFromHash, HashMap<IndexAgnosticPath, FactorInstances>>,
 }
 
-impl Cache {
+impl FactorInstancesCache {
     pub fn insert_for_factor(
         &mut self,
         factor_source_id: FactorSourceIDFromHash,
@@ -98,7 +98,7 @@ pub enum QuantityOutcome {
         instances: FactorInstances,
     },
 }
-impl Cache {
+impl FactorInstancesCache {
     fn __remove(
         &mut self,
         factor_source_id: &FactorSourceIDFromHash,
@@ -148,7 +148,7 @@ impl Cache {
 }
 
 #[cfg(test)]
-impl Cache {
+impl FactorInstancesCache {
     pub fn is_full(&self, network_id: NetworkID, factor_source_id: FactorSourceIDFromHash) -> bool {
         let count: usize = self
             .values

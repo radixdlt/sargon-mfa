@@ -82,7 +82,7 @@ async fn cache_is_always_filled_account_veci_then_after_all_used_we_start_over_a
 ) {
     let network = NetworkID::Mainnet;
     let bdfs = HDFactorSource::sample();
-    let mut cache = Cache::default();
+    let mut cache = FactorInstancesCache::default();
 
     let outcome = Sut::for_account_veci(
         &mut cache,

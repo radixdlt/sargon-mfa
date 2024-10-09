@@ -28,12 +28,12 @@ impl FactorInstancesProvider {
     /// Saves FactorInstances into the mutable `cache` parameter and returns a
     /// copy of the instances.
     pub async fn for_new_factor_source(
-        cache: &mut Cache,
+        cache: &mut FactorInstancesCache,
         profile: Option<Profile>,
         factor_source: HDFactorSource,
         network_id: NetworkID, // typically mainnet
         interactors: Arc<dyn KeysDerivationInteractors>,
-    ) -> Result<FactorInstancesProviderOutcomeForFactorFinal> {
+    ) -> Result<FactorInstancesProviderOutcomeForFactor> {
         // This is hacky! We are using `account_veci` as agnostic_path, we could
         // have used any other value... we are not going to use any instances directly
         // at all, why we specify `0` here, we piggyback on the rest of the logic
@@ -81,12 +81,12 @@ impl FactorInstancesProvider {
     /// We are always reading from the beginning of each FactorInstance collection in the cache,
     /// and we are always appending to the end.
     pub async fn for_account_veci(
-        cache: &mut Cache,
+        cache: &mut FactorInstancesCache,
         profile: Option<Profile>,
         factor_source: HDFactorSource,
         network_id: NetworkID,
         interactors: Arc<dyn KeysDerivationInteractors>,
-    ) -> Result<FactorInstancesProviderOutcomeForFactorFinal> {
+    ) -> Result<FactorInstancesProviderOutcomeForFactor> {
         let outcome = Self::with(
             network_id,
             cache,
@@ -124,12 +124,12 @@ impl FactorInstancesProvider {
     /// We are always reading from the beginning of each FactorInstance collection in the cache,
     /// and we are always appending to the end.
     pub async fn for_account_mfa(
-        cache: &mut Cache,
+        cache: &mut FactorInstancesCache,
         matrix_of_factor_sources: MatrixOfFactorSources,
         profile: Profile,
         accounts: IndexSet<AccountAddress>,
         interactors: Arc<dyn KeysDerivationInteractors>,
-    ) -> Result<FactorInstancesProviderOutcomeFinal> {
+    ) -> Result<FactorInstancesProviderOutcome> {
         let factor_sources_to_use = matrix_of_factor_sources.all_factors();
         let factor_sources = profile.factor_sources.clone();
         assert!(
@@ -185,7 +185,7 @@ impl FactorInstancesProvider {
 impl FactorInstancesProvider {
     async fn with(
         network_id: NetworkID,
-        cache: &mut Cache,
+        cache: &mut FactorInstancesCache,
         factor_sources: IndexSet<HDFactorSource>,
         index_agnostic_path_and_quantity_per_factor_source: IndexMap<
             FactorSourceIDFromHash,
@@ -193,7 +193,7 @@ impl FactorInstancesProvider {
         >,
         next_index_assigner: &NextDerivationEntityIndexAssigner,
         interactors: Arc<dyn KeysDerivationInteractors>,
-    ) -> Result<FactorInstancesProviderOutcomeNonFinal> {
+    ) -> Result<InternalFactorInstancesProviderOutcome> {
         // clone cache so that we do not mutate the cache itself, later, if
         // derivation is successful, we will write back the changes made to
         // this cloned cache, on top of which we will save the newly derived
@@ -238,7 +238,7 @@ impl FactorInstancesProvider {
     #[allow(clippy::nonminimal_bool)]
     async fn with_copy_of_cache(
         network_id: NetworkID,
-        cache: &mut Cache,
+        cache: &mut FactorInstancesCache,
         factor_sources: IndexSet<HDFactorSource>,
         index_agnostic_path_and_quantity_per_factor_source: IndexMap<
             FactorSourceIDFromHash,
@@ -246,7 +246,7 @@ impl FactorInstancesProvider {
         >,
         next_index_assigner: &NextDerivationEntityIndexAssigner,
         interactors: Arc<dyn KeysDerivationInteractors>,
-    ) -> Result<FactorInstancesProviderOutcomeNonFinal> {
+    ) -> Result<InternalFactorInstancesProviderOutcome> {
         // `pf` is short for `Per FactorSource`
         let mut pf_found_in_cache = IndexMap::<FactorSourceIDFromHash, FactorInstances>::new();
 
@@ -327,7 +327,7 @@ impl FactorInstancesProvider {
         }
 
         if !need_to_derive_more_instances {
-            return Ok(FactorInstancesProviderOutcomeNonFinal::satisfied_by_cache(
+            return Ok(InternalFactorInstancesProviderOutcome::satisfied_by_cache(
                 pf_found_in_cache,
             ));
         }
@@ -348,7 +348,7 @@ impl FactorInstancesProvider {
     #[allow(clippy::too_many_arguments)]
     async fn derive_more_instances(
         network_id: NetworkID,
-        cache: &mut Cache,
+        cache: &mut FactorInstancesCache,
         next_index_assigner: &NextDerivationEntityIndexAssigner,
         interactors: Arc<dyn KeysDerivationInteractors>,
         factor_sources: IndexSet<HDFactorSource>,
@@ -361,7 +361,7 @@ impl FactorInstancesProvider {
             QuantifiedNetworkIndexAgnosticPath,
         >,
         pf_found_in_cache: IndexMap<FactorSourceIDFromHash, FactorInstances>,
-    ) -> Result<FactorInstancesProviderOutcomeNonFinal> {
+    ) -> Result<InternalFactorInstancesProviderOutcome> {
         let mut pf_quantified_network_agnostic_paths_for_derivation = IndexMap::<
             FactorSourceIDFromHash,
             IndexSet<QuantifiedToCacheToUseNetworkIndexAgnosticPath>,
@@ -552,7 +552,7 @@ impl FactorInstancesProvider {
             }
         }
 
-        let outcome = FactorInstancesProviderOutcomeNonFinal::transpose(
+        let outcome = InternalFactorInstancesProviderOutcome::transpose(
             pf_to_cache,
             pf_to_use_directly
                 .into_iter()

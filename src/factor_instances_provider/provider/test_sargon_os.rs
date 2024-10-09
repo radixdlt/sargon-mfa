@@ -2,8 +2,14 @@
 
 use crate::prelude::*;
 
+/// Should be merged with SargonOS in Sargon repo...
+/// contains three fundamentally new methods:
+/// * new_account (using `FactorInstancesProvider`)
+/// * securify_accounts (using `FactorInstancesProvider`)
+/// * add_factor_source (using `FactorInstancesProvider`)
 pub(super) struct SargonOS {
-    cache: Cache,
+    /// FactorInstancesCache of prederived FactorInstances for each factor source in Profile.
+    cache: FactorInstancesCache,
     profile: RwLock<Profile>,
 }
 
@@ -15,7 +21,7 @@ impl SargonOS {
     pub(super) fn new() -> Self {
         Arc::new(TestDerivationInteractors::default());
         Self {
-            cache: Cache::default(),
+            cache: FactorInstancesCache::default(),
             profile: RwLock::new(Profile::default()),
         }
     }
@@ -27,19 +33,19 @@ impl SargonOS {
         (self_, bdfs)
     }
 
-    pub(super) fn cache_snapshot(&self) -> Cache {
+    pub(super) fn cache_snapshot(&self) -> FactorInstancesCache {
         self.cache.clone()
     }
 
     pub(super) fn clear_cache(&mut self) {
         println!("💣 CLEAR CACHE");
-        self.cache = Cache::default()
+        self.cache = FactorInstancesCache::default()
     }
 
     pub(super) async fn new_mainnet_account_with_bdfs(
         &mut self,
         name: impl AsRef<str>,
-    ) -> Result<(Account, FactorInstancesProviderOutcomeForFactorFinal)> {
+    ) -> Result<(Account, FactorInstancesProviderOutcomeForFactor)> {
         self.new_account_with_bdfs(NetworkID::Mainnet, name).await
     }
 
@@ -47,7 +53,7 @@ impl SargonOS {
         &mut self,
         network: NetworkID,
         name: impl AsRef<str>,
-    ) -> Result<(Account, FactorInstancesProviderOutcomeForFactorFinal)> {
+    ) -> Result<(Account, FactorInstancesProviderOutcomeForFactor)> {
         let bdfs = self.profile_snapshot().bdfs();
         self.new_account(bdfs, network, name).await
     }
@@ -57,7 +63,7 @@ impl SargonOS {
         factor_source: HDFactorSource,
         network: NetworkID,
         name: impl AsRef<str>,
-    ) -> Result<(Account, FactorInstancesProviderOutcomeForFactorFinal)> {
+    ) -> Result<(Account, FactorInstancesProviderOutcomeForFactor)> {
         let profile_snapshot = self.profile_snapshot();
         let outcome = FactorInstancesProvider::for_account_veci(
             &mut self.cache,
@@ -95,7 +101,7 @@ impl SargonOS {
         &mut self,
         accounts: Accounts,
         shield: MatrixOfFactorSources,
-    ) -> Result<(SecurifiedAccounts, FactorInstancesProviderOutcomeFinal)> {
+    ) -> Result<(SecurifiedAccounts, FactorInstancesProviderOutcome)> {
         let profile_snapshot = self.profile_snapshot();
 
         let outcome = FactorInstancesProvider::for_account_mfa(
@@ -162,6 +168,7 @@ impl SargonOS {
         SecurifiedAccounts::new(accounts.network_id(), updated_accounts).map(|x| (x, outcome))
     }
 
+    /// Pre-Derives FactorInstances and saves them into the cache
     pub(super) async fn add_factor_source(&mut self, factor_source: HDFactorSource) -> Result<()> {
         let profile_snapshot = self.profile_snapshot();
         assert!(
