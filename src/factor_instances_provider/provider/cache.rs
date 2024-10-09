@@ -20,12 +20,26 @@ impl Cache {
             .into_iter()
             .into_group_map_by(|f| f.agnostic_path())
             .into_iter()
-            .map(|(k, v)| (k, FactorInstances::from_iter(v)))
+            .map(|(k, v)| {
+                assert!(v
+                    .iter()
+                    .all(|f| f.factor_source_id == factor_source_id && f.agnostic_path() == k));
+                (k, FactorInstances::from_iter(v))
+            })
             .collect::<HashMap<IndexAgnosticPath, FactorInstances>>();
 
         if let Some(existing_for_factor) = self.values.get_mut(&factor_source_id) {
             for (agnostic_path, instances) in instances_by_agnostic_path {
                 if let Some(existing_for_path) = existing_for_factor.get_mut(&agnostic_path) {
+                    println!("🧚‍♀️🧚‍♀️🧚‍♀️ path: {:?}", agnostic_path);
+                    println!(
+                        "👻👻👻 existing_for_path: {:?}",
+                        existing_for_path
+                            .clone()
+                            .into_iter()
+                            .map(|f| f.derivation_entity_index())
+                            .collect_vec()
+                    );
                     if let Some(last) = existing_for_path.factor_instances().last() {
                         assert_eq!(
                             last.derivation_entity_base_index() + 1,

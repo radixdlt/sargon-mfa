@@ -266,6 +266,41 @@ pub struct NextDerivationEntityIndexAssigner {
     local_offsets: NextDerivationEntityIndexWithLocalOffsets,
 }
 
+pub enum OffsetFromCache {
+    /// Finding max amongst already loaded (and removed) from cache, saved
+    /// locally
+    FindMaxInRemoved {
+        pf_found_in_cache: IndexMap<FactorSourceIDFromHash, FactorInstances>,
+    },
+    /// Known max by having peeked into the cache earlier.
+    KnownMax {
+        instance: HierarchicalDeterministicFactorInstance,
+    },
+}
+impl OffsetFromCache {
+    pub fn max(
+        &self,
+        factor_source_id: FactorSourceIDFromHash,
+        index_agnostic_path: IndexAgnosticPath,
+    ) -> Option<HDPathComponent> {
+        match self {
+            Self::FindMaxInRemoved { pf_found_in_cache } => pf_found_in_cache
+                .get(&factor_source_id)
+                .cloned()
+                .unwrap_or_default()
+                .into_iter()
+                .filter(|f| f.agnostic_path() == index_agnostic_path)
+                .map(|f| f.derivation_path().index)
+                .max(),
+            Self::KnownMax { instance } => {
+                assert_eq!(instance.factor_source_id(), factor_source_id);
+                assert_eq!(instance.agnostic_path(), index_agnostic_path);
+                Some(instance.derivation_path().index)
+            }
+        }
+    }
+}
+
 impl NextDerivationEntityIndexAssigner {
     pub fn new(network_id: NetworkID, profile: Option<Profile>) -> Self {
         let profile_analyzing =
@@ -280,23 +315,45 @@ impl NextDerivationEntityIndexAssigner {
     pub fn next(
         &self,
         factor_source_id: FactorSourceIDFromHash,
-        agnostic_path: NetworkIndexAgnosticPath,
+        index_agnostic_path: IndexAgnosticPath,
+        cache_offset: OffsetFromCache,
     ) -> HDPathComponent {
-        let default_for_profile = HDPathComponent::new_with_key_space_and_base_index(
-            agnostic_path.key_space,
+        let default_index = HDPathComponent::new_with_key_space_and_base_index(
+            index_agnostic_path.key_space,
             U30::new(0).unwrap(),
         );
-        let local = self.local_offsets.reserve(factor_source_id, agnostic_path);
-        let from_profile = self
-            .profile_analyzing
-            .next(agnostic_path, factor_source_id)
-            .unwrap_or(default_for_profile);
 
-        let new = from_profile.add_n(local);
+        // Must update local offset based on values found in cache.
+        // Imagine we are securifying 3 accounts with a single FactorSource
+        // `L` to keep things simple, profile already contains 28 securified
+        // accounts controlled by `L`, with the highest entity index is `27^`
+        // We look for keys in the cache for `L` and we find 2, with entity
+        // indices `[28^, 29^]`, so we need to derive 2 (+CACHE_FILLING_QUANTITY)
+        // more keys. The next index assigner will correctly use a profile based offset
+        // of 28^ for `L`, since it found the max value `28^` in Profile controlled by `L`.
+        // If we would use `next` now, the index would be `next = max + 1`, and
+        // `max = offset_from_profile + local_offset` = `28^ + 0^` = 28^.
+        // Which is wrong! Since the cache contains `28^` and `29^`, we should
+        // derive `2 (+CACHE_FILLING_QUANTITY)` starting at `30^`.
+        let max_from_cache = cache_offset
+            .max(factor_source_id, index_agnostic_path)
+            .unwrap_or(default_index);
+        let network_agnostic_path = index_agnostic_path.network_agnostic();
+        let local = self
+            .local_offsets
+            .reserve(factor_source_id, network_agnostic_path);
+        let max_from_profile = self
+            .profile_analyzing
+            .next(network_agnostic_path, factor_source_id)
+            .unwrap_or(default_index);
+
+        let max_index = std::cmp::max(max_from_profile, max_from_cache);
+
+        let new = max_index.add_n(local);
 
         println!(
-            "🔮 from_profile: {}, from_local: {}, new: {}",
-            from_profile, local, new
+            "🔮 max_index {}, max_from_profile: {}, max_from_cache: {}, from_local: {}, new: {}",
+            max_index, max_from_profile, max_from_cache, local, new
         );
         new
     }

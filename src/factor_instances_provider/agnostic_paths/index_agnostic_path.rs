@@ -74,13 +74,13 @@ pub struct QuantifiedNetworkIndexAgnosticPath {
     pub quantity: usize,
 }
 
-#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
+#[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct QuantifiedToCacheToUseNetworkIndexAgnosticPath {
     pub agnostic_path: NetworkIndexAgnosticPath,
     pub quantity: QuantityToCacheToUseDirectly,
 }
 
-#[derive(Clone, Copy, Hash, PartialEq, Eq)]
+#[derive(Clone, Hash, PartialEq, Eq)]
 pub struct QuantifiedToCacheToUseIndexAgnosticPath {
     pub agnostic_path: IndexAgnosticPath,
     pub quantity: QuantityToCacheToUseDirectly,

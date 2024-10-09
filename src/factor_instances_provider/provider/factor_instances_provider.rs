@@ -1,5 +1,7 @@
 use std::sync::{Arc, RwLock};
 
+use itertools::cloned;
+
 use crate::prelude::*;
 
 pub struct FactorInstancesProvider;
@@ -135,6 +137,53 @@ impl FactorInstancesProvider {
         .await?;
 
         *cache = cloned_cache;
+
+        for (f, stats) in outcome.per_factor.clone() {
+            println!("🛡️ about to cache for factor {}", f);
+
+            let mfa_left_in_cache = cache
+                .peek_all_instances_of_factor_source(f)
+                .unwrap_or_default()
+                .get(&NetworkIndexAgnosticPath::account_mfa().on_network(NetworkID::Mainnet))
+                .cloned()
+                .unwrap_or_default()
+                .into_iter()
+                .map(|f| f.derivation_entity_index())
+                .collect_vec();
+            println!("🛡️ LEFT in cache {:?}", mfa_left_in_cache);
+            println!(
+                "🛡️ found_in_cache {:?}",
+                stats
+                    .found_in_cache
+                    .into_iter()
+                    .map(|f| f.derivation_entity_index())
+                    .collect_vec()
+            );
+            println!(
+                "🛡️ to_use_directly {:?}",
+                stats
+                    .to_use_directly
+                    .into_iter()
+                    .map(|f| f.derivation_entity_index())
+                    .collect_vec()
+            );
+            println!(
+                "🛡️ newly_derived {:?}",
+                stats
+                    .newly_derived
+                    .into_iter()
+                    .map(|f| f.derivation_entity_index())
+                    .collect_vec()
+            );
+            println!(
+                "🛡️ to_cache {:?}",
+                stats
+                    .to_cache
+                    .into_iter()
+                    .map(|f| f.derivation_entity_index())
+                    .collect_vec()
+            );
+        }
 
         cache.insert_all(
             outcome
@@ -293,19 +342,26 @@ impl FactorInstancesProvider {
                         }
                     })
                     .unwrap_or_else(|| {
-                        let number_of_instances_to_derive_to_fill_cache = cache
+                        let cache_key = preset.on_network(network_id);
+
+                        let instances_in_cache = cache
                             .peek_all_instances_of_factor_source(*factor_source_id)
-                            .and_then(|c| {
-                                c.get(&preset.on_network(network_id)).map(|x| {
-                                    let existing = x.len();
-                                    CACHE_FILLING_QUANTITY - existing
-                                })
-                            })
-                            .unwrap_or(CACHE_FILLING_QUANTITY);
+                            .and_then(|c| c.get(&cache_key).cloned())
+                            .unwrap_or_default();
+
+                        let number_of_instances_in_cache = instances_in_cache.len();
+                        let instance_with_max_index =
+                            instances_in_cache.into_iter().max_by(|a, b| {
+                                a.derivation_entity_index()
+                                    .cmp(&b.derivation_entity_index())
+                            });
+                        let number_of_instances_to_derive_to_fill_cache =
+                            CACHE_FILLING_QUANTITY - number_of_instances_in_cache;
 
                         QuantifiedToCacheToUseNetworkIndexAgnosticPath {
                             quantity: QuantityToCacheToUseDirectly::OnlyCacheFilling {
                                 fill_cache: number_of_instances_to_derive_to_fill_cache,
+                                instance_with_max_index,
                             },
                             agnostic_path: preset,
                         }
@@ -354,8 +410,21 @@ impl FactorInstancesProvider {
                         // the same number as the specified quantity!
                         (0..quantified_agnostic_path.quantity.total_quantity_to_derive())
                             .map(|_| {
-                                let index = next_index_assigner
-                                    .next(f, quantified_agnostic_path.network_agnostic());
+                                let index_agnostic_path = quantified_agnostic_path.agnostic_path;
+
+                                let index = next_index_assigner.next(
+                                    f,
+                                    index_agnostic_path,
+                                    quantified_agnostic_path
+                                        .quantity
+                                        .max_index()
+                                        .map(|max_index| OffsetFromCache::KnownMax {
+                                            instance: max_index,
+                                        })
+                                        .unwrap_or(OffsetFromCache::FindMaxInRemoved {
+                                            pf_found_in_cache: pf_found_in_cache.clone(),
+                                        }),
+                                );
                                 let path = DerivationPath::from((
                                     quantified_agnostic_path.agnostic_path,
                                     index,
@@ -1455,7 +1524,7 @@ mod tests {
         );
     }
 
-    #[ignore = "broken, WIP"]
+    #[ignore]
     #[actix_rt::test]
     async fn securify_when_cache_is_half_full_single_factor_source() {
         let (mut os, bdfs) = SargonOS::with_bdfs().await;
@@ -1564,7 +1633,7 @@ mod tests {
         // );
     }
 
-    #[ignore = "broken, WIP"]
+    #[ignore]
     #[actix_rt::test]
     async fn securify_when_cache_is_half_full_multiple_factor_sources() {
         let (mut os, bdfs) = SargonOS::with_bdfs().await;
