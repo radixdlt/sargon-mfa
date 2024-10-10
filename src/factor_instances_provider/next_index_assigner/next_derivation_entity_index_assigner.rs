@@ -136,22 +136,22 @@ impl NextDerivationEntityIndexProfileAnalyzingAssigner {
 
     pub fn next(
         &self,
-        agnostic_path: NetworkIndexAgnosticPath,
+        agnostic_path: DerivationPreset,
         factor_source_id: FactorSourceIDFromHash,
-    ) -> Option<HDPathComponent> {
-        let last = if agnostic_path == NetworkIndexAgnosticPath::account_veci() {
+    ) -> Result<Option<HDPathComponent>> {
+        let last = if agnostic_path == DerivationPreset::AccountVeci {
             self.max_account_veci(factor_source_id)
-        } else if agnostic_path == NetworkIndexAgnosticPath::account_mfa() {
+        } else if agnostic_path == DerivationPreset::AccountMfa {
             self.max_account_mfa(factor_source_id)
-        } else if agnostic_path == NetworkIndexAgnosticPath::identity_mfa() {
+        } else if agnostic_path == DerivationPreset::IdentityMfa {
             self.max_identity_mfa(factor_source_id)
-        } else if agnostic_path == NetworkIndexAgnosticPath::identity_veci() {
+        } else if agnostic_path == DerivationPreset::IdentityVeci {
             self.max_identity_veci(factor_source_id)
         } else {
             unreachable!("Unrecognized agnostic_path: {:?}", agnostic_path);
         };
-
-        last.map(|l| l.add_one())
+        let Some(last) = last else { return Ok(None) };
+        last.add_one().map(Some)
     }
 }
 
@@ -159,7 +159,7 @@ impl NextDerivationEntityIndexProfileAnalyzingAssigner {
 pub struct NextDerivationEntityIndexWithLocalOffsetsForFactorSource {
     #[allow(dead_code)]
     factor_source_id: FactorSourceIDFromHash,
-    local_offsets: RwLock<HashMap<NetworkIndexAgnosticPath, HDPathValue>>,
+    local_offsets: RwLock<HashMap<DerivationPreset, HDPathValue>>,
 }
 impl NextDerivationEntityIndexWithLocalOffsetsForFactorSource {
     pub fn empty(factor_source_id: FactorSourceIDFromHash) -> Self {
@@ -168,7 +168,7 @@ impl NextDerivationEntityIndexWithLocalOffsetsForFactorSource {
             local_offsets: RwLock::new(HashMap::new()),
         }
     }
-    pub fn reserve(&self, agnostic_path: NetworkIndexAgnosticPath) -> HDPathValue {
+    pub fn reserve(&self, agnostic_path: DerivationPreset) -> HDPathValue {
         let mut binding = self.local_offsets.write().unwrap();
         if let Some(existing) = binding.get_mut(&agnostic_path) {
             let free = *existing;
@@ -192,7 +192,7 @@ impl NextDerivationEntityIndexWithLocalOffsets {
     pub fn reserve(
         &self,
         factor_source_id: FactorSourceIDFromHash,
-        agnostic_path: NetworkIndexAgnosticPath,
+        agnostic_path: DerivationPreset,
     ) -> HDPathValue {
         let mut binding = self.local_offsets_per_factor_source.write().unwrap();
         if let Some(for_factor) = binding.get_mut(&factor_source_id) {
@@ -225,15 +225,19 @@ pub enum OffsetFromCache {
         instance: HierarchicalDeterministicFactorInstance,
     },
 }
+
 impl OffsetFromCache {
     pub fn next(
         &self,
         factor_source_id: FactorSourceIDFromHash,
         index_agnostic_path: IndexAgnosticPath,
-    ) -> Option<HDPathComponent> {
-        self._max(factor_source_id, index_agnostic_path)
-            .map(|i| i.add_one())
+    ) -> Result<Option<HDPathComponent>> {
+        let Some(m) = self._max(factor_source_id, index_agnostic_path) else {
+            return Ok(None);
+        };
+        m.add_one().map(Some)
     }
+
     fn _max(
         &self,
         factor_source_id: FactorSourceIDFromHash,
@@ -273,7 +277,7 @@ impl NextDerivationEntityIndexAssigner {
         factor_source_id: FactorSourceIDFromHash,
         index_agnostic_path: IndexAgnosticPath,
         cache_offset: OffsetFromCache,
-    ) -> HDPathComponent {
+    ) -> Result<HDPathComponent> {
         let default_index = HDPathComponent::new_with_key_space_and_base_index(
             index_agnostic_path.key_space,
             U30::new(0).unwrap(),
@@ -291,17 +295,19 @@ impl NextDerivationEntityIndexAssigner {
         // `max = offset_from_profile + local_offset` = `28^ + 0^` = 28^.
         // Which is wrong! Since the cache contains `28^` and `29^`, we should
         // derive `2 (+CACHE_FILLING_QUANTITY)` starting at `30^`.
-        let next_from_cache = cache_offset
-            .next(factor_source_id, index_agnostic_path)
-            .unwrap_or(default_index);
-        let network_agnostic_path = index_agnostic_path.network_agnostic();
+        let maybe_next_from_cache = cache_offset.next(factor_source_id, index_agnostic_path)?;
+
+        let next_from_cache = maybe_next_from_cache.unwrap_or(default_index);
+        let derivation_preset = DerivationPreset::try_from(index_agnostic_path)?;
         let local = self
             .local_offsets
-            .reserve(factor_source_id, network_agnostic_path);
-        let next_from_profile = self
+            .reserve(factor_source_id, derivation_preset);
+
+        let maybe_next_from_profile = self
             .profile_analyzing
-            .next(network_agnostic_path, factor_source_id)
-            .unwrap_or(default_index);
+            .next(derivation_preset, factor_source_id)?;
+
+        let next_from_profile = maybe_next_from_profile.unwrap_or(default_index);
 
         let max_index = std::cmp::max(next_from_profile, next_from_cache);
 

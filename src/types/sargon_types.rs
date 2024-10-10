@@ -328,16 +328,14 @@ impl UnhardenedIndex {
         self.0.to_be_bytes().to_vec()
     }
 
-    pub fn add_n(&self, n: HDPathValue) -> Self {
+    pub fn add_n(&self, n: HDPathValue) -> Result<Self> {
         let base_index = self.base_index();
 
-        assert!(
-            (base_index as u64 + n as u64) < BIP32_HARDENED as u64,
-            "Index would overflow beyond BIP32_HARDENED if we would add {}.",
-            n
-        );
+        if !(base_index as u64 + n as u64) < BIP32_HARDENED as u64 {
+            return Err(CommonError::EntityIndexWouldOverflowIfAddedTo);
+        }
 
-        Self::new(self.0 + n)
+        Ok(Self::new(self.0 + n))
     }
 
     pub(crate) fn base_index(&self) -> HDPathValue {
@@ -367,15 +365,12 @@ impl UnsecurifiedIndex {
         self.0.to_be_bytes().to_vec()
     }
 
-    pub fn add_n(&self, n: HDPathValue) -> Self {
+    pub fn add_n(&self, n: HDPathValue) -> Result<Self> {
         let base_index = self.base_index();
-        assert!(
-            (base_index as u64 + n as u64) < (BIP32_HARDENED + BIP32_SECURIFIED_HALF) as u64,
-            "Index would overflow beyond BIP32_SECURIFIED_HALF if incremented with {:?}.",
-            n,
-        );
-
-        Self::new(self.0 + n)
+        if !(base_index as u64 + n as u64) < (BIP32_HARDENED + BIP32_SECURIFIED_HALF) as u64 {
+            return Err(CommonError::EntityIndexWouldOverflowIfAddedTo);
+        }
+        Ok(Self::new(self.0 + n))
     }
 
     pub(crate) fn base_index(&self) -> HDPathValue {
@@ -406,15 +401,13 @@ impl SecurifiedIndex {
         self.0.to_be_bytes().to_vec()
     }
 
-    pub fn add_n(&self, n: HDPathValue) -> Self {
+    pub fn add_n(&self, n: HDPathValue) -> Result<Self> {
         let base_index = self.base_index();
-        assert!(
-            (base_index as u64 + n as u64) < HDPathValue::MAX as u64,
-            "Index would overflow beyond 2^32 if incremented with {:?}.",
-            n,
-        );
+        if !(base_index as u64 + n as u64) < HDPathValue::MAX as u64 {
+            return Err(CommonError::EntityIndexWouldOverflowIfAddedTo);
+        }
 
-        Self::new(self.0 + n)
+        Ok(Self::new(self.0 + n))
     }
 
     pub(crate) fn base_index(&self) -> HDPathValue {
@@ -468,10 +461,10 @@ impl HDPathComponentHardened {
         }
     }
 
-    pub fn add_n(&self, n: HDPathValue) -> Self {
+    pub fn add_n(&self, n: HDPathValue) -> Result<Self> {
         match self {
-            Self::Unsecurified(u) => u.add_n(n).into(),
-            Self::Securified(s) => s.add_n(n).into(),
+            Self::Unsecurified(u) => u.add_n(n).map(Self::from),
+            Self::Securified(s) => s.add_n(n).map(Self::from),
         }
     }
 
@@ -533,7 +526,7 @@ impl Step for HDPathComponent {
     }
 
     fn forward_checked(start: Self, count: usize) -> Option<Self> {
-        start.add_n_checked(count as u32)
+        start.add_n(count as u32).ok()
     }
 
     fn backward_checked(_start: Self, _count: usize) -> Option<Self> {
@@ -601,29 +594,16 @@ impl HDPathComponent {
 
     /// # Panics
     /// Panics if self would overflow within its key space.
-    pub fn add_n_checked(&self, n: HDPathValue) -> Option<Self> {
-        use std::panic;
-        panic::catch_unwind(|| self.add_n(n)).ok()
-    }
-
-    /// # Panics
-    /// Panics if self would overflow within its key space.
-    pub fn add_n(&self, n: HDPathValue) -> Self {
+    pub fn add_n(&self, n: HDPathValue) -> Result<Self> {
         match self {
-            Self::Hardened(h) => h.add_n(n).into(),
-            Self::Unhardened(u) => u.add_n(n).into(),
+            Self::Hardened(h) => h.add_n(n).map(Self::from),
+            Self::Unhardened(u) => u.add_n(n).map(Self::from),
         }
     }
 
     /// # Panics
     /// Panics if self would overflow within its keyspace.
-    pub fn add_assign_one(&mut self) {
-        *self = self.add_one()
-    }
-
-    /// # Panics
-    /// Panics if self would overflow within its keyspace.
-    pub fn add_one(&self) -> Self {
+    pub fn add_one(&self) -> Result<Self> {
         self.add_n(1)
     }
 
@@ -672,7 +652,7 @@ mod tests_hdpathcomp {
     #[test]
     fn add_one_successful() {
         let t = |value: Sut, expected_base_index: HDPathValue| {
-            let actual = value.add_one();
+            let actual = value.add_one().unwrap();
             assert_eq!(actual.base_index(), expected_base_index)
         };
         t(Sut::unsecurified_hardening_base_index(0), 1);
@@ -2626,6 +2606,12 @@ pub enum CommonError {
 
     #[error("Persona not securified")]
     PersonaNotSecurified,
+
+    #[error("Unsupported Non Preset DerivationPath")]
+    NonStandardDerivationPath,
+
+    #[error("Entity Index would overflow if added to")]
+    EntityIndexWouldOverflowIfAddedTo,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]

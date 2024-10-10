@@ -40,9 +40,9 @@ impl FactorInstancesProvider {
         // to derive more... We should most definitely switch to `DerivationTemplate` enum
         let quantity_of_instances_to_use_directly = IndexMap::kv(
             factor_source.factor_source_id(),
-            QuantifiedNetworkIndexAgnosticPath {
-                quantity: 0,                                             // HACKY
-                agnostic_path: NetworkIndexAgnosticPath::account_veci(), // HACKY
+            QuantifiedDerivationPresets {
+                quantity: 0,                                      // HACKY
+                derivation_preset: DerivationPreset::AccountVeci, // HACKY
             },
         );
 
@@ -150,9 +150,9 @@ impl FactorInstancesProvider {
             IndexSet::just(factor_source.clone()),
             IndexMap::kv(
                 factor_source.factor_source_id(),
-                QuantifiedNetworkIndexAgnosticPath {
+                QuantifiedDerivationPresets {
                     quantity: 1,
-                    agnostic_path: NetworkIndexAgnosticPath::veci_entity_kind(entity_kind),
+                    derivation_preset: DerivationPreset::veci_entity_kind(entity_kind),
                 },
             ),
             &NextDerivationEntityIndexAssigner::new(network_id, profile),
@@ -265,14 +265,7 @@ impl FactorInstancesProvider {
         );
 
         let entity_kind = E::kind();
-        let key_kind = CAP26KeyKind::TransactionSigning;
-        let key_space = KeySpace::Securified;
-
-        let agnostic_path = NetworkIndexAgnosticPath {
-            entity_kind,
-            key_kind,
-            key_space,
-        };
+        let derivation_preset = DerivationPreset::mfa_entity_kind(entity_kind);
 
         let outcome = Self::with(
             network_id,
@@ -283,9 +276,9 @@ impl FactorInstancesProvider {
                 .map(|f| {
                     (
                         f.factor_source_id(),
-                        QuantifiedNetworkIndexAgnosticPath {
+                        QuantifiedDerivationPresets {
                             quantity: addresses_of_entities.len(),
-                            agnostic_path,
+                            derivation_preset,
                         },
                     )
                 })
@@ -302,7 +295,7 @@ impl FactorInstancesProvider {
 struct TakeFromCacheResult {
     pf_found_in_cache: IndexMap<FactorSourceIDFromHash, FactorInstances>,
     pf_quantity_remaining_not_satisfied_by_cache:
-        IndexMap<FactorSourceIDFromHash, QuantifiedNetworkIndexAgnosticPath>,
+        IndexMap<FactorSourceIDFromHash, QuantifiedDerivationPresets>,
     need_to_derive_more_instances: bool,
 }
 
@@ -320,7 +313,7 @@ impl FactorInstancesProvider {
         factor_sources: IndexSet<HDFactorSource>,
         index_agnostic_path_and_quantity_per_factor_source: IndexMap<
             FactorSourceIDFromHash,
-            QuantifiedNetworkIndexAgnosticPath,
+            QuantifiedDerivationPresets,
         >,
         next_index_assigner: &NextDerivationEntityIndexAssigner,
         interactors: Arc<dyn KeysDerivationInteractors>,
@@ -373,7 +366,7 @@ impl FactorInstancesProvider {
         factor_sources: IndexSet<HDFactorSource>,
         index_agnostic_path_and_quantity_per_factor_source: IndexMap<
             FactorSourceIDFromHash,
-            QuantifiedNetworkIndexAgnosticPath,
+            QuantifiedDerivationPresets,
         >,
         next_index_assigner: &NextDerivationEntityIndexAssigner,
         interactors: Arc<dyn KeysDerivationInteractors>,
@@ -414,7 +407,7 @@ impl FactorInstancesProvider {
         cache: &mut FactorInstancesCache,
         index_agnostic_path_and_quantity_per_factor_source: &IndexMap<
             FactorSourceIDFromHash,
-            QuantifiedNetworkIndexAgnosticPath,
+            QuantifiedDerivationPresets,
         >,
     ) -> Result<TakeFromCacheResult> {
         // `pf` is short for `Per FactorSource`
@@ -425,7 +418,7 @@ impl FactorInstancesProvider {
         // cache since we are deriving anyway, i.e. derive for all `IndexAgnosticPath`
         // "presets" (Account Veci, Identity Veci, Account MFA, Identity MFA).
         let mut pf_quantity_remaining_not_satisfied_by_cache =
-            IndexMap::<FactorSourceIDFromHash, QuantifiedNetworkIndexAgnosticPath>::new();
+            IndexMap::<FactorSourceIDFromHash, QuantifiedDerivationPresets>::new();
 
         // if false we will not derive any more instances, we could satisfy the request
         // with what we found in the cache.
@@ -437,7 +430,7 @@ impl FactorInstancesProvider {
             let from_cache: FactorInstances;
             let unsatisfied_quantity: usize;
             let cache_key =
-                IndexAgnosticPath::from((network_id, quantified_agnostic_path.agnostic_path));
+                IndexAgnosticPath::from((network_id, quantified_agnostic_path.derivation_preset));
 
             // the quantity of factor instances needed to satisfy the request
             // this will be `0` in case of PRE_DERIVE_KEYS_FOR_NEW_FACTOR_SOURCE (hacky).
@@ -490,9 +483,9 @@ impl FactorInstancesProvider {
                 // even after the request has been satisfied.
                 pf_quantity_remaining_not_satisfied_by_cache.insert(
                     *factor_source_id,
-                    QuantifiedNetworkIndexAgnosticPath {
+                    QuantifiedDerivationPresets {
                         quantity: unsatisfied_quantity,
-                        agnostic_path: quantified_agnostic_path.agnostic_path,
+                        derivation_preset: quantified_agnostic_path.derivation_preset,
                     },
                 );
             }
@@ -529,11 +522,11 @@ impl FactorInstancesProvider {
         factor_sources: IndexSet<HDFactorSource>,
         index_agnostic_path_and_quantity_per_factor_source: IndexMap<
             FactorSourceIDFromHash,
-            QuantifiedNetworkIndexAgnosticPath,
+            QuantifiedDerivationPresets,
         >,
         pf_quantity_remaining_not_satisfied_by_cache: IndexMap<
             FactorSourceIDFromHash,
-            QuantifiedNetworkIndexAgnosticPath,
+            QuantifiedDerivationPresets,
         >,
         pf_found_in_cache: IndexMap<FactorSourceIDFromHash, FactorInstances>,
     ) -> Result<InternalFactorInstancesProviderOutcome> {
@@ -546,7 +539,7 @@ impl FactorInstancesProvider {
             &pf_found_in_cache,
             &index_agnostic_path_and_quantity_per_factor_source,
             &pf_quantity_remaining_not_satisfied_by_cache,
-        );
+        )?;
 
         // Actually derive more factor instances.
         let keys_collector = KeysCollector::new(factor_sources, paths, interactors)?;
@@ -587,17 +580,17 @@ impl FactorInstancesProvider {
         newly_derived: KeyDerivationOutcome,
         index_agnostic_path_and_quantity_per_factor_source: IndexMap<
             FactorSourceIDFromHash,
-            QuantifiedNetworkIndexAgnosticPath,
+            QuantifiedDerivationPresets,
         >,
         pf_quantity_remaining_not_satisfied_by_cache: &IndexMap<
             FactorSourceIDFromHash,
-            QuantifiedNetworkIndexAgnosticPath,
+            QuantifiedDerivationPresets,
         >,
         pf_found_in_cache: &IndexMap<FactorSourceIDFromHash, FactorInstances>,
     ) -> Result<SplitFactorInstances> {
         // used to filter out factor instances to use directly from the newly derived, based on
         // `index_agnostic_path_and_quantity_per_factor_source` we map
-        // from: `IndexMap::<FactorSourceIDFromHash, (NetworkIndexAgnosticPath, usize)>`
+        // from: `IndexMap::<FactorSourceIDFromHash, (DerivationPreset, usize)>`
         //    to `IndexSet::<IndexAgnosticPath>`
         //
         // If any `IndexAgnosticPath` is in `index_agnostic_paths_originally_requested`,
@@ -608,7 +601,7 @@ impl FactorInstancesProvider {
             index_agnostic_path_and_quantity_per_factor_source
                 .values()
                 .cloned()
-                .map(|q| IndexAgnosticPath::from((network_id, q.agnostic_path)))
+                .map(|q| IndexAgnosticPath::from((network_id, q.derivation_preset)))
                 .collect::<IndexSet<_>>();
 
         let mut pf_to_cache = IndexMap::<FactorSourceIDFromHash, FactorInstances>::new();
@@ -684,50 +677,51 @@ impl FactorInstancesProvider {
         pf_found_in_cache: &IndexMap<FactorSourceIDFromHash, FactorInstances>,
         index_agnostic_path_and_quantity_per_factor_source: &IndexMap<
             FactorSourceIDFromHash,
-            QuantifiedNetworkIndexAgnosticPath,
+            QuantifiedDerivationPresets,
         >,
         pf_quantity_remaining_not_satisfied_by_cache: &IndexMap<
             FactorSourceIDFromHash,
-            QuantifiedNetworkIndexAgnosticPath,
+            QuantifiedDerivationPresets,
         >,
-    ) -> IndexMap<FactorSourceIDFromHash, IndexSet<DerivationPath>> {
+    ) -> Result<IndexMap<FactorSourceIDFromHash, IndexSet<DerivationPath>>> {
         // Per FactorSource a set of NetworkIndexAgnostic Paths ("presets") to derive for
-        // and the quantity to derive, will be built up using `NetworkIndexAgnosticPath::all_presets()`
+        // and the quantity to derive, will be built up using `DerivationPreset::all()`
         // and the originally requested in `index_agnostic_path_and_quantity_per_factor_source`.
         let mut pf_quantified_network_agnostic_paths_for_derivation = IndexMap::<
             FactorSourceIDFromHash,
-            IndexSet<QuantifiedToCacheToUseNetworkIndexAgnosticPath>,
+            IndexSet<QuantifiedToCacheToUseDerivationPresets>,
         >::new();
 
         // Lets build up `pf_quantified_network_agnostic_paths_for_derivation`, which
         // contains
-        // `index_agnostic_path_and_quantity_per_factor_source` contains the QuantifiedNetworkIndexAgnosticPath for
+        // `index_agnostic_path_and_quantity_per_factor_source` contains the QuantifiedDerivationPresets for
         // each FactorSource originally requested, we are gonna fill it with
-        // `NetworkIndexAgnosticPath::all_presets()` and for each gonna look up
+        // `DerivationPreset::all()` and for each gonna look up
         // how many instances we need to derive to fill the cache, but first
-        // we are gonna check if any of the `NetworkIndexAgnosticPath::all_presets()` was
+        // we are gonna check if any of the `DerivationPreset::all()` was
         // matches the IndexAgnosticPath of the original request.
         for factor_source_id in index_agnostic_path_and_quantity_per_factor_source.keys() {
             let partial = pf_quantity_remaining_not_satisfied_by_cache
                 .get(factor_source_id)
                 .cloned();
-            for preset in NetworkIndexAgnosticPath::all_presets() {
+            for derivation_preset in DerivationPreset::all() {
                 let to_derive = partial
                     .and_then(|p| {
-                        if p.agnostic_path == preset {
-                            Some(QuantifiedToCacheToUseNetworkIndexAgnosticPath {
+                        if p.derivation_preset == derivation_preset {
+                            Some(QuantifiedToCacheToUseDerivationPresets {
                                 quantity: QuantityToCacheToUseDirectly::ToCacheToUseDirectly {
                                     remaining: p.quantity,
                                     extra_to_fill_cache: CACHE_FILLING_QUANTITY,
                                 },
-                                agnostic_path: p.agnostic_path,
+                                derivation_preset: p.derivation_preset,
                             })
                         } else {
                             None
                         }
                     })
                     .unwrap_or_else(|| {
-                        let cache_key = preset.on_network(network_id);
+                        let cache_key =
+                            derivation_preset.index_agnostic_path_on_network(network_id);
 
                         let instances_in_cache = cache
                             .peek_all_instances_of_factor_source(*factor_source_id)
@@ -743,12 +737,12 @@ impl FactorInstancesProvider {
                         let number_of_instances_to_derive_to_fill_cache =
                             CACHE_FILLING_QUANTITY - number_of_instances_in_cache;
 
-                        QuantifiedToCacheToUseNetworkIndexAgnosticPath {
+                        QuantifiedToCacheToUseDerivationPresets {
                             quantity: QuantityToCacheToUseDirectly::OnlyCacheFilling {
                                 fill_cache: number_of_instances_to_derive_to_fill_cache,
                                 instance_with_max_index,
                             },
-                            agnostic_path: preset,
+                            derivation_preset,
                         }
                     });
 
@@ -771,7 +765,9 @@ impl FactorInstancesProvider {
                     let index_agnostic_paths = quantified_network_agnostic_paths
                         .into_iter()
                         .map(|q| QuantifiedToCacheToUseIndexAgnosticPath {
-                            agnostic_path: IndexAgnosticPath::from((network_id, q.agnostic_path)),
+                            agnostic_path: q
+                                .derivation_preset
+                                .index_agnostic_path_on_network(network_id),
                             quantity: q.quantity,
                         })
                         .collect::<IndexSet<_>>();
@@ -782,47 +778,54 @@ impl FactorInstancesProvider {
         // Now map from IndexAgnostic paths to index aware paths, a.k.a. DerivationPath
         // but ALSO we need to retain the information of how many factor instances of
         // the newly derived to append to the factor instances to use directly, and how many to cache.
-        pf_quantified_index_agnostic_paths_for_derivation
-            .clone()
-            .into_iter()
-            .map(|(f, agnostic_paths)| {
-                let paths = agnostic_paths
-                    .clone()
-                    .into_iter()
-                    .flat_map(|quantified_agnostic_path| {
-                        // IMPORTANT! We are not mapping one `IndexAgnosticPath` to one `DerivationPath`, but
-                        // rather we are mapping one `IndexAgnosticPath` to **MANY** `DerivationPath`s! Equal to
-                        // the same number as the specified quantity!
-                        (0..quantified_agnostic_path.quantity.total_quantity_to_derive())
-                            .map(|_| {
-                                let index_agnostic_path = quantified_agnostic_path.agnostic_path;
+        let paths: Result<IndexMap<FactorSourceIDFromHash, IndexSet<DerivationPath>>> =
+            pf_quantified_index_agnostic_paths_for_derivation
+                .clone()
+                .into_iter()
+                .map(|(f, agnostic_paths)| {
+                    let paths: Vec<IndexSet<DerivationPath>> = agnostic_paths
+                        .clone()
+                        .into_iter()
+                        .map(|quantified_agnostic_path| {
+                            // IMPORTANT! We are not mapping one `IndexAgnosticPath` to one `DerivationPath`, but
+                            // rather we are mapping one `IndexAgnosticPath` to **MANY** `DerivationPath`s! Equal to
+                            // the same number as the specified quantity!
+                            (0..quantified_agnostic_path.quantity.total_quantity_to_derive())
+                                .map(|_| {
+                                    let index_agnostic_path =
+                                        quantified_agnostic_path.agnostic_path;
 
-                                let index = next_index_assigner.next(
-                                    f,
-                                    index_agnostic_path,
-                                    // Must also use cache based offsets, checking max between cache and
-                                    // profile. Since profile might not contain the highest entity
-                                    // derivation index, the cache might!
-                                    quantified_agnostic_path
-                                        .quantity
-                                        .max_index()
-                                        .map(|max_index| OffsetFromCache::KnownMax {
-                                            instance: max_index,
-                                        })
-                                        .unwrap_or(OffsetFromCache::FindMaxInRemoved {
-                                            pf_found_in_cache: pf_found_in_cache.clone(),
-                                        }),
-                                );
-                                DerivationPath::from((
-                                    quantified_agnostic_path.agnostic_path,
-                                    index,
-                                ))
-                            })
-                            .collect::<IndexSet<_>>()
-                    })
-                    .collect::<IndexSet<_>>();
-                (f, paths)
-            })
-            .collect::<IndexMap<FactorSourceIDFromHash, IndexSet<DerivationPath>>>()
+                                    let index = next_index_assigner.next(
+                                        f,
+                                        index_agnostic_path,
+                                        // Must also use cache based offsets, checking max between cache and
+                                        // profile. Since profile might not contain the highest entity
+                                        // derivation index, the cache might!
+                                        quantified_agnostic_path
+                                            .quantity
+                                            .max_index()
+                                            .map(|max_index| OffsetFromCache::KnownMax {
+                                                instance: max_index,
+                                            })
+                                            .unwrap_or(OffsetFromCache::FindMaxInRemoved {
+                                                pf_found_in_cache: pf_found_in_cache.clone(),
+                                            }),
+                                    )?;
+                                    Ok(DerivationPath::from((
+                                        quantified_agnostic_path.agnostic_path,
+                                        index,
+                                    )))
+                                })
+                                .collect::<Result<IndexSet<_>>>()
+                        })
+                        .collect::<Result<Vec<IndexSet<_>>>>()?;
+
+                    let paths = paths.into_iter().flatten().collect::<IndexSet<_>>();
+
+                    Ok((f, paths))
+                })
+                .collect::<Result<IndexMap<FactorSourceIDFromHash, IndexSet<DerivationPath>>>>();
+
+        paths
     }
 }

@@ -263,12 +263,12 @@ impl SargonOS {
 
         assert_eq!(
             outcome.debug_was_cached.len(),
-            NetworkIndexAgnosticPath::all_presets().len() * CACHE_FILLING_QUANTITY
+            DerivationPreset::all().len() * CACHE_FILLING_QUANTITY
         );
 
         assert_eq!(
             outcome.debug_was_derived.len(),
-            NetworkIndexAgnosticPath::all_presets().len() * CACHE_FILLING_QUANTITY
+            DerivationPreset::all().len() * CACHE_FILLING_QUANTITY
         );
 
         self.profile

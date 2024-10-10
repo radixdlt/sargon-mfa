@@ -166,7 +166,7 @@ impl FactorInstancesCache {
             })
             .unwrap_or(0);
 
-        count == NetworkIndexAgnosticPath::all_presets().len() * CACHE_FILLING_QUANTITY
+        count == DerivationPreset::all().len() * CACHE_FILLING_QUANTITY
     }
     pub fn assert_is_full(&self, network_id: NetworkID, factor_source_id: FactorSourceIDFromHash) {
         assert!(self.is_full(network_id, factor_source_id));

@@ -1,51 +1,5 @@
 use crate::prelude::*;
 
-/// Used as "presets"
-#[derive(Clone, Debug, Copy, Hash, PartialEq, Eq)]
-pub struct NetworkIndexAgnosticPath {
-    pub entity_kind: CAP26EntityKind,
-    pub key_kind: CAP26KeyKind,
-    pub key_space: KeySpace,
-}
-impl NetworkIndexAgnosticPath {
-    fn new(entity_kind: CAP26EntityKind, key_kind: CAP26KeyKind, key_space: KeySpace) -> Self {
-        Self {
-            entity_kind,
-            key_kind,
-            key_space,
-        }
-    }
-    fn transaction_signing(entity_kind: CAP26EntityKind, key_space: KeySpace) -> Self {
-        Self::new(entity_kind, CAP26KeyKind::TransactionSigning, key_space)
-    }
-    pub fn veci_entity_kind(entity_kind: CAP26EntityKind) -> Self {
-        Self::transaction_signing(entity_kind, KeySpace::Unsecurified)
-    }
-    pub fn account_veci() -> Self {
-        Self::veci_entity_kind(CAP26EntityKind::Account)
-    }
-    pub fn account_mfa() -> Self {
-        Self::transaction_signing(CAP26EntityKind::Account, KeySpace::Securified)
-    }
-    pub fn identity_veci() -> Self {
-        Self::veci_entity_kind(CAP26EntityKind::Identity)
-    }
-    pub fn identity_mfa() -> Self {
-        Self::transaction_signing(CAP26EntityKind::Identity, KeySpace::Securified)
-    }
-    pub fn all_presets() -> IndexSet<Self> {
-        IndexSet::from_iter([
-            Self::account_veci(),
-            Self::account_mfa(),
-            Self::identity_veci(),
-            Self::identity_mfa(),
-        ])
-    }
-    pub fn on_network(&self, network_id: NetworkID) -> IndexAgnosticPath {
-        IndexAgnosticPath::from((network_id, *self))
-    }
-}
-
 /// A DerivationPath that is not on any specified
 /// network and which is not indexed.
 #[derive(Clone, Debug, Copy, Hash, PartialEq, Eq)]
@@ -55,33 +9,53 @@ pub struct IndexAgnosticPath {
     pub key_kind: CAP26KeyKind,
     pub key_space: KeySpace,
 }
-impl From<(NetworkID, NetworkIndexAgnosticPath)> for IndexAgnosticPath {
-    fn from((network_id, agnostic_path): (NetworkID, NetworkIndexAgnosticPath)) -> Self {
+
+impl From<(NetworkID, DerivationPreset)> for IndexAgnosticPath {
+    fn from((network_id, agnostic_path): (NetworkID, DerivationPreset)) -> Self {
         Self {
             network_id,
-            entity_kind: agnostic_path.entity_kind,
-            key_kind: agnostic_path.key_kind,
-            key_space: agnostic_path.key_space,
+            entity_kind: agnostic_path.entity_kind(),
+            key_kind: agnostic_path.key_kind(),
+            key_space: agnostic_path.key_space(),
         }
     }
 }
-impl IndexAgnosticPath {
-    pub fn network_agnostic(&self) -> NetworkIndexAgnosticPath {
-        NetworkIndexAgnosticPath::new(self.entity_kind, self.key_kind, self.key_space)
+impl TryFrom<IndexAgnosticPath> for DerivationPreset {
+    type Error = CommonError;
+    fn try_from(value: IndexAgnosticPath) -> Result<DerivationPreset> {
+        match (value.entity_kind, value.key_kind, value.key_space) {
+            (
+                CAP26EntityKind::Account,
+                CAP26KeyKind::TransactionSigning,
+                KeySpace::Unsecurified,
+            ) => Ok(DerivationPreset::AccountVeci),
+            (
+                CAP26EntityKind::Identity,
+                CAP26KeyKind::TransactionSigning,
+                KeySpace::Unsecurified,
+            ) => Ok(DerivationPreset::IdentityVeci),
+            (CAP26EntityKind::Account, CAP26KeyKind::TransactionSigning, KeySpace::Securified) => {
+                Ok(DerivationPreset::AccountMfa)
+            }
+            (CAP26EntityKind::Identity, CAP26KeyKind::TransactionSigning, KeySpace::Securified) => {
+                Ok(DerivationPreset::IdentityMfa)
+            }
+            _ => Err(CommonError::NonStandardDerivationPath),
+        }
     }
 }
 
 #[derive(Clone, Copy, Hash, PartialEq, Eq)]
-pub struct QuantifiedNetworkIndexAgnosticPath {
-    pub agnostic_path: NetworkIndexAgnosticPath,
+pub struct QuantifiedDerivationPresets {
+    pub derivation_preset: DerivationPreset,
     pub quantity: usize,
 }
 
-/// For `NetworkIndexAgnosticPath` we keep track of
+/// For `DerivationPreset` we keep track of
 /// the quantity of instances that are cached and
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
-pub struct QuantifiedToCacheToUseNetworkIndexAgnosticPath {
-    pub agnostic_path: NetworkIndexAgnosticPath,
+pub struct QuantifiedToCacheToUseDerivationPresets {
+    pub derivation_preset: DerivationPreset,
     pub quantity: QuantityToCacheToUseDirectly,
 }
 

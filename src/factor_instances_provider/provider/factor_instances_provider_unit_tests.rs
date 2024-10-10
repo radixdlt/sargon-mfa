@@ -174,12 +174,12 @@ async fn cache_is_always_filled_persona_veci_then_after_all_used_we_start_over_a
 
     assert_eq!(
         outcome.debug_was_cached.len(),
-        NetworkIndexAgnosticPath::all_presets().len() * CACHE_FILLING_QUANTITY
+        DerivationPreset::all().len() * CACHE_FILLING_QUANTITY
     );
 
     assert_eq!(
         outcome.debug_was_derived.len(),
-        NetworkIndexAgnosticPath::all_presets().len() * CACHE_FILLING_QUANTITY + 1
+        DerivationPreset::all().len() * CACHE_FILLING_QUANTITY + 1
     );
 
     let instances_used_directly = outcome.to_use_directly.factor_instances();
@@ -201,7 +201,7 @@ async fn cache_is_always_filled_persona_veci_then_after_all_used_we_start_over_a
 
     let persona_veci_paths = cached
         .clone()
-        .get(&NetworkIndexAgnosticPath::identity_veci().on_network(network))
+        .get(&DerivationPreset::IdentityVeci.index_agnostic_path_on_network(network))
         .unwrap()
         .factor_instances()
         .into_iter()
@@ -256,12 +256,12 @@ async fn cache_is_always_filled_account_veci_then_after_all_used_we_start_over_a
 
     assert_eq!(
         outcome.debug_was_cached.len(),
-        NetworkIndexAgnosticPath::all_presets().len() * CACHE_FILLING_QUANTITY
+        DerivationPreset::all().len() * CACHE_FILLING_QUANTITY
     );
 
     assert_eq!(
         outcome.debug_was_derived.len(),
-        NetworkIndexAgnosticPath::all_presets().len() * CACHE_FILLING_QUANTITY + 1
+        DerivationPreset::all().len() * CACHE_FILLING_QUANTITY + 1
     );
 
     let instances_used_directly = outcome.to_use_directly.factor_instances();
@@ -283,7 +283,7 @@ async fn cache_is_always_filled_account_veci_then_after_all_used_we_start_over_a
 
     let account_veci_paths = cached
         .clone()
-        .get(&NetworkIndexAgnosticPath::account_veci().on_network(network))
+        .get(&DerivationPreset::AccountVeci.index_agnostic_path_on_network(network))
         .unwrap()
         .factor_instances()
         .into_iter()
@@ -316,7 +316,7 @@ async fn cache_is_always_filled_account_veci_then_after_all_used_we_start_over_a
 
     let account_mfa_paths = cached
         .clone()
-        .get(&NetworkIndexAgnosticPath::account_mfa().on_network(network))
+        .get(&DerivationPreset::AccountMfa.index_agnostic_path_on_network(network))
         .unwrap()
         .factor_instances()
         .into_iter()
@@ -344,7 +344,7 @@ async fn cache_is_always_filled_account_veci_then_after_all_used_we_start_over_a
 
     let identity_mfa_paths = cached
         .clone()
-        .get(&NetworkIndexAgnosticPath::identity_mfa().on_network(network))
+        .get(&DerivationPreset::IdentityMfa.index_agnostic_path_on_network(network))
         .unwrap()
         .factor_instances()
         .into_iter()
@@ -375,7 +375,7 @@ async fn cache_is_always_filled_account_veci_then_after_all_used_we_start_over_a
 
     let identity_veci_paths = cached
         .clone()
-        .get(&NetworkIndexAgnosticPath::identity_veci().on_network(network))
+        .get(&DerivationPreset::IdentityVeci.index_agnostic_path_on_network(network))
         .unwrap()
         .factor_instances()
         .into_iter()
@@ -440,7 +440,7 @@ async fn cache_is_always_filled_account_veci_then_after_all_used_we_start_over_a
 
     let account_veci_paths = cached
         .clone()
-        .get(&NetworkIndexAgnosticPath::account_veci().on_network(network))
+        .get(&DerivationPreset::AccountVeci.index_agnostic_path_on_network(network))
         .unwrap()
         .factor_instances()
         .into_iter()
@@ -498,7 +498,7 @@ async fn cache_is_always_filled_account_veci_then_after_all_used_we_start_over_a
 
     assert!(
         cached
-            .get(&NetworkIndexAgnosticPath::account_veci().on_network(network))
+            .get(&DerivationPreset::AccountVeci.index_agnostic_path_on_network(network))
             .is_none(),
         "should have used the last instance..."
     );
@@ -741,7 +741,7 @@ async fn adding_accounts_different_networks_different_factor_sources() {
         os.cache_snapshot().total_number_of_factor_instances(),
         network_count
             * factor_source_count
-            * NetworkIndexAgnosticPath::all_presets().len()
+            * DerivationPreset::all().len()
             * CACHE_FILLING_QUANTITY
             - accounts.len()
             + factor_source_count // we do `+ factor_source_count` since every time a factor source is used on a new network for the first time, we derive `CACHE_FILLING_QUANTITY + 1`
