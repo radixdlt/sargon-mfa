@@ -1,5 +1,8 @@
 use crate::prelude::*;
 
+/// An analyzer of a `Profile` for some `network_id` (i.e. analyzer of `ProfileNetwork`),
+/// reading out the max derivation entity index for Unsecurified/Securified Accounts/Personas
+/// for some factor source id.
 pub struct NextDerivationEntityIndexProfileAnalyzingAssigner {
     network_id: NetworkID,
 
@@ -17,6 +20,9 @@ pub struct NextDerivationEntityIndexProfileAnalyzingAssigner {
 }
 
 impl NextDerivationEntityIndexProfileAnalyzingAssigner {
+    /// `Profile` is optional so that one can use the same initializer from `FactorInstancesProvider`,
+    /// which accepts an optional Profile. Will just default to empty lists if `None` is passed,
+    /// effectively making this whole assigner NOOP.
     pub fn new(network_id: NetworkID, profile: Option<Profile>) -> Self {
         let unsecurified_accounts_on_network = profile
             .as_ref()
@@ -47,6 +53,9 @@ impl NextDerivationEntityIndexProfileAnalyzingAssigner {
         }
     }
 
+    /// Returns the Max Derivation Entity Index of Unsecurified Accounts controlled
+    /// by `factor_source_id`, or `None` if no unsecurified account controlled by that
+    /// factor source id found.
     fn max_account_veci(
         &self,
         factor_source_id: FactorSourceIDFromHash,
@@ -70,7 +79,10 @@ impl NextDerivationEntityIndexProfileAnalyzingAssigner {
             .max()
     }
 
-    pub fn max_identity_veci(
+    /// Returns the Max Derivation Entity Index of Unsecurified Personas controlled
+    /// by `factor_source_id`, or `None` if no unsecurified persona controlled by that
+    /// factor source id found.
+    fn max_identity_veci(
         &self,
         factor_source_id: FactorSourceIDFromHash,
     ) -> Option<HDPathComponent> {
@@ -93,6 +105,10 @@ impl NextDerivationEntityIndexProfileAnalyzingAssigner {
             .max()
     }
 
+    /// Returns the Max Derivation Entity Index of Securified Accounts controlled
+    /// by `factor_source_id`, or `None` if no securified account controlled by that
+    /// factor source id found, by controlled by we mean having a MatrixOfFactorInstances
+    /// which has that factor in **any role** in its MatrixOfFactorInstances.
     fn max_account_mfa(&self, factor_source_id: FactorSourceIDFromHash) -> Option<HDPathComponent> {
         self.securified_accounts_on_network
             .clone()
@@ -111,6 +127,10 @@ impl NextDerivationEntityIndexProfileAnalyzingAssigner {
             .max()
     }
 
+    /// Returns the Max Derivation Entity Index of Securified Persona controlled
+    /// by `factor_source_id`, or `None` if no securified persona controlled by that
+    /// factor source id found, by controlled by we mean having a MatrixOfFactorInstances
+    /// which has that factor in **any role** in its MatrixOfFactorInstances.
     fn max_identity_mfa(
         &self,
         factor_source_id: FactorSourceIDFromHash,
@@ -132,6 +152,10 @@ impl NextDerivationEntityIndexProfileAnalyzingAssigner {
             .max()
     }
 
+    /// Finds the "next" derivation entity index `HDPathComponent`, for
+    /// the `IndexAgnosticPath` for `factor_source_id`, which is `Max + 1`, or
+    /// returns `None` if `Max` is `None`. See `max_account_veci`, `max_identity_mfa`
+    /// for more details.
     pub fn next(
         &self,
         agnostic_path: IndexAgnosticPath,
@@ -235,7 +259,14 @@ mod tests {
         let network_id = NetworkID::Mainnet;
         let sut = Sut::new(
             network_id,
-            Some(Profile::new(HDFactorSource::all(), [&Account::a8()], [])),
+            Some(Profile::new(
+                HDFactorSource::all(),
+                [
+                    &Account::a8(),
+                    &Account::a2(), /* securified, should not interfere */
+                ],
+                [],
+            )),
         );
         let next = sut
             .next(
@@ -256,7 +287,14 @@ mod tests {
         let network_id = NetworkID::Mainnet;
         let sut = Sut::new(
             network_id,
-            Some(Profile::new(HDFactorSource::all(), [&Account::a7()], [])),
+            Some(Profile::new(
+                HDFactorSource::all(),
+                [
+                    &Account::a8(), /* unsecurified, should not interfere */
+                    &Account::a7(),
+                ],
+                [],
+            )),
         );
         type F = FactorSourceIDFromHash;
         for fid in [F::fs2(), F::fs6(), F::fs7(), F::fs8(), F::fs9()] {
@@ -292,7 +330,14 @@ mod tests {
         let network_id = NetworkID::Mainnet;
         let sut = Sut::new(
             network_id,
-            Some(Profile::new(HDFactorSource::all(), [], [&Persona::p1()])),
+            Some(Profile::new(
+                HDFactorSource::all(),
+                [],
+                [
+                    &Persona::p7(), /* securified should not interfere */
+                    &Persona::p1(),
+                ],
+            )),
         );
         let next = sut
             .next(
