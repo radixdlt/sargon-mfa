@@ -23,15 +23,15 @@ use crate::prelude::*;
 ///     let next_from_profile = self.profile_analyzing.next(fs_id, path).unwrap_or(0);
 ///     
 ///     let max_index = std::cmp::max(next_from_profile, next_from_cache);
-///     let local_offset = self.local_offsets.reserve()
+///     let ephemeral_offset = self.ephemeral_offsets.reserve()
 ///
-///     max_index + local_offset
+///     max_index + ephemeral_offset
 /// ```
 pub struct NextDerivationEntityIndexAssigner {
     #[allow(dead_code)]
     network_id: NetworkID,
     profile_analyzing: NextDerivationEntityIndexProfileAnalyzingAssigner,
-    local_offsets: NextDerivationEntityIndexWithLocalOffsets,
+    ephemeral_offsets: NextDerivationEntityIndexWithEphemeralOffsets,
 }
 
 impl NextDerivationEntityIndexAssigner {
@@ -41,7 +41,7 @@ impl NextDerivationEntityIndexAssigner {
         Self {
             network_id,
             profile_analyzing,
-            local_offsets: NextDerivationEntityIndexWithLocalOffsets::default(),
+            ephemeral_offsets: NextDerivationEntityIndexWithEphemeralOffsets::default(),
         }
     }
 
@@ -65,14 +65,14 @@ impl NextDerivationEntityIndexAssigner {
         // more keys. The next index assigner will correctly use a profile based offset
         // of 28^ for `L`, since it found the max value `28^` in Profile controlled by `L`.
         // If we would use `next` now, the index would be `next = max + 1`, and
-        // `max = offset_from_profile + local_offset` = `28^ + 0^` = 28^.
+        // `max = offset_from_profile + ephemeral_offset` = `28^ + 0^` = 28^.
         // Which is wrong! Since the cache contains `28^` and `29^`, we should
         // derive `2 (+CACHE_FILLING_QUANTITY)` starting at `30^`.
         let maybe_next_from_cache = cache_offset.next(factor_source_id, index_agnostic_path)?;
 
         let next_from_cache = maybe_next_from_cache.unwrap_or(default_index);
         let local = self
-            .local_offsets
+            .ephemeral_offsets
             .reserve(factor_source_id, index_agnostic_path);
 
         let maybe_next_from_profile = self

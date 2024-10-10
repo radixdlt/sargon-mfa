@@ -721,7 +721,16 @@ impl CAP26KeyKind {
 }
 
 #[repr(u8)]
-#[derive(Clone, Copy, PartialEq, Eq, Hash, derive_more::Display, derive_more::Debug)]
+#[derive(
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Hash,
+    derive_more::Display,
+    derive_more::Debug,
+    enum_iterator::Sequence,
+)]
 pub enum NetworkID {
     #[display("Mainnet")]
     #[debug("0")]
@@ -730,11 +739,39 @@ pub enum NetworkID {
     #[display("Stokenet")]
     #[debug("1")]
     Stokenet,
+
+    #[display("Adapanet")]
+    #[debug("10")]
+    Adapanet,
+
+    /// Nebunet (0x0b / 0d11 )
+    ///
+    /// The first Betanet of Babylon
+    #[display("Nebunet")]
+    #[debug("11")]
+    Nebunet,
+
+    /// Kisharnet (0x0c / 0d12)
+    ///
+    /// The first release candidate of Babylon (RCnet v1)
+    #[display("Kisharnet")]
+    #[debug("12")]
+    Kisharnet,
+
+    /// Ansharnet (0x0d / 0d13)
+    ///
+    /// The second release candidate of Babylon (RCnet v2)
+    #[display("Ansharnet")]
+    #[debug("13")]
+    Ansharnet,
 }
 
 impl NetworkID {
     fn discriminant(&self) -> u8 {
         core::intrinsics::discriminant_value(self)
+    }
+    pub fn all() -> IndexSet<Self> {
+        enum_iterator::all::<Self>().collect()
     }
 }
 
