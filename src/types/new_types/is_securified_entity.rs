@@ -51,7 +51,6 @@ pub trait IsSecurifiedEntity:
     fn kind() -> CAP26EntityKind {
         Self::BaseEntity::kind()
     }
-    fn address(&self) -> <Self::BaseEntity as IsEntity>::Address;
     fn securified_entity_control(&self) -> SecurifiedEntityControl;
 
     fn new(

@@ -22,9 +22,6 @@ impl From<SecurifiedAccount> for Account {
 }
 impl IsSecurifiedEntity for SecurifiedAccount {
     type BaseEntity = Account;
-    fn address(&self) -> AccountAddress {
-        self.address()
-    }
     fn securified_entity_control(&self) -> SecurifiedEntityControl {
         self.securified_entity_control()
     }
@@ -113,9 +110,6 @@ impl SecurifiedAccount {
     }
     pub fn address(&self) -> AccountAddress {
         self.account_address.clone()
-    }
-    pub fn network_id(&self) -> NetworkID {
-        self.address().network_id()
     }
     pub fn securified_entity_control(&self) -> SecurifiedEntityControl {
         self.securified_entity_control.clone()

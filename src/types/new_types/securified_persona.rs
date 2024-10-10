@@ -21,9 +21,6 @@ impl IsNetworkAware for SecurifiedPersona {
 
 impl IsSecurifiedEntity for SecurifiedPersona {
     type BaseEntity = Persona;
-    fn address(&self) -> IdentityAddress {
-        self.address()
-    }
     fn securified_entity_control(&self) -> SecurifiedEntityControl {
         self.securified_entity_control()
     }
@@ -54,9 +51,6 @@ impl SecurifiedPersona {
     }
     pub fn address(&self) -> IdentityAddress {
         self.identity_address.clone()
-    }
-    pub fn network_id(&self) -> NetworkID {
-        self.address().network_id()
     }
     pub fn securified_entity_control(&self) -> SecurifiedEntityControl {
         self.securified_entity_control.clone()
