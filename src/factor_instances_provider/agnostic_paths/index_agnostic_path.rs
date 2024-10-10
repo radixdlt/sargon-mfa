@@ -1,7 +1,6 @@
 use crate::prelude::*;
 
-/// A DerivationPath that is not on any specified
-/// network and which is not indexed.
+/// A DerivationPath which is not indexed. On a specific network.
 #[derive(Clone, Debug, Copy, Hash, PartialEq, Eq)]
 pub struct IndexAgnosticPath {
     pub network_id: NetworkID,
