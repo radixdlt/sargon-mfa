@@ -361,6 +361,11 @@ impl FactorInstancesProvider {
             }
 
             if unsatisfied_quantity > 0 {
+                // need to save which IndexAgnosticPath we need to derive more for
+                // and how many instances we need to derive to satisfy the request,
+                // we might in fact derive even more than `unsatisfied_quantity` for
+                // this unsatisfied `IndexAgnosticPath` so that the cache is filled
+                // even after the request has been satisfied.
                 pf_quantity_remaining_not_satisfied_by_cache.insert(
                     *factor_source_id,
                     QuantifiedNetworkIndexAgnosticPath {
@@ -369,17 +374,25 @@ impl FactorInstancesProvider {
                     },
                 );
             }
+
+            // We don't wanna insert empty instances into `pf_found_in_cache`
             if !from_cache.is_empty() {
                 pf_found_in_cache.insert(*factor_source_id, from_cache.clone());
             }
         }
 
         if !need_to_derive_more_instances {
+            // `need_to_derive_more_instances` was never set to true, so we
+            // can satisfy the request with what we found in the cache.
             return Ok(InternalFactorInstancesProviderOutcome::satisfied_by_cache(
                 pf_found_in_cache,
             ));
         }
 
+        // We need to derive more instances, since we could not satisfy the request
+        // We will derive more and save them into the cache, and return
+        // the concatenation of what was found in cache (if any) with the remaining
+        // quantity from newly derived to satisfy the request.
         Self::derive_more_instances(
             network_id,
             cache,
@@ -393,6 +406,16 @@ impl FactorInstancesProvider {
         .await
     }
 
+    /// Derives more instances for the factor sources in `factor_sources`
+    /// uses `pf_quantity_remaining_not_satisfied_by_cache` to split the newly
+    /// derived ones in half, for each `IndexAgnosticPath`, for each factor sources
+    /// and uses some of the newly derived to satisfy the request and the rest
+    /// is saved them into the cache.
+    ///
+    /// We are also not deriving only for the `IndexAgnosticPath` that was unsatisfied,
+    /// but rather we are deriving for all `IndexAgnosticPath` "presets" (account veci,
+    /// identity veci, account mfa, identity mfa) for each factor source, i.e.
+    /// we are filling the cache.
     #[allow(clippy::too_many_arguments)]
     async fn derive_more_instances(
         network_id: NetworkID,
@@ -410,6 +433,9 @@ impl FactorInstancesProvider {
         >,
         pf_found_in_cache: IndexMap<FactorSourceIDFromHash, FactorInstances>,
     ) -> Result<InternalFactorInstancesProviderOutcome> {
+        // Per FactorSource a set of NetworkIndexAgnostic Paths ("presets") to derive for
+        // and the quantity to derive, will be built up using `NetworkIndexAgnosticPath::all_presets()`
+        // and the originally requested in `index_agnostic_path_and_quantity_per_factor_source`.
         let mut pf_quantified_network_agnostic_paths_for_derivation = IndexMap::<
             FactorSourceIDFromHash,
             IndexSet<QuantifiedToCacheToUseNetworkIndexAgnosticPath>,
@@ -422,7 +448,14 @@ impl FactorInstancesProvider {
         let mut pf_to_use_directly = pf_found_in_cache.clone();
 
         // used to filter out factor instances to use directly from the newly derived, based on
-        // `index_agnostic_path_and_quantity_per_factor_source`
+        // `index_agnostic_path_and_quantity_per_factor_source` we map
+        // from: `IndexMap::<FactorSourceIDFromHash, (NetworkIndexAgnosticPath, usize)>`
+        //    to `IndexSet::<IndexAgnosticPath>`
+        //
+        // If any `IndexAgnosticPath` is in `index_agnostic_paths_originally_requested`,
+        // it means we should not cache instances of that IndexAgnosticPath unconditionally,
+        // rather we need to perform a split, to see which `remaining` quantity should
+        // be used directly, and which instances should be cached.
         let index_agnostic_paths_originally_requested =
             index_agnostic_path_and_quantity_per_factor_source
                 .values()
@@ -430,12 +463,20 @@ impl FactorInstancesProvider {
                 .map(|q| IndexAgnosticPath::from((network_id, q.agnostic_path)))
                 .collect::<IndexSet<_>>();
 
+        // Lets build up `pf_quantified_network_agnostic_paths_for_derivation`, which
+        // contains
+        // `index_agnostic_path_and_quantity_per_factor_source` contains the QuantifiedNetworkIndexAgnosticPath for
+        // each FactorSource originally requested, we are gonna fill it with
+        // `NetworkIndexAgnosticPath::all_presets()` and for each gonna look up
+        // how many instances we need to derive to fill the cache, but first
+        // we are gonna check if any of the `NetworkIndexAgnosticPath::all_presets()` was
+        // matches the IndexAgnosticPath of the original request.
         for factor_source_id in index_agnostic_path_and_quantity_per_factor_source.keys() {
             let partial = pf_quantity_remaining_not_satisfied_by_cache
                 .get(factor_source_id)
                 .cloned();
             for preset in NetworkIndexAgnosticPath::all_presets() {
-                let to_insert = partial
+                let to_derive = partial
                     .and_then(|p| {
                         if p.agnostic_path == preset {
                             Some(QuantifiedToCacheToUseNetworkIndexAgnosticPath {
@@ -478,15 +519,106 @@ impl FactorInstancesProvider {
                 if let Some(existing) =
                     pf_quantified_network_agnostic_paths_for_derivation.get_mut(factor_source_id)
                 {
-                    existing.insert(to_insert);
+                    existing.insert(to_derive);
                 } else {
                     pf_quantified_network_agnostic_paths_for_derivation
-                        .insert(*factor_source_id, IndexSet::just(to_insert));
+                        .insert(*factor_source_id, IndexSet::just(to_derive));
                 }
             }
         }
 
-        // Map `NetworkAgnostic -> IndexAgnosticPath`
+        let paths = Self::calculate_derivation_paths(
+            network_id,
+            next_index_assigner,
+            &pf_found_in_cache,
+            pf_quantified_network_agnostic_paths_for_derivation,
+        );
+        let mut pf_to_cache = IndexMap::<FactorSourceIDFromHash, FactorInstances>::new();
+
+        let mut pf_newly_derived = IndexMap::<FactorSourceIDFromHash, FactorInstances>::new();
+
+        // Actually derive more factor instances.
+        let keys_collector = KeysCollector::new(factor_sources, paths, interactors)?;
+        let outcome = keys_collector.collect_keys().await;
+
+        // Now split the newly derived FactorInstances, per factor source, into
+        // `to_cache` and into `to_use_directly`.
+        for (f, instances) in outcome.factors_by_source.into_iter() {
+            pf_newly_derived.insert(f, instances.clone().into());
+            let instances: Vec<HierarchicalDeterministicFactorInstance> =
+                instances.into_iter().collect_vec();
+            let mut to_use_directly = IndexSet::<HierarchicalDeterministicFactorInstance>::new();
+
+            // to use directly
+            let remaining = pf_quantity_remaining_not_satisfied_by_cache
+                .get(&f)
+                .map(|q| q.quantity)
+                .unwrap_or(0);
+
+            let mut to_cache = IndexSet::<HierarchicalDeterministicFactorInstance>::new();
+            for instance in instances {
+                // `instance_matches_original_request` should be `false` if we used
+                // the `FactorInstancesProvider` for purpose "PRE_DERIVE_KEYS_FOR_NEW_FACTOR_SOURCE",
+
+                let instance_matches_original_request = index_agnostic_paths_originally_requested
+                    .contains(&instance.derivation_path().agnostic());
+
+                if instance_matches_original_request {
+                    // Here we ensure to only use `remaining` many
+                    // instances for `to_use_directly`, the rest
+                    // should be cached!
+                    if to_use_directly.len() < remaining {
+                        to_use_directly.insert(instance);
+                    } else {
+                        to_cache.insert(instance);
+                    }
+                } else {
+                    // Does not match original request, cache all!
+                    to_cache.insert(instance);
+                }
+            }
+
+            pf_to_cache.insert(f, to_cache.into());
+
+            if let Some(existing_to_use_directly) = pf_to_use_directly.get_mut(&f) {
+                // We already have inserted some FactorInstances to use directly for this
+                // FactorSource, this is possible we have made a "composite" request
+                // loading some AccountMFA FactorInstances **and** a ROLA key for example.
+                existing_to_use_directly.extend(to_use_directly.into_iter());
+            } else {
+                pf_to_use_directly.insert(f, FactorInstances::from(to_use_directly));
+            }
+        }
+
+        // Build of the "collection" of FactorInstances:
+        // * to_cache
+        // * to_use_directly
+        // * (for tests/debug) found in cache
+        // * (for tests/debug) newly derived
+        //
+        // And "transpose" them, into one collection per FactorSource.
+        let outcome = InternalFactorInstancesProviderOutcome::transpose(
+            pf_to_cache,
+            pf_to_use_directly
+                .into_iter()
+                .map(|(k, v)| (k, v.clone()))
+                .collect(),
+            pf_found_in_cache,
+            pf_newly_derived,
+        );
+        Ok(outcome)
+    }
+
+    fn calculate_derivation_paths(
+        network_id: NetworkID,
+        next_index_assigner: &NextDerivationEntityIndexAssigner,
+        pf_found_in_cache: &IndexMap<FactorSourceIDFromHash, FactorInstances>,
+        pf_quantified_network_agnostic_paths_for_derivation: IndexMap<
+            FactorSourceIDFromHash,
+            IndexSet<QuantifiedToCacheToUseNetworkIndexAgnosticPath>,
+        >,
+    ) -> IndexMap<FactorSourceIDFromHash, IndexSet<DerivationPath>> {
+        // Map `NetworkAgnostic -> IndexAgnosticPath`, by using `network_id`.
         let pf_quantified_index_agnostic_paths_for_derivation =
             pf_quantified_network_agnostic_paths_for_derivation
                 .into_iter()
@@ -505,7 +637,7 @@ impl FactorInstancesProvider {
         // Now map from IndexAgnostic paths to index aware paths, a.k.a. DerivationPath
         // but ALSO we need to retain the information of how many factor instances of
         // the newly derived to append to the factor instances to use directly, and how many to cache.
-        let paths = pf_quantified_index_agnostic_paths_for_derivation
+        pf_quantified_index_agnostic_paths_for_derivation
             .clone()
             .into_iter()
             .map(|(f, agnostic_paths)| {
@@ -523,6 +655,9 @@ impl FactorInstancesProvider {
                                 let index = next_index_assigner.next(
                                     f,
                                     index_agnostic_path,
+                                    // Must also use cache based offsets, checking max between cache and
+                                    // profile. Since profile might not contain the highest entity
+                                    // derivation index, the cache might!
                                     quantified_agnostic_path
                                         .quantity
                                         .max_index()
@@ -543,72 +678,6 @@ impl FactorInstancesProvider {
                     .collect::<IndexSet<_>>();
                 (f, paths)
             })
-            .collect::<IndexMap<FactorSourceIDFromHash, IndexSet<DerivationPath>>>();
-
-        let mut pf_to_cache = IndexMap::<FactorSourceIDFromHash, FactorInstances>::new();
-
-        let mut pf_newly_derived = IndexMap::<FactorSourceIDFromHash, FactorInstances>::new();
-
-        let keys_collector = KeysCollector::new(factor_sources, paths, interactors)?;
-        let outcome = keys_collector.collect_keys().await;
-
-        for (f, instances) in outcome.factors_by_source.into_iter() {
-            pf_newly_derived.insert(f, instances.clone().into());
-            let instances: Vec<HierarchicalDeterministicFactorInstance> =
-                instances.into_iter().collect_vec();
-            let mut to_use_directly = IndexSet::<HierarchicalDeterministicFactorInstance>::new();
-
-            // to use directly
-            let remaining = pf_quantity_remaining_not_satisfied_by_cache
-                .get(&f)
-                .map(|q| q.quantity)
-                .unwrap_or(0);
-
-            let mut to_cache = IndexSet::<HierarchicalDeterministicFactorInstance>::new();
-            for instance in instances {
-                // IMPORTANT: `instance_matches_original_request` SHOULD ALWAYS be
-                // `false` if we used the `FactorInstancesProvider` for purpose "PRE_DERIVE_KEYS_FOR_NEW_FACTOR_SOURCE",
-                // for which we don't want to use any factor instance directly.
-                // By "original request" we mean, if we used the `FactorInstancesProvider` for purpose
-                // "account_veci", then we check here that the derivation path of `instance` matches
-                // that of `NetworkIndexAgnostic::account_veci()`, if it does, then that instance
-                // "matches the original request", but if it is an instances for "identity_veci" or
-                // "account_mfa" or "identity_mfa", then it does not match the original request, and
-                // it should not be used directly, rather be put into the cache.
-                let instance_matches_original_request = index_agnostic_paths_originally_requested
-                    .contains(&instance.derivation_path().agnostic());
-
-                if instance_matches_original_request {
-                    // we can get MULTIPLE hits here, since we are deriving multiple factors per
-                    // agnostic path..
-
-                    if to_use_directly.len() < remaining {
-                        to_use_directly.insert(instance);
-                    } else {
-                        to_cache.insert(instance);
-                    }
-                } else {
-                    to_cache.insert(instance);
-                }
-            }
-
-            pf_to_cache.insert(f, to_cache.into());
-            if let Some(existing_to_use_directly) = pf_to_use_directly.get_mut(&f) {
-                existing_to_use_directly.extend(to_use_directly.into_iter());
-            } else {
-                pf_to_use_directly.insert(f, FactorInstances::from(to_use_directly));
-            }
-        }
-
-        let outcome = InternalFactorInstancesProviderOutcome::transpose(
-            pf_to_cache,
-            pf_to_use_directly
-                .into_iter()
-                .map(|(k, v)| (k, v.clone()))
-                .collect(),
-            pf_found_in_cache,
-            pf_newly_derived,
-        );
-        Ok(outcome)
+            .collect::<IndexMap<FactorSourceIDFromHash, IndexSet<DerivationPath>>>()
     }
 }

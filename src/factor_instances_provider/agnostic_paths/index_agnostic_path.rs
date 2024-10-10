@@ -77,6 +77,8 @@ pub struct QuantifiedNetworkIndexAgnosticPath {
     pub quantity: usize,
 }
 
+/// For `NetworkIndexAgnosticPath` we keep track of
+/// the quantity of instances that are cached and
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct QuantifiedToCacheToUseNetworkIndexAgnosticPath {
     pub agnostic_path: NetworkIndexAgnosticPath,
