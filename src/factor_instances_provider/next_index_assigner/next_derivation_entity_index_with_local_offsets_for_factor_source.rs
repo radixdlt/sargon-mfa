@@ -1,4 +1,4 @@
-use std::ops::AddAssign;
+use std::ops::{AddAssign, Index};
 
 use crate::prelude::*;
 
@@ -6,7 +6,7 @@ use crate::prelude::*;
 pub struct NextDerivationEntityIndexWithLocalOffsetsForFactorSource {
     #[allow(dead_code)]
     factor_source_id: FactorSourceIDFromHash,
-    local_offsets: RwLock<HashMap<DerivationPreset, HDPathValue>>,
+    local_offsets: RwLock<HashMap<IndexAgnosticPath, HDPathValue>>,
 }
 
 impl NextDerivationEntityIndexWithLocalOffsetsForFactorSource {
@@ -16,7 +16,7 @@ impl NextDerivationEntityIndexWithLocalOffsetsForFactorSource {
             local_offsets: RwLock::new(HashMap::new()),
         }
     }
-    pub fn reserve(&self, agnostic_path: DerivationPreset) -> HDPathValue {
+    pub fn reserve(&self, agnostic_path: IndexAgnosticPath) -> HDPathValue {
         let mut binding = self.local_offsets.write().unwrap();
         if let Some(existing) = binding.get_mut(&agnostic_path) {
             let free = *existing;

@@ -11,7 +11,7 @@ impl NextDerivationEntityIndexWithLocalOffsets {
     pub fn reserve(
         &self,
         factor_source_id: FactorSourceIDFromHash,
-        agnostic_path: DerivationPreset,
+        agnostic_path: IndexAgnosticPath,
     ) -> HDPathValue {
         let mut binding = self.local_offsets_per_factor_source.write().unwrap();
         if let Some(for_factor) = binding.get_mut(&factor_source_id) {

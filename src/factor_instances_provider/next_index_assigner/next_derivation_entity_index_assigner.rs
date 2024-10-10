@@ -1,5 +1,32 @@
 use crate::prelude::*;
 
+/// An assigner of derivation entity indices, used by the FactorInstancesProvider
+/// to map `IndexAgnosticPath` -> `DerivationPath` for some FactorSource on
+/// some NetworkID.
+///
+/// This assigner works with the:
+/// * cache (indirectly, via the `OffsetFromCache` parameter on `next` [should probably clean up])
+/// * profile
+/// * local offsets
+///
+/// More specifically the assigner's `next` method performs approximately this
+/// operation:
+///
+/// ```ignore
+/// pub fn next(
+///    &mut self,
+///    fs_id: FactorSourceIDFromHash,
+///    path: IndexAgnosticPath,
+///    cache_offset: OffsetFromCache,
+/// ) -> Result<HDPathComponent> {
+///     let next_from_cache = offset_from_cache.next(fs_id, path).unwrap_or(0);
+///     let next_from_profile = self.profile_analyzing.next(fs_id, path).unwrap_or(0);
+///     
+///     let max_index = std::cmp::max(next_from_profile, next_from_cache);
+///     let local_offset = self.local_offsets.reserve()
+///
+///     max_index + local_offset
+/// ```
 pub struct NextDerivationEntityIndexAssigner {
     #[allow(dead_code)]
     network_id: NetworkID,
@@ -44,14 +71,13 @@ impl NextDerivationEntityIndexAssigner {
         let maybe_next_from_cache = cache_offset.next(factor_source_id, index_agnostic_path)?;
 
         let next_from_cache = maybe_next_from_cache.unwrap_or(default_index);
-        let derivation_preset = DerivationPreset::try_from(index_agnostic_path)?;
         let local = self
             .local_offsets
-            .reserve(factor_source_id, derivation_preset);
+            .reserve(factor_source_id, index_agnostic_path);
 
         let maybe_next_from_profile = self
             .profile_analyzing
-            .next(derivation_preset, factor_source_id)?;
+            .next(index_agnostic_path, factor_source_id)?;
 
         let next_from_profile = maybe_next_from_profile.unwrap_or(default_index);
 

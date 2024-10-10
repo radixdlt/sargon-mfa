@@ -134,21 +134,223 @@ impl NextDerivationEntityIndexProfileAnalyzingAssigner {
 
     pub fn next(
         &self,
-        agnostic_path: DerivationPreset,
+        agnostic_path: IndexAgnosticPath,
         factor_source_id: FactorSourceIDFromHash,
     ) -> Result<Option<HDPathComponent>> {
-        let last = if agnostic_path == DerivationPreset::AccountVeci {
-            self.max_account_veci(factor_source_id)
-        } else if agnostic_path == DerivationPreset::AccountMfa {
-            self.max_account_mfa(factor_source_id)
-        } else if agnostic_path == DerivationPreset::IdentityMfa {
-            self.max_identity_mfa(factor_source_id)
-        } else if agnostic_path == DerivationPreset::IdentityVeci {
-            self.max_identity_veci(factor_source_id)
-        } else {
-            unreachable!("Unrecognized agnostic_path: {:?}", agnostic_path);
+        if agnostic_path.network_id != self.network_id {
+            return Err(CommonError::NetworkDiscrepancy);
+        }
+        let derivation_preset = DerivationPreset::try_from(agnostic_path)?;
+
+        let last = match derivation_preset {
+            DerivationPreset::AccountVeci => self.max_account_veci(factor_source_id),
+            DerivationPreset::AccountMfa => self.max_account_mfa(factor_source_id),
+            DerivationPreset::IdentityVeci => self.max_identity_veci(factor_source_id),
+            DerivationPreset::IdentityMfa => self.max_identity_mfa(factor_source_id),
         };
+
         let Some(last) = last else { return Ok(None) };
         last.add_one().map(Some)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    type Sut = NextDerivationEntityIndexProfileAnalyzingAssigner;
+
+    #[test]
+    fn test_network_discrepancy() {
+        let sut = Sut::new(NetworkID::Mainnet, None);
+        assert_eq!(
+            sut.next(
+                DerivationPreset::AccountVeci.index_agnostic_path_on_network(NetworkID::Stokenet),
+                FactorSourceIDFromHash::fs0()
+            ),
+            Err(CommonError::NetworkDiscrepancy)
+        );
+    }
+
+    #[test]
+    fn test_next_account_veci_with_single_at_0_is_1() {
+        let preset = DerivationPreset::AccountVeci;
+        let network_id = NetworkID::Mainnet;
+        let sut = Sut::new(
+            network_id,
+            Some(Profile::new(HDFactorSource::all(), [&Account::a0()], [])),
+        );
+        let next = sut
+            .next(
+                preset.index_agnostic_path_on_network(network_id),
+                FactorSourceIDFromHash::fs0(),
+            )
+            .unwrap();
+
+        assert_eq!(
+            next,
+            Some(HDPathComponent::unsecurified_hardening_base_index(1))
+        )
+    }
+
+    #[test]
+    fn test_next_account_veci_with_unused_factor_is_none() {
+        let preset = DerivationPreset::AccountVeci;
+        let network_id = NetworkID::Mainnet;
+        let sut = Sut::new(
+            network_id,
+            Some(Profile::new(HDFactorSource::all(), [&Account::a0()], [])),
+        );
+        let next = sut
+            .next(
+                preset.index_agnostic_path_on_network(network_id),
+                FactorSourceIDFromHash::fs1(), // <-- UNUSED
+            )
+            .unwrap();
+
+        assert_eq!(next, None)
+    }
+
+    #[test]
+    fn test_next_account_mfa_with_single_unsecurified_is_none() {
+        let preset = DerivationPreset::AccountMfa;
+        let network_id = NetworkID::Mainnet;
+        let sut = Sut::new(
+            network_id,
+            Some(Profile::new(HDFactorSource::all(), [&Account::a0()], [])),
+        );
+        let next = sut
+            .next(
+                preset.index_agnostic_path_on_network(network_id),
+                FactorSourceIDFromHash::fs0(),
+            )
+            .unwrap();
+
+        assert_eq!(next, None)
+    }
+
+    #[test]
+    fn test_next_account_veci_with_single_at_8_is_9() {
+        let preset = DerivationPreset::AccountVeci;
+        let network_id = NetworkID::Mainnet;
+        let sut = Sut::new(
+            network_id,
+            Some(Profile::new(HDFactorSource::all(), [&Account::a8()], [])),
+        );
+        let next = sut
+            .next(
+                preset.index_agnostic_path_on_network(network_id),
+                FactorSourceIDFromHash::fs10(),
+            )
+            .unwrap();
+
+        assert_eq!(
+            next,
+            Some(HDPathComponent::unsecurified_hardening_base_index(9))
+        )
+    }
+
+    #[test]
+    fn test_next_account_mfa_with_single_at_7_is_8() {
+        let preset = DerivationPreset::AccountMfa;
+        let network_id = NetworkID::Mainnet;
+        let sut = Sut::new(
+            network_id,
+            Some(Profile::new(HDFactorSource::all(), [&Account::a7()], [])),
+        );
+        type F = FactorSourceIDFromHash;
+        for fid in [F::fs2(), F::fs6(), F::fs7(), F::fs8(), F::fs9()] {
+            let next = sut
+                .next(preset.index_agnostic_path_on_network(network_id), fid)
+                .unwrap();
+
+            assert_eq!(next, Some(HDPathComponent::securifying_base_index(8)))
+        }
+    }
+
+    #[test]
+    fn test_next_identity_mfa_with_single_at_7_is_8() {
+        let preset = DerivationPreset::IdentityMfa;
+        let network_id = NetworkID::Mainnet;
+        let sut = Sut::new(
+            network_id,
+            Some(Profile::new(HDFactorSource::all(), [], [&Persona::p7()])),
+        );
+        type F = FactorSourceIDFromHash;
+        for fid in [F::fs2(), F::fs6(), F::fs7(), F::fs8(), F::fs9()] {
+            let next = sut
+                .next(preset.index_agnostic_path_on_network(network_id), fid)
+                .unwrap();
+
+            assert_eq!(next, Some(HDPathComponent::securifying_base_index(8)))
+        }
+    }
+
+    #[test]
+    fn test_next_identity_veci_with_single_at_1_is_2() {
+        let preset = DerivationPreset::IdentityVeci;
+        let network_id = NetworkID::Mainnet;
+        let sut = Sut::new(
+            network_id,
+            Some(Profile::new(HDFactorSource::all(), [], [&Persona::p1()])),
+        );
+        let next = sut
+            .next(
+                preset.index_agnostic_path_on_network(network_id),
+                FactorSourceIDFromHash::fs1(),
+            )
+            .unwrap();
+
+        assert_eq!(
+            next,
+            Some(HDPathComponent::unsecurified_hardening_base_index(2))
+        )
+    }
+
+    #[test]
+    fn test_next_account_veci_with_non_contiguous_at_0_1_7_is_8() {
+        let fsid = FactorSourceIDFromHash::fs0();
+
+        let fi0 = HierarchicalDeterministicFactorInstance::mainnet_tx(
+            CAP26EntityKind::Account,
+            HDPathComponent::unsecurified_hardening_base_index(0),
+            fsid,
+        );
+        let fi1 = HierarchicalDeterministicFactorInstance::mainnet_tx(
+            CAP26EntityKind::Account,
+            HDPathComponent::unsecurified_hardening_base_index(1),
+            fsid,
+        );
+
+        let fi7 = HierarchicalDeterministicFactorInstance::mainnet_tx(
+            CAP26EntityKind::Account,
+            HDPathComponent::unsecurified_hardening_base_index(7),
+            fsid,
+        );
+
+        let network_id = NetworkID::Mainnet;
+        let accounts = [fi0, fi1, fi7].map(|fi| {
+            Account::new(
+                "acco",
+                AccountAddress::new(network_id, fi.public_key_hash()),
+                EntitySecurityState::Unsecured(fi),
+                ThirdPartyDepositPreference::default(),
+            )
+        });
+        let sut = Sut::new(
+            network_id,
+            Some(Profile::new(HDFactorSource::all(), &accounts, [])),
+        );
+        let next = sut
+            .next(
+                DerivationPreset::AccountVeci.index_agnostic_path_on_network(network_id),
+                fsid,
+            )
+            .unwrap();
+
+        assert_eq!(
+            next,
+            Some(HDPathComponent::unsecurified_hardening_base_index(8))
+        )
     }
 }
