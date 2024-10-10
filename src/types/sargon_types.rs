@@ -1343,7 +1343,13 @@ pub trait IsEntityAddress: Sized {
     }
 }
 
-pub trait IsEntity: Into<AccountOrPersona> + TryFrom<AccountOrPersona> + Clone {
+pub trait IsNetworkAware {
+    fn network_id(&self) -> NetworkID;
+}
+
+pub trait IsEntity:
+    Into<AccountOrPersona> + TryFrom<AccountOrPersona> + Clone + IsNetworkAware
+{
     type Address: IsEntityAddress
         + HasSampleValues
         + Clone
@@ -1458,7 +1464,16 @@ pub struct AbstractEntity<A: Clone + Into<AddressOfAccountOrPersona> + EntityKin
     pub third_party_deposit: ThirdPartyDepositPreference,
 }
 pub type Account = AbstractEntity<AccountAddress>;
-
+impl IsNetworkAware for Account {
+    fn network_id(&self) -> NetworkID {
+        self.address.network_id()
+    }
+}
+impl IsNetworkAware for Persona {
+    fn network_id(&self) -> NetworkID {
+        self.address.network_id()
+    }
+}
 impl Account {
     pub fn set_name(&mut self, name: impl AsRef<str>) {
         self.name = name.as_ref().to_owned();

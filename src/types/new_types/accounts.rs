@@ -1,51 +1,57 @@
 use crate::prelude::*;
 
-/// A NonEmpty collection of Accounts all on the SAME Network
+pub type Accounts = Entities<Account>;
+pub type Personas = Entities<Persona>;
+
+/// A NonEmpty collection of Entities all on the SAME Network
 /// but mixed if they are securified or unsecurified.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Accounts {
+pub struct Entities<E: IsNetworkAware + Clone + std::hash::Hash + std::cmp::Eq> {
     pub network_id: NetworkID,
-    accounts: IndexSet<Account>,
+    entities: IndexSet<E>,
 }
-impl Accounts {
-    pub fn just(account: Account) -> Self {
+impl<E: IsNetworkAware + Clone + std::hash::Hash + std::cmp::Eq> Entities<E> {
+    pub fn just(entity: E) -> Self {
         Self {
-            network_id: account.network_id(),
-            accounts: IndexSet::just(account),
+            network_id: entity.network_id(),
+            entities: IndexSet::just(entity),
         }
     }
-    pub fn new(network_id: NetworkID, accounts: IndexSet<Account>) -> Result<Self> {
-        if accounts.is_empty() {
+    pub fn new(network_id: NetworkID, entities: IndexSet<E>) -> Result<Self> {
+        if entities.is_empty() {
             return Err(CommonError::EmptyCollection);
         }
-        if !accounts.iter().all(|a| a.network_id() == network_id) {
+        if !entities.iter().all(|a| a.network_id() == network_id) {
             return Err(CommonError::WrongNetwork);
         }
         Ok(Self {
             network_id,
-            accounts,
+            entities,
         })
     }
-}
-impl IntoIterator for Accounts {
-    type Item = Account;
-    type IntoIter = <IndexSet<Account> as IntoIterator>::IntoIter;
-    fn into_iter(self) -> Self::IntoIter {
-        self.accounts.clone().into_iter()
-    }
-}
-impl Accounts {
+
     pub fn len(&self) -> usize {
-        self.accounts.len()
+        self.entities.len()
     }
+
     /// Should never be true, since we do not allow empty.
     pub fn is_empty(&self) -> bool {
-        self.accounts.is_empty()
+        self.entities.is_empty()
     }
+
     pub fn network_id(&self) -> NetworkID {
         self.network_id
     }
 }
+
+impl<E: IsNetworkAware + Clone + std::hash::Hash + std::cmp::Eq> IntoIterator for Entities<E> {
+    type Item = E;
+    type IntoIter = <IndexSet<E> as IntoIterator>::IntoIter;
+    fn into_iter(self) -> Self::IntoIter {
+        self.entities.clone().into_iter()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -70,7 +76,7 @@ mod tests {
         assert!(matches!(
             Sut::new(
                 NetworkID::Stokenet,
-                IndexSet::from_iter([Account::sample_other(), Item::sample(),])
+                IndexSet::from_iter([Item::sample_other(), Item::sample(),])
             ),
             Err(CommonError::WrongNetwork)
         ));

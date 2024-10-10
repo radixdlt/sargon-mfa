@@ -12,6 +12,11 @@ pub struct SecurifiedAccount {
     /// settings.
     third_party_deposit: Option<ThirdPartyDepositPreference>,
 }
+impl IsNetworkAware for SecurifiedAccount {
+    fn network_id(&self) -> NetworkID {
+        self.address().network_id()
+    }
+}
 impl SecurifiedAccount {
     pub fn new(
         name: impl AsRef<str>,

@@ -626,7 +626,7 @@ async fn securified_accounts() {
         MatrixOfFactorSources::new([bdfs.clone(), ledger.clone(), arculus.clone()], 2, []);
 
     let (securified_accounts, stats) = os
-        .securify(
+        .securify_accounts(
             Accounts::new(
                 NetworkID::Mainnet,
                 IndexSet::from_iter([alice.clone(), bob.clone()]),
@@ -741,7 +741,7 @@ async fn securified_accounts() {
         );
 
     let (securified_accounts, stats) = os
-        .securify(
+        .securify_accounts(
             Accounts::just(carol.clone()),
             MatrixOfFactorSources::new([], 0, [yubikey.clone()]),
         )
@@ -780,7 +780,7 @@ async fn securified_accounts() {
     // Update Alice's shield to only use YubiKey
 
     let (securified_accounts, stats) = os
-        .securify(
+        .securify_accounts(
             Accounts::new(
                 NetworkID::Mainnet,
                 IndexSet::from_iter([alice.clone(), bob.clone()]),
@@ -857,7 +857,7 @@ async fn securify_when_cache_is_half_full_single_factor_source() {
     );
 
     let (first_half_securified_accounts, stats) = os
-        .securify(
+        .securify_accounts(
             Accounts::new(NetworkID::Mainnet, first_half_of_accounts).unwrap(),
             shield_0.clone(),
         )
@@ -888,7 +888,7 @@ async fn securify_when_cache_is_half_full_single_factor_source() {
     );
 
     let (second_half_securified_accounts, stats) = os
-        .securify(
+        .securify_accounts(
             Accounts::new(NetworkID::Mainnet, second_half_of_accounts).unwrap(),
             shield_0,
         )
@@ -976,7 +976,7 @@ async fn securify_when_cache_is_half_full_multiple_factor_sources() {
     );
 
     let (first_half_securified_accounts, stats) = os
-        .securify(
+        .securify_accounts(
             Accounts::new(NetworkID::Mainnet, first_half_of_accounts).unwrap(),
             shield_0.clone(),
         )
@@ -1019,7 +1019,7 @@ async fn securify_when_cache_is_half_full_multiple_factor_sources() {
     );
 
     let (second_half_securified_accounts, stats) = os
-        .securify(
+        .securify_accounts(
             Accounts::new(NetworkID::Mainnet, second_half_of_accounts).unwrap(),
             shield_0,
         )
@@ -1079,5 +1079,218 @@ async fn securify_when_cache_is_half_full_multiple_factor_sources() {
             ["43^", "43^", "43^"],
             ["44^", "44^", "44^"]
         ]
+    );
+}
+
+#[actix_rt::test]
+async fn securified_personas() {
+    let (mut os, bdfs) = SargonOS::with_bdfs().await;
+    let batman = os
+        .new_persona_with_bdfs(NetworkID::Mainnet, "Batman")
+        .await
+        .unwrap()
+        .0;
+
+    let satoshi = os
+        .new_persona_with_bdfs(NetworkID::Mainnet, "Satoshi")
+        .await
+        .unwrap()
+        .0;
+    assert_ne!(batman.address(), bob.satoshi());
+    let ledger = HDFactorSource::ledger();
+    let arculus = HDFactorSource::arculus();
+    let yubikey = HDFactorSource::yubikey();
+    os.add_factor_source(ledger.clone()).await.unwrap();
+    os.add_factor_source(arculus.clone()).await.unwrap();
+    os.add_factor_source(yubikey.clone()).await.unwrap();
+    let shield_0 =
+        MatrixOfFactorSources::new([bdfs.clone(), ledger.clone(), arculus.clone()], 2, []);
+
+    let (securified_personas, stats) = os
+        .securify_personas(
+            Accounts::new(
+                NetworkID::Mainnet,
+                IndexSet::from_iter([alice.clone(), bob.clone()]),
+            )
+            .unwrap(),
+            shield_0,
+        )
+        .await
+        .unwrap();
+
+    assert!(
+        !stats.derived_any_new_instance_for_any_factor_source(),
+        "should have used cache"
+    );
+
+    let alice_sec = securified_accounts
+        .clone()
+        .into_iter()
+        .find(|x| x.address() == alice.entity_address())
+        .unwrap();
+
+    assert_eq!(
+        alice_sec.securified_entity_control().veci.unwrap().clone(),
+        alice.as_unsecurified().unwrap().veci().factor_instance()
+    );
+    let alice_matrix = alice_sec.securified_entity_control().matrix.clone();
+    assert_eq!(alice_matrix.threshold, 2);
+
+    assert_eq!(
+        alice_matrix
+            .all_factors()
+            .into_iter()
+            .map(|f| f.factor_source_id())
+            .collect_vec(),
+        [
+            bdfs.factor_source_id(),
+            ledger.factor_source_id(),
+            arculus.factor_source_id()
+        ]
+    );
+
+    assert_eq!(
+        alice_matrix
+            .all_factors()
+            .into_iter()
+            .map(|f| f.derivation_entity_index())
+            .collect_vec(),
+        [
+            HDPathComponent::securifying_base_index(0),
+            HDPathComponent::securifying_base_index(0),
+            HDPathComponent::securifying_base_index(0)
+        ]
+    );
+
+    // assert bob
+
+    let bob_sec = securified_accounts
+        .clone()
+        .into_iter()
+        .find(|x| x.address() == bob.entity_address())
+        .unwrap();
+
+    assert_eq!(
+        bob_sec.securified_entity_control().veci.unwrap().clone(),
+        bob.as_unsecurified().unwrap().veci().factor_instance()
+    );
+    let bob_matrix = bob_sec.securified_entity_control().matrix.clone();
+    assert_eq!(bob_matrix.threshold, 2);
+
+    assert_eq!(
+        bob_matrix
+            .all_factors()
+            .into_iter()
+            .map(|f| f.factor_source_id())
+            .collect_vec(),
+        [
+            bdfs.factor_source_id(),
+            ledger.factor_source_id(),
+            arculus.factor_source_id()
+        ]
+    );
+
+    assert_eq!(
+        bob_matrix
+            .all_factors()
+            .into_iter()
+            .map(|f| f.derivation_entity_index())
+            .collect_vec(),
+        [
+            HDPathComponent::securifying_base_index(1),
+            HDPathComponent::securifying_base_index(1),
+            HDPathComponent::securifying_base_index(1)
+        ]
+    );
+
+    let carol = os
+        .new_account(ledger.clone(), NetworkID::Mainnet, "Carol")
+        .await
+        .unwrap()
+        .0;
+
+    assert_eq!(
+            carol
+                .as_unsecurified()
+                .unwrap()
+                .veci()
+                .factor_instance()
+                .derivation_entity_index()
+                .base_index(),
+            0,
+            "First account created with ledger, should have index 0, even though this ledger was used in the shield, since we are using two different KeySpaces for Securified and Unsecurified accounts."
+        );
+
+    let (securified_accounts, stats) = os
+        .securify_accounts(
+            Accounts::just(carol.clone()),
+            MatrixOfFactorSources::new([], 0, [yubikey.clone()]),
+        )
+        .await
+        .unwrap();
+    assert!(
+        !stats.derived_any_new_instance_for_any_factor_source(),
+        "should have used cache"
+    );
+    let carol_sec = securified_accounts
+        .clone()
+        .into_iter()
+        .find(|x| x.address() == carol.entity_address())
+        .unwrap();
+
+    let carol_matrix = carol_sec.securified_entity_control().matrix.clone();
+
+    assert_eq!(
+        carol_matrix
+            .all_factors()
+            .into_iter()
+            .map(|f| f.factor_source_id())
+            .collect_vec(),
+        [yubikey.factor_source_id()]
+    );
+
+    assert_eq!(
+        carol_matrix
+            .all_factors()
+            .into_iter()
+            .map(|f| f.derivation_entity_index())
+            .collect_vec(),
+        [HDPathComponent::securifying_base_index(0)]
+    );
+
+    // Update Alice's shield to only use YubiKey
+
+    let (securified_accounts, stats) = os
+        .securify_accounts(
+            Accounts::new(
+                NetworkID::Mainnet,
+                IndexSet::from_iter([alice.clone(), bob.clone()]),
+            )
+            .unwrap(),
+            MatrixOfFactorSources::new([], 0, [yubikey.clone()]),
+        )
+        .await
+        .unwrap();
+    assert!(
+        !stats.derived_any_new_instance_for_any_factor_source(),
+        "should have used cache"
+    );
+    let alice_sec = securified_accounts
+        .clone()
+        .into_iter()
+        .find(|x| x.address() == alice.entity_address())
+        .unwrap();
+
+    let alice_matrix = alice_sec.securified_entity_control().matrix.clone();
+
+    assert_eq!(
+        alice_matrix
+            .all_factors()
+            .into_iter()
+            .map(|f| f.derivation_entity_index())
+            .collect_vec(),
+        [
+                HDPathComponent::securifying_base_index(1) // Carol used `0`.
+            ]
     );
 }

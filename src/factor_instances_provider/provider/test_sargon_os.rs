@@ -137,11 +137,19 @@ impl SargonOS {
         Ok((entity, outcome_for_factor))
     }
 
-    pub(super) async fn securify(
+    pub(super) async fn securify_accounts(
         &mut self,
         accounts: Accounts,
         shield: MatrixOfFactorSources,
     ) -> Result<(SecurifiedAccounts, FactorInstancesProviderOutcome)> {
+        self.securify_entities(accounts, shield)
+    }
+
+    pub(super) async fn securify_entities<E: IsSecurifiedEntity>(
+        &mut self,
+        entities: Entities<E>,
+        shield: MatrixOfFactorSources,
+    ) -> Result<(Entities<Securifie>, FactorInstancesProviderOutcome)> {
         let profile_snapshot = self.profile_snapshot();
 
         let outcome = FactorInstancesProvider::for_account_mfa(

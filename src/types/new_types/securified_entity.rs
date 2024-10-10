@@ -15,6 +15,12 @@ pub struct SecurifiedEntity {
     third_party_deposit: Option<ThirdPartyDepositPreference>,
 }
 
+impl IsNetworkAware for SecurifiedEntity {
+    fn network_id(&self) -> NetworkID {
+        self.address.network_id()
+    }
+}
+
 impl SecurifiedEntity {
     pub fn network_id(&self) -> NetworkID {
         self.address.network_id()
