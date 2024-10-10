@@ -2612,6 +2612,9 @@ pub enum CommonError {
 
     #[error("Entity Index would overflow if added to")]
     EntityIndexWouldOverflowIfAddedTo,
+
+    #[error("Cache Already Contains FactorInstance with path: {derivation_path}")]
+    CacheAlreadyContainsFactorInstance { derivation_path: DerivationPath },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
