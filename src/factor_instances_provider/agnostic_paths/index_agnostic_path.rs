@@ -90,11 +90,6 @@ pub struct QuantifiedToCacheToUseIndexAgnosticPath {
     pub agnostic_path: IndexAgnosticPath,
     pub quantity: QuantityToCacheToUseDirectly,
 }
-impl QuantifiedToCacheToUseIndexAgnosticPath {
-    pub fn network_agnostic(&self) -> NetworkIndexAgnosticPath {
-        self.agnostic_path.network_agnostic()
-    }
-}
 
 impl From<(IndexAgnosticPath, HDPathComponent)> for DerivationPath {
     fn from((path, index): (IndexAgnosticPath, HDPathComponent)) -> Self {

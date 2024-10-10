@@ -148,7 +148,7 @@ impl NextDerivationEntityIndexProfileAnalyzingAssigner {
         } else if agnostic_path == NetworkIndexAgnosticPath::identity_veci() {
             self.max_identity_veci(factor_source_id)
         } else {
-            panic!("Unrecognized agnostic_path: {:?}", agnostic_path);
+            unreachable!("Unrecognized agnostic_path: {:?}", agnostic_path);
         };
 
         last.map(|l| l.add_one())
