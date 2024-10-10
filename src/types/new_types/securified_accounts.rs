@@ -1,6 +1,7 @@
 use crate::prelude::*;
 
 pub type SecurifiedAccounts = Entities<SecurifiedAccount>;
+pub type SecurifiedPersonas = Entities<SecurifiedPersona>;
 
 #[cfg(test)]
 mod tests {

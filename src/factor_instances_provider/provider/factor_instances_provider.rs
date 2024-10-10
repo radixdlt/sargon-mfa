@@ -159,24 +159,43 @@ impl FactorInstancesProvider {
         accounts: IndexSet<AccountAddress>,
         interactors: Arc<dyn KeysDerivationInteractors>,
     ) -> Result<FactorInstancesProviderOutcome> {
+        Self::for_entity_mfa::<Account>(
+            cache,
+            matrix_of_factor_sources,
+            profile,
+            accounts,
+            interactors,
+        )
+        .await
+    }
+
+    pub async fn for_entity_mfa<E: IsEntity>(
+        cache: &mut FactorInstancesCache,
+        matrix_of_factor_sources: MatrixOfFactorSources,
+        profile: Profile,
+        entities: IndexSet<E::Address>,
+        interactors: Arc<dyn KeysDerivationInteractors>,
+    ) -> Result<FactorInstancesProviderOutcome> {
         let factor_sources_to_use = matrix_of_factor_sources.all_factors();
         let factor_sources = profile.factor_sources.clone();
         assert!(
             factor_sources.is_superset(&factor_sources_to_use),
             "Missing FactorSources"
         );
-        assert!(!accounts.is_empty(), "No accounts");
+        assert!(!entities.is_empty(), "No entities");
         assert!(
-            accounts.iter().all(|a| profile.contains_account(a.clone())),
-            "unknown account"
+            entities
+                .iter()
+                .all(|e| profile.contains_entity_by_address::<E>(e)),
+            "unknown entity"
         );
-        let network_id = accounts.first().unwrap().network_id();
+        let network_id = entities.first().unwrap().network_id();
         assert!(
-            accounts.iter().all(|a| a.network_id() == network_id),
+            entities.iter().all(|a| a.network_id() == network_id),
             "wrong network"
         );
 
-        let entity_kind = CAP26EntityKind::Account;
+        let entity_kind = E::kind();
         let key_kind = CAP26KeyKind::TransactionSigning;
         let key_space = KeySpace::Securified;
 
@@ -196,7 +215,7 @@ impl FactorInstancesProvider {
                     (
                         f.factor_source_id(),
                         QuantifiedNetworkIndexAgnosticPath {
-                            quantity: accounts.len(),
+                            quantity: entities.len(),
                             agnostic_path,
                         },
                     )

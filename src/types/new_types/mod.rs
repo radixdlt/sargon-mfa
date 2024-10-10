@@ -1,17 +1,21 @@
 mod accounts;
 mod factor_instances;
+mod is_securified_entity;
 mod securified_account;
 mod securified_accounts;
 mod securified_entity;
+mod securified_persona;
 mod u30;
 mod unsecurified_entity;
 mod veci;
 
 pub use accounts::*;
 pub use factor_instances::*;
+pub use is_securified_entity::*;
 pub use securified_account::*;
 pub use securified_accounts::*;
 pub use securified_entity::*;
+pub use securified_persona::*;
 pub use u30::*;
 pub use unsecurified_entity::*;
 pub use veci::*;

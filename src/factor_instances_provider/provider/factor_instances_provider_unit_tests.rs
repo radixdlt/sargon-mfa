@@ -602,7 +602,7 @@ async fn adding_accounts_different_networks_different_factor_sources() {
 }
 
 #[actix_rt::test]
-async fn securified_accounts() {
+async fn test_securified_accounts() {
     let (mut os, bdfs) = SargonOS::with_bdfs().await;
     let alice = os
         .new_account_with_bdfs(NetworkID::Mainnet, "Alice")
@@ -627,11 +627,7 @@ async fn securified_accounts() {
 
     let (securified_accounts, stats) = os
         .securify_accounts(
-            Accounts::new(
-                NetworkID::Mainnet,
-                IndexSet::from_iter([alice.clone(), bob.clone()]),
-            )
-            .unwrap(),
+            IndexSet::from_iter([alice.entity_address(), bob.entity_address()]),
             shield_0,
         )
         .await
@@ -742,7 +738,7 @@ async fn securified_accounts() {
 
     let (securified_accounts, stats) = os
         .securify_accounts(
-            Accounts::just(carol.clone()),
+            IndexSet::just(carol.entity_address()),
             MatrixOfFactorSources::new([], 0, [yubikey.clone()]),
         )
         .await
@@ -781,11 +777,7 @@ async fn securified_accounts() {
 
     let (securified_accounts, stats) = os
         .securify_accounts(
-            Accounts::new(
-                NetworkID::Mainnet,
-                IndexSet::from_iter([alice.clone(), bob.clone()]),
-            )
-            .unwrap(),
+            IndexSet::from_iter([alice.entity_address(), bob.entity_address()]),
             MatrixOfFactorSources::new([], 0, [yubikey.clone()]),
         )
         .await
@@ -858,7 +850,11 @@ async fn securify_when_cache_is_half_full_single_factor_source() {
 
     let (first_half_securified_accounts, stats) = os
         .securify_accounts(
-            Accounts::new(NetworkID::Mainnet, first_half_of_accounts).unwrap(),
+            first_half_of_accounts
+                .clone()
+                .into_iter()
+                .map(|a| a.entity_address())
+                .collect(),
             shield_0.clone(),
         )
         .await
@@ -889,7 +885,11 @@ async fn securify_when_cache_is_half_full_single_factor_source() {
 
     let (second_half_securified_accounts, stats) = os
         .securify_accounts(
-            Accounts::new(NetworkID::Mainnet, second_half_of_accounts).unwrap(),
+            second_half_of_accounts
+                .clone()
+                .into_iter()
+                .map(|a| a.entity_address())
+                .collect(),
             shield_0,
         )
         .await
@@ -977,7 +977,11 @@ async fn securify_when_cache_is_half_full_multiple_factor_sources() {
 
     let (first_half_securified_accounts, stats) = os
         .securify_accounts(
-            Accounts::new(NetworkID::Mainnet, first_half_of_accounts).unwrap(),
+            first_half_of_accounts
+                .clone()
+                .into_iter()
+                .map(|a| a.entity_address())
+                .collect(),
             shield_0.clone(),
         )
         .await
@@ -1020,7 +1024,11 @@ async fn securify_when_cache_is_half_full_multiple_factor_sources() {
 
     let (second_half_securified_accounts, stats) = os
         .securify_accounts(
-            Accounts::new(NetworkID::Mainnet, second_half_of_accounts).unwrap(),
+            second_half_of_accounts
+                .clone()
+                .into_iter()
+                .map(|a| a.entity_address())
+                .collect(),
             shield_0,
         )
         .await
@@ -1096,7 +1104,7 @@ async fn securified_personas() {
         .await
         .unwrap()
         .0;
-    assert_ne!(batman.address(), bob.satoshi());
+    assert_ne!(batman.address(), satoshi.address());
     let ledger = HDFactorSource::ledger();
     let arculus = HDFactorSource::arculus();
     let yubikey = HDFactorSource::yubikey();
@@ -1108,11 +1116,7 @@ async fn securified_personas() {
 
     let (securified_personas, stats) = os
         .securify_personas(
-            Accounts::new(
-                NetworkID::Mainnet,
-                IndexSet::from_iter([alice.clone(), bob.clone()]),
-            )
-            .unwrap(),
+            IndexSet::from_iter([batman.entity_address(), satoshi.entity_address()]),
             shield_0,
         )
         .await
@@ -1123,21 +1127,21 @@ async fn securified_personas() {
         "should have used cache"
     );
 
-    let alice_sec = securified_accounts
+    let batman_sec = securified_personas
         .clone()
         .into_iter()
-        .find(|x| x.address() == alice.entity_address())
+        .find(|x| x.address() == batman.entity_address())
         .unwrap();
 
     assert_eq!(
-        alice_sec.securified_entity_control().veci.unwrap().clone(),
-        alice.as_unsecurified().unwrap().veci().factor_instance()
+        batman_sec.securified_entity_control().veci.unwrap().clone(),
+        batman.as_unsecurified().unwrap().veci().factor_instance()
     );
-    let alice_matrix = alice_sec.securified_entity_control().matrix.clone();
-    assert_eq!(alice_matrix.threshold, 2);
+    let batman_matrix = batman_sec.securified_entity_control().primary_role();
+    assert_eq!(batman_matrix.threshold, 2);
 
     assert_eq!(
-        alice_matrix
+        batman_matrix
             .all_factors()
             .into_iter()
             .map(|f| f.factor_source_id())
@@ -1150,7 +1154,7 @@ async fn securified_personas() {
     );
 
     assert_eq!(
-        alice_matrix
+        batman_matrix
             .all_factors()
             .into_iter()
             .map(|f| f.derivation_entity_index())
@@ -1162,23 +1166,27 @@ async fn securified_personas() {
         ]
     );
 
-    // assert bob
+    // assert satoshi
 
-    let bob_sec = securified_accounts
+    let satoshi_sec = securified_personas
         .clone()
         .into_iter()
-        .find(|x| x.address() == bob.entity_address())
+        .find(|x| x.address() == satoshi.entity_address())
         .unwrap();
 
     assert_eq!(
-        bob_sec.securified_entity_control().veci.unwrap().clone(),
-        bob.as_unsecurified().unwrap().veci().factor_instance()
+        satoshi_sec
+            .securified_entity_control()
+            .veci
+            .unwrap()
+            .clone(),
+        satoshi.as_unsecurified().unwrap().veci().factor_instance()
     );
-    let bob_matrix = bob_sec.securified_entity_control().matrix.clone();
-    assert_eq!(bob_matrix.threshold, 2);
+    let satoshi_matrix = satoshi_sec.securified_entity_control().primary_role();
+    assert_eq!(satoshi_matrix.threshold, 2);
 
     assert_eq!(
-        bob_matrix
+        satoshi_matrix
             .all_factors()
             .into_iter()
             .map(|f| f.factor_source_id())
@@ -1191,7 +1199,7 @@ async fn securified_personas() {
     );
 
     assert_eq!(
-        bob_matrix
+        satoshi_matrix
             .all_factors()
             .into_iter()
             .map(|f| f.derivation_entity_index())
@@ -1203,14 +1211,14 @@ async fn securified_personas() {
         ]
     );
 
-    let carol = os
-        .new_account(ledger.clone(), NetworkID::Mainnet, "Carol")
+    let hyde = os
+        .new_persona(ledger.clone(), NetworkID::Mainnet, "Mr Hyde")
         .await
         .unwrap()
         .0;
 
     assert_eq!(
-            carol
+        hyde
                 .as_unsecurified()
                 .unwrap()
                 .veci()
@@ -1218,12 +1226,12 @@ async fn securified_personas() {
                 .derivation_entity_index()
                 .base_index(),
             0,
-            "First account created with ledger, should have index 0, even though this ledger was used in the shield, since we are using two different KeySpaces for Securified and Unsecurified accounts."
+            "First persona created with ledger, should have index 0, even though this ledger was used in the shield, since we are using two different KeySpaces for Securified and Unsecurified personas."
         );
 
-    let (securified_accounts, stats) = os
-        .securify_accounts(
-            Accounts::just(carol.clone()),
+    let (securified_personas, stats) = os
+        .securify_personas(
+            IndexSet::just(hyde.entity_address()),
             MatrixOfFactorSources::new([], 0, [yubikey.clone()]),
         )
         .await
@@ -1232,16 +1240,16 @@ async fn securified_personas() {
         !stats.derived_any_new_instance_for_any_factor_source(),
         "should have used cache"
     );
-    let carol_sec = securified_accounts
+    let hyde_sec = securified_personas
         .clone()
         .into_iter()
-        .find(|x| x.address() == carol.entity_address())
+        .find(|x| x.address() == hyde.entity_address())
         .unwrap();
 
-    let carol_matrix = carol_sec.securified_entity_control().matrix.clone();
+    let hyde_matrix = hyde_sec.securified_entity_control().primary_role();
 
     assert_eq!(
-        carol_matrix
+        hyde_matrix
             .all_factors()
             .into_iter()
             .map(|f| f.factor_source_id())
@@ -1250,7 +1258,7 @@ async fn securified_personas() {
     );
 
     assert_eq!(
-        carol_matrix
+        hyde_matrix
             .all_factors()
             .into_iter()
             .map(|f| f.derivation_entity_index())
@@ -1258,15 +1266,11 @@ async fn securified_personas() {
         [HDPathComponent::securifying_base_index(0)]
     );
 
-    // Update Alice's shield to only use YubiKey
+    // Update Batmans and Satoshis's shield to only use YubiKey
 
-    let (securified_accounts, stats) = os
-        .securify_accounts(
-            Accounts::new(
-                NetworkID::Mainnet,
-                IndexSet::from_iter([alice.clone(), bob.clone()]),
-            )
-            .unwrap(),
+    let (securified_personas, stats) = os
+        .securify_personas(
+            IndexSet::from_iter([batman.entity_address(), satoshi.entity_address()]),
             MatrixOfFactorSources::new([], 0, [yubikey.clone()]),
         )
         .await
@@ -1275,16 +1279,16 @@ async fn securified_personas() {
         !stats.derived_any_new_instance_for_any_factor_source(),
         "should have used cache"
     );
-    let alice_sec = securified_accounts
+    let batman_sec = securified_personas
         .clone()
         .into_iter()
-        .find(|x| x.address() == alice.entity_address())
+        .find(|x| x.address() == batman.entity_address())
         .unwrap();
 
-    let alice_matrix = alice_sec.securified_entity_control().matrix.clone();
+    let batman_matrix = batman_sec.securified_entity_control().primary_role();
 
     assert_eq!(
-        alice_matrix
+        batman_matrix
             .all_factors()
             .into_iter()
             .map(|f| f.derivation_entity_index())

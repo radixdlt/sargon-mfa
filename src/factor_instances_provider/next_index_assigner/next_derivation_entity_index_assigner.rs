@@ -2,58 +2,6 @@ use std::ops::AddAssign;
 
 use crate::{factor_instances_provider::agnostic_paths, prelude::*};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-struct AssertMatches {
-    pub network_id: NetworkID,
-    pub key_kind: CAP26KeyKind,
-    pub entity_kind: CAP26EntityKind,
-    pub key_space: KeySpace,
-}
-impl AssertMatches {
-    pub fn matches(&self, path: &DerivationPath) -> DerivationPath {
-        assert_eq!(self.entity_kind, path.entity_kind);
-        assert_eq!(self.network_id, path.network_id);
-        assert_eq!(self.entity_kind, path.entity_kind);
-        assert_eq!(self.key_space, path.key_space());
-        path.clone()
-    }
-}
-impl MatrixOfFactorInstances {
-    fn highest_derivation_path_index(
-        &self,
-        factor_source_id: FactorSourceIDFromHash,
-        assert_matches: AssertMatches,
-    ) -> Option<HDPathComponent> {
-        self.all_factors()
-            .into_iter()
-            .filter(|f| f.factor_source_id() == factor_source_id)
-            .map(|f| f.derivation_path())
-            .map(|p| assert_matches.matches(&p))
-            .map(|p| p.index)
-            .max()
-    }
-}
-impl SecurifiedEntityControl {
-    fn highest_derivation_path_index(
-        &self,
-        factor_source_id: FactorSourceIDFromHash,
-        assert_matches: AssertMatches,
-    ) -> Option<HDPathComponent> {
-        self.matrix
-            .highest_derivation_path_index(factor_source_id, assert_matches)
-    }
-}
-impl SecurifiedEntity {
-    fn highest_derivation_path_index(
-        &self,
-        factor_source_id: FactorSourceIDFromHash,
-        assert_matches: AssertMatches,
-    ) -> Option<HDPathComponent> {
-        self.securified_entity_control()
-            .highest_derivation_path_index(factor_source_id, assert_matches)
-    }
-}
-
 pub struct NextDerivationEntityIndexProfileAnalyzingAssigner {
     network_id: NetworkID,
 
@@ -61,13 +9,13 @@ pub struct NextDerivationEntityIndexProfileAnalyzingAssigner {
     unsecurified_accounts_on_network: IndexSet<UnsecurifiedEntity>,
 
     /// might be empty
-    securified_accounts_on_network: IndexSet<SecurifiedEntity>,
+    securified_accounts_on_network: IndexSet<SecurifiedAccount>,
 
     /// might be empty
     unsecurified_identities_on_network: IndexSet<UnsecurifiedEntity>,
 
     /// might be empty
-    securified_identities_on_network: IndexSet<SecurifiedEntity>,
+    securified_identities_on_network: IndexSet<SecurifiedPersona>,
 }
 
 impl NextDerivationEntityIndexProfileAnalyzingAssigner {
@@ -151,7 +99,7 @@ impl NextDerivationEntityIndexProfileAnalyzingAssigner {
         self.securified_accounts_on_network
             .clone()
             .into_iter()
-            .flat_map(|e: SecurifiedEntity| {
+            .flat_map(|e: SecurifiedAccount| {
                 e.highest_derivation_path_index(
                     factor_source_id,
                     AssertMatches {
@@ -172,7 +120,7 @@ impl NextDerivationEntityIndexProfileAnalyzingAssigner {
         self.securified_identities_on_network
             .clone()
             .into_iter()
-            .flat_map(|e: SecurifiedEntity| {
+            .flat_map(|e: SecurifiedPersona| {
                 e.highest_derivation_path_index(
                     factor_source_id,
                     AssertMatches {

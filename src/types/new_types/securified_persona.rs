@@ -1,28 +1,27 @@
 use crate::prelude::*;
 
-use super::securified_entity;
-
 /// The `SecurifiedEntityControl`, address and possibly third party deposit state of some
 /// Securified entity.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct SecurifiedAccount {
+pub struct SecurifiedPersona {
     name: String,
     /// The address which is verified to match the `veci`
-    account_address: AccountAddress,
+    identity_address: IdentityAddress,
     securified_entity_control: SecurifiedEntityControl,
     /// If we found this UnsecurifiedEntity while scanning OnChain using
     /// Gateway, we might have been able to read out the third party deposit
     /// settings.
     third_party_deposit: Option<ThirdPartyDepositPreference>,
 }
-impl From<SecurifiedAccount> for Account {
-    fn from(value: SecurifiedAccount) -> Account {
-        value.account()
+impl IsNetworkAware for SecurifiedPersona {
+    fn network_id(&self) -> NetworkID {
+        self.address().network_id()
     }
 }
-impl IsSecurifiedEntity for SecurifiedAccount {
-    type BaseEntity = Account;
-    fn address(&self) -> AccountAddress {
+
+impl IsSecurifiedEntity for SecurifiedPersona {
+    type BaseEntity = Persona;
+    fn address(&self) -> IdentityAddress {
         self.address()
     }
     fn securified_entity_control(&self) -> SecurifiedEntityControl {
@@ -31,88 +30,30 @@ impl IsSecurifiedEntity for SecurifiedAccount {
 
     fn new(
         name: impl AsRef<str>,
-        address: AccountAddress,
+        address: IdentityAddress,
         securified_entity_control: SecurifiedEntityControl,
         third_party_deposit: impl Into<Option<ThirdPartyDepositPreference>>,
     ) -> Self {
         Self {
             name: name.as_ref().to_owned(),
-            account_address: address,
+            identity_address: address,
             securified_entity_control,
             third_party_deposit: third_party_deposit.into(),
         }
     }
 }
 
-impl IsNetworkAware for SecurifiedAccount {
-    fn network_id(&self) -> NetworkID {
-        self.address().network_id()
-    }
-}
-
-impl TryFrom<Account> for SecurifiedAccount {
-    type Error = CommonError;
-    fn try_from(value: Account) -> Result<Self> {
-        let securified_entity_control = value
-            .security_state()
-            .as_securified()
-            .cloned()
-            .ok_or(CommonError::AccountNotSecurified)?;
-        Ok(SecurifiedAccount::new(
-            value.name(),
-            value.entity_address(),
-            securified_entity_control,
-            value.third_party_deposit(),
-        ))
-    }
-}
-
-impl TryFrom<AccountOrPersona> for SecurifiedAccount {
-    type Error = CommonError;
-    fn try_from(value: AccountOrPersona) -> Result<Self> {
-        Account::try_from(value).and_then(SecurifiedAccount::try_from)
-    }
-}
-impl From<SecurifiedPersona> for Persona {
-    fn from(value: SecurifiedPersona) -> Persona {
-        value.persona()
-    }
-}
-impl TryFrom<Persona> for SecurifiedPersona {
-    type Error = CommonError;
-    fn try_from(value: Persona) -> Result<Self> {
-        let securified_entity_control = value
-            .security_state()
-            .as_securified()
-            .cloned()
-            .ok_or(CommonError::PersonaNotSecurified)?;
-        Ok(SecurifiedPersona::new(
-            value.name(),
-            value.entity_address(),
-            securified_entity_control,
-            value.third_party_deposit(),
-        ))
-    }
-}
-
-impl TryFrom<AccountOrPersona> for SecurifiedPersona {
-    type Error = CommonError;
-    fn try_from(value: AccountOrPersona) -> Result<Self> {
-        Persona::try_from(value).and_then(SecurifiedPersona::try_from)
-    }
-}
-
-impl SecurifiedAccount {
-    pub fn account(&self) -> Account {
-        Account::new(
+impl SecurifiedPersona {
+    pub fn persona(&self) -> Persona {
+        Persona::new(
             self.name.clone(),
             self.address(),
             EntitySecurityState::Securified(self.securified_entity_control()),
             self.third_party_deposit,
         )
     }
-    pub fn address(&self) -> AccountAddress {
-        self.account_address.clone()
+    pub fn address(&self) -> IdentityAddress {
+        self.identity_address.clone()
     }
     pub fn network_id(&self) -> NetworkID {
         self.address().network_id()
@@ -124,30 +65,28 @@ impl SecurifiedAccount {
         self.third_party_deposit
     }
 }
-
-impl HasSampleValues for SecurifiedAccount {
+impl HasSampleValues for SecurifiedPersona {
     fn sample() -> Self {
         Self::new(
-            "SecurifiedAccount",
-            AccountAddress::sample(),
+            "SecurifiedPersona",
+            IdentityAddress::sample(),
             SecurifiedEntityControl::sample(),
             None,
         )
     }
     fn sample_other() -> Self {
         Self::new(
-            "SecurifiedAccount Other",
-            AccountAddress::sample_other(),
+            "SecurifiedPersona Other",
+            IdentityAddress::sample_other(),
             SecurifiedEntityControl::sample_other(),
             None,
         )
     }
 }
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    type Sut = SecurifiedAccount;
+    type Sut = SecurifiedPersona;
     #[test]
     fn equality() {
         assert_eq!(Sut::sample(), Sut::sample());
@@ -162,7 +101,7 @@ mod tests {
         let test = |dep: ThirdPartyDepositPreference| {
             let sut = Sut::new(
                 "name",
-                AccountAddress::sample_0(),
+                IdentityAddress::sample_0(),
                 SecurifiedEntityControl::sample(),
                 dep,
             );

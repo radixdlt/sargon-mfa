@@ -139,28 +139,42 @@ impl SargonOS {
 
     pub(super) async fn securify_accounts(
         &mut self,
-        accounts: Accounts,
+        account_addresses: IndexSet<AccountAddress>,
         shield: MatrixOfFactorSources,
     ) -> Result<(SecurifiedAccounts, FactorInstancesProviderOutcome)> {
-        self.securify_entities(accounts, shield)
+        assert!(!account_addresses.is_empty());
+        let network = account_addresses.first().unwrap().network_id();
+        let (entities, stats) = self
+            .securify_entities::<SecurifiedAccount>(account_addresses, shield)
+            .await?;
+        Ok((SecurifiedAccounts::new(network, entities).unwrap(), stats))
+    }
+
+    pub(super) async fn securify_personas(
+        &mut self,
+        identity_addresses: IndexSet<IdentityAddress>,
+        shield: MatrixOfFactorSources,
+    ) -> Result<(SecurifiedPersonas, FactorInstancesProviderOutcome)> {
+        assert!(!identity_addresses.is_empty());
+        let network = identity_addresses.first().unwrap().network_id();
+        let (entities, stats) = self
+            .securify_entities::<SecurifiedPersona>(identity_addresses, shield)
+            .await?;
+        Ok((SecurifiedPersonas::new(network, entities).unwrap(), stats))
     }
 
     pub(super) async fn securify_entities<E: IsSecurifiedEntity>(
         &mut self,
-        entities: Entities<E>,
+        addresses_of_entities: IndexSet<<E::BaseEntity as IsEntity>::Address>,
         shield: MatrixOfFactorSources,
-    ) -> Result<(Entities<Securifie>, FactorInstancesProviderOutcome)> {
+    ) -> Result<(IndexSet<E>, FactorInstancesProviderOutcome)> {
         let profile_snapshot = self.profile_snapshot();
 
-        let outcome = FactorInstancesProvider::for_account_mfa(
+        let outcome = FactorInstancesProvider::for_entity_mfa::<E::BaseEntity>(
             &mut self.cache,
             shield.clone(),
-            profile_snapshot,
-            accounts
-                .clone()
-                .into_iter()
-                .map(|a| a.entity_address())
-                .collect(),
+            profile_snapshot.clone(),
+            addresses_of_entities.clone(),
             Arc::new(TestDerivationInteractors::default()),
         )
         .await
@@ -175,45 +189,52 @@ impl SargonOS {
 
         // Now we need to map the flat set of instances into many MatrixOfFactorInstances, and assign
         // one to each account
-        let updated_accounts = accounts
+        let updated_entities = addresses_of_entities
             .clone()
             .into_iter()
             .map(|a| {
+                let entity = profile_snapshot.get_entity::<E::BaseEntity>(&a).unwrap();
                 let matrix_of_instances =
                     MatrixOfFactorInstances::fulfilling_matrix_of_factor_sources_with_instances(
                         &mut instance_per_factor,
                         shield.clone(),
                     )
                     .unwrap();
-                let access_controller = match a.security_state() {
+                let access_controller = match entity.security_state() {
                     EntitySecurityState::Unsecured(_) => {
-                        AccessController::from_unsecurified_address(a.entity_address())
+                        AccessController::from_unsecurified_address(a)
                     }
                     EntitySecurityState::Securified(sec) => sec.access_controller.clone(),
                 };
-                let veci = match a.security_state() {
+                let veci = match entity.security_state() {
                     EntitySecurityState::Unsecured(veci) => Some(veci),
                     EntitySecurityState::Securified(sec) => sec.veci.clone(),
                 };
                 let sec =
                     SecurifiedEntityControl::new(matrix_of_instances, access_controller, veci);
-                SecurifiedAccount::new(a.name(), a.entity_address(), sec, a.third_party_deposit())
-            })
-            .collect::<IndexSet<SecurifiedAccount>>();
 
-        for account in updated_accounts.iter() {
+                E::new(
+                    entity.name(),
+                    entity.entity_address(),
+                    sec,
+                    entity.third_party_deposit(),
+                )
+            })
+            .collect::<IndexSet<E>>();
+
+        for entity in updated_entities.clone().into_iter() {
             self.profile
                 .try_write()
                 .unwrap()
-                .update_account(&account.account())
-                .unwrap();
+                .update_entity::<E::BaseEntity>(entity.into())
         }
         assert!(
             instance_per_factor.values().all(|x| x.is_empty()),
             "should have used all instances, but have unused instances: {:?}",
             instance_per_factor
         );
-        SecurifiedAccounts::new(accounts.network_id(), updated_accounts).map(|x| (x, outcome))
+
+        Ok((updated_entities, outcome))
     }
 
     /// Pre-Derives FactorInstances and saves them into the cache

@@ -1042,6 +1042,11 @@ impl SecurifiedEntityControl {
     pub fn primary_role_instances(&self) -> FactorInstances {
         self.matrix.primary_role_instances()
     }
+
+    /// This is wrong... should be Role...
+    pub fn primary_role(&self) -> MatrixOfFactorInstances {
+        self.matrix.clone()
+    }
     pub fn new(
         matrix: MatrixOfFactorInstances,
         access_controller: AccessController,
@@ -1367,6 +1372,17 @@ pub trait IsEntity:
         third_party_deposit: impl Into<Option<ThirdPartyDepositPreference>>,
     ) -> Self;
 
+    fn as_unsecurified(&self) -> Result<UnsecurifiedEntity> {
+        match self.security_state() {
+            EntitySecurityState::Unsecured(fi) => Ok(UnsecurifiedEntity::new(
+                self.address(),
+                fi,
+                ThirdPartyDepositPreference::default(), // TODO 3rd party
+            )),
+            EntitySecurityState::Securified(_) => Err(CommonError::EntityConversionError),
+        }
+    }
+
     fn unsecurified_mainnet(
         name: impl AsRef<str>,
         genesis_factor_instance: HierarchicalDeterministicFactorInstance,
@@ -1406,21 +1422,6 @@ pub trait IsEntity:
         )
     }
 
-    fn network_id(&self) -> NetworkID {
-        match self.security_state() {
-            EntitySecurityState::Securified(sec) => {
-                sec.matrix
-                    .all_factors()
-                    .iter()
-                    .last()
-                    .unwrap()
-                    .public_key
-                    .derivation_path
-                    .network_id
-            }
-            EntitySecurityState::Unsecured(fi) => fi.public_key.derivation_path.network_id,
-        }
-    }
     fn all_factor_instances(&self) -> HashSet<HierarchicalDeterministicFactorInstance> {
         self.security_state()
             .all_factor_instances()
@@ -1474,29 +1475,19 @@ impl IsNetworkAware for Persona {
         self.address.network_id()
     }
 }
+
+impl Persona {
+    pub fn as_securified(&self) -> Result<SecurifiedPersona> {
+        SecurifiedPersona::try_from(self.clone())
+    }
+}
+
 impl Account {
     pub fn set_name(&mut self, name: impl AsRef<str>) {
         self.name = name.as_ref().to_owned();
     }
-    pub fn as_securified(&self) -> Result<SecurifiedEntity> {
-        match self.security_state() {
-            EntitySecurityState::Securified(sec) => Ok(SecurifiedEntity::new(
-                self.address(),
-                sec,
-                ThirdPartyDepositPreference::default(), // TODO 3rd party
-            )),
-            EntitySecurityState::Unsecured(_) => Err(CommonError::EntityConversionError),
-        }
-    }
-    pub fn as_unsecurified(&self) -> Result<UnsecurifiedEntity> {
-        match self.security_state() {
-            EntitySecurityState::Unsecured(fi) => Ok(UnsecurifiedEntity::new(
-                self.address(),
-                fi,
-                ThirdPartyDepositPreference::default(), // TODO 3rd party
-            )),
-            EntitySecurityState::Securified(_) => Err(CommonError::EntityConversionError),
-        }
+    pub fn as_securified(&self) -> Result<SecurifiedAccount> {
+        SecurifiedAccount::try_from(self.clone())
     }
 }
 
@@ -1999,6 +1990,11 @@ impl Default for ProfileNetwork {
 }
 
 impl ProfileNetwork {
+    pub fn contains_entity_by_address<E: IsEntity>(&self, entity_address: &E::Address) -> bool {
+        self.get_entities_erased(E::kind())
+            .into_iter()
+            .any(|e| e.address() == entity_address.clone().into())
+    }
     pub fn contains_account(&self, address: impl Into<AccountAddress>) -> bool {
         let address = address.into();
         self.accounts.contains_key(&address)
@@ -2121,6 +2117,12 @@ impl From<Account> for AccountAddress {
     }
 }
 impl Profile {
+    pub fn contains_entity_by_address<E: IsEntity>(&self, entity_address: &E::Address) -> bool {
+        self.networks
+            .values()
+            .any(|n: &ProfileNetwork| n.contains_entity_by_address::<E>(entity_address))
+    }
+
     /// # Panics if no BDFS was found
     pub fn bdfs(&self) -> HDFactorSource {
         self.factor_sources
@@ -2153,26 +2155,40 @@ impl Profile {
             .unwrap_or_default()
     }
 
-    pub fn get_securified_entities_of_kind_on_network(
+    pub fn get_securified_entities_of_kind_on_network<E: IsSecurifiedEntity>(
         &self,
-        entity_kind: CAP26EntityKind,
         network_id: NetworkID,
-    ) -> IndexSet<SecurifiedEntity> {
+    ) -> IndexSet<E> {
         self.get_entities_of_kind_on_network_in_key_space(
-            entity_kind,
+            E::kind(),
             network_id,
             KeySpace::Securified,
         )
         .into_iter()
-        .map(|e: AccountOrPersona| {
-            let control = match e.security_state() {
-                EntitySecurityState::Securified(control) => control,
-                _ => unreachable!(),
-            };
-            SecurifiedEntity::new(e.address(), control, e.third_party_deposit_settings())
-        })
+        .flat_map(|x| E::try_from(x).ok())
         .collect()
     }
+
+    // pub fn get_securified_entities_of_kind_on_network(
+    //     &self,
+    //     entity_kind: CAP26EntityKind,
+    //     network_id: NetworkID,
+    // ) -> IndexSet<SecurifiedEntity> {
+    //     self.get_entities_of_kind_on_network_in_key_space(
+    //         entity_kind,
+    //         network_id,
+    //         KeySpace::Securified,
+    //     )
+    //     .into_iter()
+    //     .map(|e: AccountOrPersona| {
+    //         let control = match e.security_state() {
+    //             EntitySecurityState::Securified(control) => control,
+    //             _ => unreachable!(),
+    //         };
+    //         SecurifiedEntity::new(e.address(), control, e.third_party_deposit_settings())
+    //     })
+    //     .collect()
+    // }
 
     pub fn get_unsecurified_entities_of_kind_on_network(
         &self,
@@ -2209,8 +2225,8 @@ impl Profile {
     pub fn securified_accounts_on_network(
         &self,
         network_id: NetworkID,
-    ) -> IndexSet<SecurifiedEntity> {
-        self.get_securified_entities_of_kind_on_network(CAP26EntityKind::Account, network_id)
+    ) -> IndexSet<SecurifiedAccount> {
+        self.get_securified_entities_of_kind_on_network(network_id)
     }
 
     pub fn unsecurified_identities_on_network(
@@ -2223,8 +2239,8 @@ impl Profile {
     pub fn securified_identities_on_network(
         &self,
         network_id: NetworkID,
-    ) -> IndexSet<SecurifiedEntity> {
-        self.get_securified_entities_of_kind_on_network(CAP26EntityKind::Identity, network_id)
+    ) -> IndexSet<SecurifiedPersona> {
+        self.get_securified_entities_of_kind_on_network(network_id)
     }
 
     pub fn accounts_on_network(&self, network_id: NetworkID) -> IndexSet<Account> {
@@ -2309,6 +2325,16 @@ impl Profile {
         } else {
             panic!("hmm what to do");
         }
+    }
+
+    pub fn get_entity<E: IsEntity + std::hash::Hash + Eq>(
+        &self,
+        address: &E::Address,
+    ) -> Result<E> {
+        self.get_entities::<E>()
+            .into_iter()
+            .find(|e| e.entity_address() == *address)
+            .ok_or(CommonError::UnknownEntity)
     }
 
     pub fn get_account(&self, address: &AccountAddress) -> Result<Account> {
@@ -2574,6 +2600,12 @@ pub enum CommonError {
 
     #[error("Invalid u30")]
     Invalid30 { bad_value: u32 },
+
+    #[error("Account not securified")]
+    AccountNotSecurified,
+
+    #[error("Persona not securified")]
+    PersonaNotSecurified,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]

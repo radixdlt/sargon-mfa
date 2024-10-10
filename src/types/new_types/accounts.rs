@@ -10,6 +10,7 @@ pub struct Entities<E: IsNetworkAware + Clone + std::hash::Hash + std::cmp::Eq> 
     pub network_id: NetworkID,
     entities: IndexSet<E>,
 }
+
 impl<E: IsNetworkAware + Clone + std::hash::Hash + std::cmp::Eq> Entities<E> {
     pub fn just(entity: E) -> Self {
         Self {
