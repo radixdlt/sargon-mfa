@@ -76,6 +76,11 @@ impl FactorInstances {
             factor_instances,
         }
     }
+
+    pub fn just(factor_instance: HierarchicalDeterministicFactorInstance) -> Self {
+        Self::new(IndexSet::just(factor_instance))
+    }
+
     pub fn factor_instances(&self) -> IndexSet<HierarchicalDeterministicFactorInstance> {
         self.factor_instances.clone()
     }

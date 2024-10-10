@@ -128,3 +128,94 @@ impl InternalFactorInstancesProviderOutcome {
         )
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    type Sut = InternalFactorInstancesProviderOutcome;
+
+    #[test]
+    fn only_to_cache() {
+        let i = HierarchicalDeterministicFactorInstance::fia0();
+
+        let sut = Sut::transpose(
+            IndexMap::kv(
+                FactorSourceIDFromHash::fs0(),
+                FactorInstances::just(i.clone()),
+            ),
+            IndexMap::new(),
+            IndexMap::new(),
+            IndexMap::new(),
+        );
+        assert_eq!(
+            sut.per_factor.get(&i.factor_source_id()).unwrap().to_cache,
+            FactorInstances::just(i)
+        )
+    }
+
+    #[test]
+    fn only_to_use_directly() {
+        let i = HierarchicalDeterministicFactorInstance::fia0();
+
+        let sut = Sut::transpose(
+            IndexMap::new(),
+            IndexMap::kv(
+                FactorSourceIDFromHash::fs0(),
+                FactorInstances::just(i.clone()),
+            ),
+            IndexMap::new(),
+            IndexMap::new(),
+        );
+        assert_eq!(
+            sut.per_factor
+                .get(&i.factor_source_id())
+                .unwrap()
+                .to_use_directly,
+            FactorInstances::just(i)
+        )
+    }
+
+    #[test]
+    fn only_found_in_cache() {
+        let i = HierarchicalDeterministicFactorInstance::fia0();
+
+        let sut = Sut::transpose(
+            IndexMap::new(),
+            IndexMap::new(),
+            IndexMap::kv(
+                FactorSourceIDFromHash::fs0(),
+                FactorInstances::just(i.clone()),
+            ),
+            IndexMap::new(),
+        );
+        assert_eq!(
+            sut.per_factor
+                .get(&i.factor_source_id())
+                .unwrap()
+                .found_in_cache,
+            FactorInstances::just(i)
+        )
+    }
+
+    #[test]
+    fn only_newly_derived() {
+        let i = HierarchicalDeterministicFactorInstance::fia0();
+
+        let sut = Sut::transpose(
+            IndexMap::new(),
+            IndexMap::new(),
+            IndexMap::new(),
+            IndexMap::kv(
+                FactorSourceIDFromHash::fs0(),
+                FactorInstances::just(i.clone()),
+            ),
+        );
+        assert_eq!(
+            sut.per_factor
+                .get(&i.factor_source_id())
+                .unwrap()
+                .newly_derived,
+            FactorInstances::just(i)
+        )
+    }
+}
