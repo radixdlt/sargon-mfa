@@ -1383,14 +1383,12 @@ pub trait IsEntity:
         }
     }
 
-    fn unsecurified_mainnet(
+    fn unsecurified_on_network(
         name: impl AsRef<str>,
+        network_id: NetworkID,
         genesis_factor_instance: HierarchicalDeterministicFactorInstance,
     ) -> Self {
-        let address = Self::Address::new(
-            NetworkID::Mainnet,
-            genesis_factor_instance.public_key_hash(),
-        );
+        let address = Self::Address::new(network_id, genesis_factor_instance.public_key_hash());
         Self::new(
             name,
             address,
@@ -1399,7 +1397,14 @@ pub trait IsEntity:
         )
     }
 
-    fn securified_mainnet(
+    fn unsecurified_mainnet(
+        name: impl AsRef<str>,
+        genesis_factor_instance: HierarchicalDeterministicFactorInstance,
+    ) -> Self {
+        Self::unsecurified_on_network(name, NetworkID::Mainnet, genesis_factor_instance)
+    }
+
+    fn securified(
         name: impl AsRef<str>,
         address: Self::Address,
         make_matrix: impl Fn() -> MatrixOfFactorInstances,
@@ -1420,6 +1425,21 @@ pub trait IsEntity:
             )),
             ThirdPartyDepositPreference::default(),
         )
+    }
+
+    fn securified_mainnet(
+        name: impl AsRef<str>,
+        address: Self::Address,
+        make_matrix: impl Fn() -> MatrixOfFactorInstances,
+    ) -> Self {
+        assert_eq!(address.network_id(), NetworkID::Mainnet);
+        let matrix = make_matrix();
+        assert!(matrix
+            .clone()
+            .all_factors()
+            .into_iter()
+            .all(|f| f.derivation_path().network_id == NetworkID::Mainnet));
+        Self::securified(name, address, || matrix.clone())
     }
 
     fn all_factor_instances(&self) -> HashSet<HierarchicalDeterministicFactorInstance> {

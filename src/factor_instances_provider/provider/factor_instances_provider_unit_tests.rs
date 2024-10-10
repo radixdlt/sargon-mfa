@@ -6,6 +6,80 @@ use crate::{factor_instances_provider::provider::test_sargon_os::SargonOS, prelu
 
 type Sut = FactorInstancesProvider;
 
+#[should_panic]
+#[actix_rt::test]
+async fn mfa_panics_if_entities_empty() {
+    let fs = HDFactorSource::fs0();
+    let a = Account::sample_unsecurified();
+    let _ = Sut::for_account_mfa(
+        &mut FactorInstancesCache::default(),
+        MatrixOfFactorSources::new([], 1, [fs.clone()]),
+        Profile::new([fs], [&a], []),
+        IndexSet::new(), // <---- EMPTY => should_panic
+        Arc::new(TestDerivationInteractors::default()),
+    )
+    .await
+    .unwrap();
+}
+
+#[should_panic]
+#[actix_rt::test]
+async fn mfa_panics_if_entity_unknown() {
+    let fs = HDFactorSource::fs0();
+    let a = Account::sample_unsecurified();
+    let _ = Sut::for_account_mfa(
+        &mut FactorInstancesCache::default(),
+        MatrixOfFactorSources::new([], 1, [fs.clone()]),
+        Profile::new([fs], [&a], []),
+        IndexSet::just(Account::a1().entity_address()), // <---- unknown => should_panic
+        Arc::new(TestDerivationInteractors::default()),
+    )
+    .await
+    .unwrap();
+}
+
+#[should_panic]
+#[actix_rt::test]
+async fn mfa_panics_if_wrong_network() {
+    let fs = HDFactorSource::fs0();
+    let network = NetworkID::Mainnet;
+    let mainnet_account = Account::unsecurified_on_network(
+        "main",
+        network,
+        HierarchicalDeterministicFactorInstance::tx_on_network(
+            CAP26EntityKind::Account,
+            network,
+            HDPathComponent::unsecurified_hardening_base_index(0),
+            fs.factor_source_id(),
+        ),
+    );
+    let network = NetworkID::Stokenet;
+    let stokenet_account = Account::unsecurified_on_network(
+        "stoknet",
+        network,
+        HierarchicalDeterministicFactorInstance::tx_on_network(
+            CAP26EntityKind::Account,
+            network,
+            HDPathComponent::unsecurified_hardening_base_index(0),
+            fs.factor_source_id(),
+        ),
+    );
+    let profile = Profile::new([fs.clone()], [&mainnet_account, &stokenet_account], []);
+    assert_eq!(profile.networks.len(), 2);
+    let _ = Sut::for_account_mfa(
+        &mut FactorInstancesCache::default(),
+        MatrixOfFactorSources::new([], 1, [fs.clone()]),
+        profile,
+        IndexSet::from_iter([
+            mainnet_account.entity_address(),
+            stokenet_account.entity_address(),
+        ]), // <---- wrong network => should_panic
+        Arc::new(TestDerivationInteractors::default()),
+    )
+    .await
+    .unwrap();
+}
+
 #[actix_rt::test]
 async fn create_accounts_when_last_is_used_cache_is_fill_only_with_account_vecis_and_if_profile_is_used_a_new_account_is_created(
 ) {
