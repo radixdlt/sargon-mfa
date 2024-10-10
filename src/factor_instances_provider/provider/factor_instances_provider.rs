@@ -230,6 +230,13 @@ impl FactorInstancesProvider {
     }
 }
 
+struct TakeFromCacheResult {
+    pf_found_in_cache: IndexMap<FactorSourceIDFromHash, FactorInstances>,
+    pf_quantity_remaining_not_satisfied_by_cache:
+        IndexMap<FactorSourceIDFromHash, QuantifiedNetworkIndexAgnosticPath>,
+    need_to_derive_more_instances: bool,
+}
+
 struct SplitFactorInstances {
     pf_to_cache: IndexMap<FactorSourceIDFromHash, FactorInstances>,
     pf_to_use_directly: IndexMap<FactorSourceIDFromHash, FactorInstances>,
@@ -302,6 +309,45 @@ impl FactorInstancesProvider {
         next_index_assigner: &NextDerivationEntityIndexAssigner,
         interactors: Arc<dyn KeysDerivationInteractors>,
     ) -> Result<InternalFactorInstancesProviderOutcome> {
+        let pf_cache_result = Self::take_from_cache(
+            network_id,
+            cache,
+            &index_agnostic_path_and_quantity_per_factor_source,
+        )?;
+
+        if !pf_cache_result.need_to_derive_more_instances {
+            // `need_to_derive_more_instances` was never set to true, so we
+            // can satisfy the request with what we found in the cache.
+            return Ok(InternalFactorInstancesProviderOutcome::satisfied_by_cache(
+                pf_cache_result.pf_found_in_cache,
+            ));
+        }
+
+        // We need to derive more instances, since we could not satisfy the request
+        // We will derive more and save them into the cache, and return
+        // the concatenation of what was found in cache (if any) with the remaining
+        // quantity from newly derived to satisfy the request.
+        Self::derive_more_instances(
+            network_id,
+            cache,
+            next_index_assigner,
+            interactors,
+            factor_sources,
+            index_agnostic_path_and_quantity_per_factor_source,
+            pf_cache_result.pf_quantity_remaining_not_satisfied_by_cache,
+            pf_cache_result.pf_found_in_cache,
+        )
+        .await
+    }
+
+    fn take_from_cache(
+        network_id: NetworkID,
+        cache: &mut FactorInstancesCache,
+        index_agnostic_path_and_quantity_per_factor_source: &IndexMap<
+            FactorSourceIDFromHash,
+            QuantifiedNetworkIndexAgnosticPath,
+        >,
+    ) -> Result<TakeFromCacheResult> {
         // `pf` is short for `Per FactorSource`
         let mut pf_found_in_cache = IndexMap::<FactorSourceIDFromHash, FactorInstances>::new();
 
@@ -388,29 +434,11 @@ impl FactorInstancesProvider {
             }
         }
 
-        if !need_to_derive_more_instances {
-            // `need_to_derive_more_instances` was never set to true, so we
-            // can satisfy the request with what we found in the cache.
-            return Ok(InternalFactorInstancesProviderOutcome::satisfied_by_cache(
-                pf_found_in_cache,
-            ));
-        }
-
-        // We need to derive more instances, since we could not satisfy the request
-        // We will derive more and save them into the cache, and return
-        // the concatenation of what was found in cache (if any) with the remaining
-        // quantity from newly derived to satisfy the request.
-        Self::derive_more_instances(
-            network_id,
-            cache,
-            next_index_assigner,
-            interactors,
-            factor_sources,
-            index_agnostic_path_and_quantity_per_factor_source,
-            pf_quantity_remaining_not_satisfied_by_cache,
+        Ok(TakeFromCacheResult {
+            need_to_derive_more_instances,
             pf_found_in_cache,
-        )
-        .await
+            pf_quantity_remaining_not_satisfied_by_cache,
+        })
     }
 
     /// Derives more instances for the factor sources in `factor_sources`
