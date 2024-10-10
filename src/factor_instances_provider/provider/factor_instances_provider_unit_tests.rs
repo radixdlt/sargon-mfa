@@ -78,6 +78,88 @@ async fn create_accounts_when_last_is_used_cache_is_fill_only_with_account_vecis
 }
 
 #[actix_rt::test]
+async fn cache_is_always_filled_persona_veci_then_after_all_used_we_start_over_at_zero_if_no_profile_is_used(
+) {
+    let network = NetworkID::Mainnet;
+    let bdfs = HDFactorSource::sample();
+    let mut cache = FactorInstancesCache::default();
+
+    let outcome = Sut::for_persona_veci(
+        &mut cache,
+        None,
+        bdfs.clone(),
+        network,
+        Arc::new(TestDerivationInteractors::default()),
+    )
+    .await
+    .unwrap();
+
+    assert_eq!(outcome.factor_source_id, bdfs.factor_source_id());
+
+    assert_eq!(outcome.debug_found_in_cache.len(), 0);
+
+    assert_eq!(
+        outcome.debug_was_cached.len(),
+        NetworkIndexAgnosticPath::all_presets().len() * CACHE_FILLING_QUANTITY
+    );
+
+    assert_eq!(
+        outcome.debug_was_derived.len(),
+        NetworkIndexAgnosticPath::all_presets().len() * CACHE_FILLING_QUANTITY + 1
+    );
+
+    let instances_used_directly = outcome.to_use_directly.factor_instances();
+    assert_eq!(instances_used_directly.len(), 1);
+    let instances_used_directly = instances_used_directly.first().unwrap();
+
+    assert_eq!(
+        instances_used_directly.derivation_entity_index(),
+        HDPathComponent::Hardened(HDPathComponentHardened::Unsecurified(
+            UnsecurifiedIndex::unsecurified_hardening_base_index(0)
+        ))
+    );
+
+    cache.assert_is_full(network, bdfs.factor_source_id());
+
+    let cached = cache
+        .peek_all_instances_of_factor_source(bdfs.factor_source_id())
+        .unwrap();
+
+    let persona_veci_paths = cached
+        .clone()
+        .get(&NetworkIndexAgnosticPath::identity_veci().on_network(network))
+        .unwrap()
+        .factor_instances()
+        .into_iter()
+        .map(|x| x.derivation_path())
+        .collect_vec();
+
+    assert_eq!(persona_veci_paths.len(), CACHE_FILLING_QUANTITY);
+
+    assert!(persona_veci_paths
+        .iter()
+        .all(|x| x.entity_kind == CAP26EntityKind::Identity
+            && x.network_id == network
+            && x.key_space() == KeySpace::Unsecurified
+            && x.key_kind == CAP26KeyKind::TransactionSigning));
+
+    let persona_veci_indices = persona_veci_paths
+        .into_iter()
+        .map(|x| x.index)
+        .collect_vec();
+
+    assert_eq!(
+        persona_veci_indices.first().unwrap().clone(),
+        HDPathComponent::unsecurified_hardening_base_index(1)
+    );
+
+    assert_eq!(
+        persona_veci_indices.last().unwrap().clone(),
+        HDPathComponent::unsecurified_hardening_base_index(30)
+    );
+}
+
+#[actix_rt::test]
 async fn cache_is_always_filled_account_veci_then_after_all_used_we_start_over_at_zero_if_no_profile_is_used(
 ) {
     let network = NetworkID::Mainnet;
@@ -452,17 +534,20 @@ async fn add_account_and_personas_mixed() {
     assert!(os.profile_snapshot().get_personas().is_empty());
     assert!(os.profile_snapshot().get_accounts().is_empty());
 
-    let (_, stats) = os.new_mainnet_persona_with_bdfs("Batman").await.unwrap();
+    let (batman, stats) = os.new_mainnet_persona_with_bdfs("Batman").await.unwrap();
     assert!(stats.debug_was_derived.is_empty());
 
-    let (_, stats) = os.new_mainnet_account_with_bdfs("alice").await.unwrap();
+    let (alice, stats) = os.new_mainnet_account_with_bdfs("alice").await.unwrap();
     assert!(stats.debug_was_derived.is_empty());
 
-    let (_, stats) = os.new_mainnet_persona_with_bdfs("Satoshi").await.unwrap();
+    let (satoshi, stats) = os.new_mainnet_persona_with_bdfs("Satoshi").await.unwrap();
     assert!(stats.debug_was_derived.is_empty());
 
-    let (_, stats) = os.new_mainnet_account_with_bdfs("bob").await.unwrap();
+    assert_ne!(batman.entity_address(), satoshi.entity_address());
+
+    let (bob, stats) = os.new_mainnet_account_with_bdfs("bob").await.unwrap();
     assert!(stats.debug_was_derived.is_empty());
+    assert_ne!(alice.entity_address(), bob.entity_address());
 
     assert_eq!(os.profile_snapshot().get_personas().len(), 2);
     assert_eq!(os.profile_snapshot().get_accounts().len(), 2);
@@ -599,6 +684,47 @@ async fn adding_accounts_different_networks_different_factor_sources() {
             .map(|a| a.entity_address())
             .collect::<HashSet<AccountAddress>>()
     );
+}
+
+#[actix_rt::test]
+async fn securify_accounts_and_personas_with_override_factor() {
+    // this is mostly a soundness test for the two functions `for_persona_mfa` and `for_account_mfa`
+    // using `os` because I'm lazy. We might in fact remove `for_persona_mfa` and `for_account_mfa`
+    // and only use the `for_entity_mfa` function... but we have these to get code coverage.
+    let (mut os, bdfs) = SargonOS::with_bdfs().await;
+
+    let (batman, stats) = os.new_mainnet_persona_with_bdfs("Batman").await.unwrap();
+    assert!(stats.debug_was_derived.is_empty());
+
+    let (alice, stats) = os.new_mainnet_account_with_bdfs("alice").await.unwrap();
+    assert!(stats.debug_was_derived.is_empty());
+
+    let shield_0 = MatrixOfFactorSources::new([], 0, [bdfs.clone()]);
+    let mut cache = os.cache_snapshot();
+    let interactors = Arc::new(TestDerivationInteractors::default());
+    let outcome = FactorInstancesProvider::for_account_mfa(
+        &mut cache,
+        shield_0.clone(),
+        os.profile_snapshot(),
+        IndexSet::just(alice.entity_address()),
+        interactors.clone(),
+    )
+    .await
+    .unwrap();
+    let outcome = outcome.per_factor.get(&bdfs.factor_source_id()).unwrap();
+    assert_eq!(outcome.to_use_directly.len(), 1);
+
+    let outcome = FactorInstancesProvider::for_persona_mfa(
+        &mut cache,
+        shield_0.clone(),
+        os.profile_snapshot(),
+        IndexSet::just(batman.entity_address()),
+        interactors.clone(),
+    )
+    .await
+    .unwrap();
+    let outcome = outcome.per_factor.get(&bdfs.factor_source_id()).unwrap();
+    assert_eq!(outcome.to_use_directly.len(), 1);
 }
 
 #[actix_rt::test]

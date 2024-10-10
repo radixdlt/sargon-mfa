@@ -98,6 +98,34 @@ impl FactorInstancesProvider {
         .await
     }
 
+    /// Reads FactorInstances for `factor_source` on `network_id` of kind `persona_veci`,
+    /// meaning `(EntityKind::Identity, KeyKind::TransactionSigning, KeySpace::Unsecurified)`,
+    /// from cache, if any, otherwise derives more of that kind AND other kinds:
+    /// account_veci, account_mfa, identity_mfa
+    /// and saves into the cache and returns a collection of instances, split into
+    /// factor instance to use directly and factor instances which was cached, into
+    /// the mutable `cache` parameter.
+    ///
+    /// We are always reading from the beginning of each FactorInstance collection in the cache,
+    /// and we are always appending to the end.
+    pub async fn for_persona_veci(
+        cache: &mut FactorInstancesCache,
+        profile: Option<Profile>,
+        factor_source: HDFactorSource,
+        network_id: NetworkID,
+        interactors: Arc<dyn KeysDerivationInteractors>,
+    ) -> Result<FactorInstancesProviderOutcomeForFactor> {
+        Self::for_entity_veci(
+            cache,
+            CAP26EntityKind::Identity,
+            profile,
+            factor_source,
+            network_id,
+            interactors,
+        )
+        .await
+    }
+
     /// Reads FactorInstances for `factor_source` on `network_id` of kind `account_veci`,
     /// meaning `(EntityKind::Account, KeyKind::TransactionSigning, KeySpace::Unsecurified)`,
     /// from cache, if any, otherwise derives more of that kind AND other kinds:
@@ -156,24 +184,63 @@ impl FactorInstancesProvider {
         cache: &mut FactorInstancesCache,
         matrix_of_factor_sources: MatrixOfFactorSources,
         profile: Profile,
-        accounts: IndexSet<AccountAddress>,
+        account_addresses: IndexSet<AccountAddress>,
         interactors: Arc<dyn KeysDerivationInteractors>,
     ) -> Result<FactorInstancesProviderOutcome> {
         Self::for_entity_mfa::<Account>(
             cache,
             matrix_of_factor_sources,
             profile,
-            accounts,
+            account_addresses,
             interactors,
         )
         .await
     }
 
+    /// Reads FactorInstances for every `factor_source` in matrix_of_factor_sources
+    /// on `network_id` of kind `account_mfa`,
+    /// meaning `(EntityKind::Account, KeyKind::TransactionSigning, KeySpace::Securified)`,
+    /// from cache, if any, otherwise derives more of that kind AND other kinds:
+    /// identity_veci, account_veci, identity_mfa
+    /// and saves into the cache and returns a collection of instances, per factor source,
+    /// split into factor instance to use directly and factor instances which was cached, into
+    /// the mutable `cache` parameter.
+    ///
+    /// We are always reading from the beginning of each FactorInstance collection in the cache,
+    /// and we are always appending to the end.
+    pub async fn for_persona_mfa(
+        cache: &mut FactorInstancesCache,
+        matrix_of_factor_sources: MatrixOfFactorSources,
+        profile: Profile,
+        persona_addresses: IndexSet<IdentityAddress>,
+        interactors: Arc<dyn KeysDerivationInteractors>,
+    ) -> Result<FactorInstancesProviderOutcome> {
+        Self::for_entity_mfa::<Persona>(
+            cache,
+            matrix_of_factor_sources,
+            profile,
+            persona_addresses,
+            interactors,
+        )
+        .await
+    }
+
+    /// Reads FactorInstances for every `factor_source` in matrix_of_factor_sources
+    /// on `network_id` of kind `account_mfa` or `identity_mfa` depending on Entity kind,
+    /// meaning `(EntityKind::_, KeyKind::TransactionSigning, KeySpace::Securified)`,
+    /// from cache, if any, otherwise derives more of that kind AND other kinds:
+    /// identity_veci, account_veci, identity_mfa/account_mfa
+    /// and saves into the cache and returns a collection of instances, per factor source,
+    /// split into factor instance to use directly and factor instances which was cached, into
+    /// the mutable `cache` parameter.
+    ///
+    /// We are always reading from the beginning of each FactorInstance collection in the cache,
+    /// and we are always appending to the end.
     pub async fn for_entity_mfa<E: IsEntity>(
         cache: &mut FactorInstancesCache,
         matrix_of_factor_sources: MatrixOfFactorSources,
         profile: Profile,
-        entities: IndexSet<E::Address>,
+        addresses_of_entities: IndexSet<E::Address>,
         interactors: Arc<dyn KeysDerivationInteractors>,
     ) -> Result<FactorInstancesProviderOutcome> {
         let factor_sources_to_use = matrix_of_factor_sources.all_factors();
@@ -182,16 +249,18 @@ impl FactorInstancesProvider {
             factor_sources.is_superset(&factor_sources_to_use),
             "Missing FactorSources"
         );
-        assert!(!entities.is_empty(), "No entities");
+        assert!(!addresses_of_entities.is_empty(), "No entities");
         assert!(
-            entities
+            addresses_of_entities
                 .iter()
                 .all(|e| profile.contains_entity_by_address::<E>(e)),
             "unknown entity"
         );
-        let network_id = entities.first().unwrap().network_id();
+        let network_id = addresses_of_entities.first().unwrap().network_id();
         assert!(
-            entities.iter().all(|a| a.network_id() == network_id),
+            addresses_of_entities
+                .iter()
+                .all(|a| a.network_id() == network_id),
             "wrong network"
         );
 
@@ -215,7 +284,7 @@ impl FactorInstancesProvider {
                     (
                         f.factor_source_id(),
                         QuantifiedNetworkIndexAgnosticPath {
-                            quantity: entities.len(),
+                            quantity: addresses_of_entities.len(),
                             agnostic_path,
                         },
                     )

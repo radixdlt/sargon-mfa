@@ -10,7 +10,7 @@ use crate::prelude::*;
 /// * add_factor_source (using `FactorInstancesProvider`)
 pub(super) struct SargonOS {
     /// FactorInstancesCache of prederived FactorInstances for each factor source in Profile.
-    cache: FactorInstancesCache,
+    pub(super) cache: FactorInstancesCache,
     profile: RwLock<Profile>,
 }
 
