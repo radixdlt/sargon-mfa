@@ -105,8 +105,16 @@ impl NextDerivationEntityIndexAssigner {
 
         let next_from_profile = maybe_next_from_profile.unwrap_or(default_index);
 
-        let max_index = std::cmp::max(next_from_profile, next_from_cache);
+        if next_from_profile > next_from_cache {
+            println!("🧚‍♀️ using `next_from_profile`: {:?}", next_from_profile)
+        } else {
+            println!("🧚‍♀️ using `next_from_cache`: {:?}", next_from_cache)
+        }
 
-        max_index.add_n(local)
+        let max_index = std::cmp::max(next_from_profile, next_from_cache);
+        println!("🧚‍♀️ adding local: {:?}", local);
+        let next = max_index.add_n(local);
+        println!("🧚‍♀️ next: {:?}", next);
+        next
     }
 }

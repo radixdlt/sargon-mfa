@@ -1405,6 +1405,34 @@ async fn securify_personas_when_cache_is_half_full_single_factor_source() {
 }
 
 #[actix_rt::test]
+async fn create_single_account() {
+    let (mut os, bdfs) = SargonOS::with_bdfs().await;
+    let (alice, stats) = os.new_mainnet_account_with_bdfs("alice").await.unwrap();
+    assert!(stats.debug_was_derived.is_empty(), "should have used cache");
+    let (sec_accounts, stats) = os
+        .securify_accounts(
+            IndexSet::just(alice.entity_address()),
+            MatrixOfFactorSources::new([], 0, [bdfs]),
+        )
+        .await
+        .unwrap();
+    assert!(
+        !stats.derived_any_new_instance_for_any_factor_source(),
+        "should have used cache"
+    );
+    let alice_sec = sec_accounts.into_iter().next().unwrap();
+    assert_eq!(
+        alice_sec
+            .securified_entity_control()
+            .primary_role_instances()
+            .first()
+            .unwrap()
+            .derivation_entity_index(),
+        HDPathComponent::securifying_base_index(0)
+    );
+}
+
+#[actix_rt::test]
 async fn securified_personas() {
     let (mut os, bdfs) = SargonOS::with_bdfs().await;
     let batman = os
