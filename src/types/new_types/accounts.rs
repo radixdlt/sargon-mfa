@@ -12,12 +12,6 @@ pub struct Entities<E: IsNetworkAware + Clone + std::hash::Hash + std::cmp::Eq> 
 }
 
 impl<E: IsNetworkAware + Clone + std::hash::Hash + std::cmp::Eq> Entities<E> {
-    pub fn just(entity: E) -> Self {
-        Self {
-            network_id: entity.network_id(),
-            entities: IndexSet::just(entity),
-        }
-    }
     pub fn new(network_id: NetworkID, entities: IndexSet<E>) -> Result<Self> {
         if entities.is_empty() {
             return Err(CommonError::EmptyCollection);

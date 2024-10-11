@@ -22,21 +22,6 @@ impl TransactionIntent {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Hash, derive_more::Display, derive_more::Debug)]
-pub enum KeySpace {
-    #[display("Unsecurified")]
-    #[debug("Unsecurified")]
-    Unsecurified,
-    #[display("Securified")]
-    #[debug("Securified")]
-    Securified,
-}
-impl KeySpace {
-    pub fn both() -> [Self; 2] {
-        [Self::Unsecurified, Self::Securified]
-    }
-}
-
 impl DerivationPath {
     pub fn key_space(&self) -> KeySpace {
         self.index.key_space()
