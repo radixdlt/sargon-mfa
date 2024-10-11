@@ -277,10 +277,17 @@ impl FactorInstancesProvider {
 }
 
 impl FactorInstancesCache {
-    fn get(
+    fn get_poly_factor(
         &self,
-        factor_source_idss: IndexSet<FactorSourceIDFromHash>,
-        quantified_index_agnostic_path: QuantifiedIndexAgnosticPath,
+        factor_source_ids: IndexSet<FactorSourceIDFromHash>,
+        index_agnostic_path: IndexAgnosticPath,
+    ) -> Result<IndexMap<FactorSourceIDFromHash, FactorInstances>> {
+        todo!()
+    }
+    fn get_mono_factor(
+        &self,
+        factor_source_id: FactorSourceIDFromHash,
+        index_agnostic_path: IndexAgnosticPath,
     ) -> Result<IndexMap<FactorSourceIDFromHash, FactorInstances>> {
         todo!()
     }
@@ -305,16 +312,13 @@ impl FactorInstancesProvider {
             originally_requested_derivation_preset.index_agnostic_path_on_network(network_id);
 
         let originally_requested_quantity = quantified_derivation_preset.quantity;
-        let quantified_index_agnostic_path = QuantifiedIndexAgnosticPath {
-            agnostic_path: index_agnostic_path,
-            quantity: originally_requested_quantity,
-        };
+
         let next_index_assigner =
             NextDerivationEntityIndexAssigner::new(network_id, profile, cache.clone());
         // "pf" short for "Per FactorSource"
         let pf_from_cache = next_index_assigner
             .cache()
-            .get(factor_source_ids, quantified_index_agnostic_path)?;
+            .get_poly_factor(factor_source_ids, index_agnostic_path)?;
 
         let mut pf_quantity_missing_from_cache = IndexMap::<FactorSourceIDFromHash, usize>::new();
         let pf_quantity_to_derive = pf_from_cache
@@ -341,11 +345,12 @@ impl FactorInstancesProvider {
             .collect::<IndexMap<FactorSourceIDFromHash, usize>>();
 
         let pf_newly_derived = Self::derive_more(
+            factor_sources,
             pf_quantity_to_derive,
-            network_id,
             originally_requested_derivation_preset,
+            network_id,
             &next_index_assigner,
-            interactors,
+            interactors.clone(),
         )
         .await?;
         /*
@@ -394,59 +399,83 @@ impl FactorInstancesProvider {
     }
 
     async fn derive_more(
+        factor_sources: IndexSet<HDFactorSource>,
         pf_quantity_to_derive: IndexMap<FactorSourceIDFromHash, usize>,
-        network_id: NetworkID,
         originally_requested_derivation_preset: DerivationPreset,
+        network_id: NetworkID,
         next_index_assigner: &NextDerivationEntityIndexAssigner,
         interactors: Arc<dyn KeysDerivationInteractors>,
     ) -> Result<IndexMap<FactorSourceIDFromHash, FactorInstances>> {
-        /*
-         let pf_paths = pf_quantity_to_derive.into_iter().map(|(factor_source_id, qty)| {
-            // `qty` many paths
-            let originally_requested_paths_for_factor = (0..qty).map(|_| {
-                let query = InstanceQuery {
-                    network_id,
-                    factor_source_id,
-                    derivation_preset
-                };
-                let index =  next_index_assigner.next(query);
-                DerivationPath::from((query, index))
-            }).collect::<IndexSet<DerivationPath>>();
-           let cache_filling_paths = DerivationPreset::all()
-               .excluding(originally_requested_derivation_preset)
-               .into_iter()
-               .flat_map(|derivation_preset| {
-                   let cache = next_index_assigner.cache;
+        let pf_paths = pf_quantity_to_derive
+            .into_iter()
+            .map(|(factor_source_id, qty)| {
+                // `qty` many paths
+                let originally_requested_paths_for_factor = (0..qty)
+                    .map(|_| {
+                        let index_agnostic_path = originally_requested_derivation_preset
+                            .index_agnostic_path_on_network(network_id);
+                        let index =
+                            next_index_assigner.next(factor_source_id, index_agnostic_path)?;
+                        Ok(DerivationPath::from((index_agnostic_path, index)))
+                    })
+                    .collect::<Result<IndexSet<DerivationPath>>>()?;
 
-                   let single_factor_from_cache = cache
-                       .get_for_single_factor_source(
-                           factor_source_id,
-                           qty,
-                           derivation_preset,
-                           network_id
-                       );
-                   let qty_to_be_full = CACHE_FILLING_SIZE - single_factor_from_cache.len();
-                   // `qty_to_be_full` is `0` if cache full, and the map below => empty
-                   (0..qty_to_be_full).map(|_| {
-                       let query = InstanceQuery {
-                           network_id,
-                           factor_source_id,
-                           derivation_preset
-                       };
-                       let index =  next_index_assigner.next(query);
-                       DerivationPath::from((query, index))
-                   }).collect::<IndexSet<DerivationPath>>()
-               })
-               .collect::<IndexSet<DerivationPath>>();
+                let cache_filling_paths = DerivationPreset::all()
+                    .excluding(originally_requested_derivation_preset)
+                    .into_iter()
+                    .map(|derivation_preset| {
+                        let cache = next_index_assigner.cache();
+                        let index_agnostic_path =
+                            derivation_preset.index_agnostic_path_on_network(network_id);
+                        let single_factor_from_cache =
+                            cache.get_mono_factor(factor_source_id, index_agnostic_path)?;
+                        let qty_to_be_full =
+                            CACHE_FILLING_QUANTITY - single_factor_from_cache.len();
+                        // `qty_to_be_full` is `0` if cache full, and the map below => empty
+                        (0..qty_to_be_full)
+                            .map(|_| {
+                                let index = next_index_assigner
+                                    .next(factor_source_id, index_agnostic_path)?;
+                                Ok(DerivationPath::from((index_agnostic_path, index)))
+                            })
+                            .collect::<Result<IndexSet<DerivationPath>>>()
+                    })
+                    .collect::<Result<Vec<IndexSet<DerivationPath>>>>()?;
 
-           let mut paths = IndexSet::new();
-           paths.extend(originally_requested_paths_for_factor);
-           paths.extend(cache_filling_paths);
-            (f, paths)
-         }).collect::<IndexMap<FactorSourceID, IndexSet<DerivationPath>>>();
+                // flatten (I was unable to use `flat_map` above combined with `Result`...)
+                let cache_filling_paths = cache_filling_paths
+                    .into_iter()
+                    .flat_map(|xs| xs)
+                    .collect::<IndexSet<_>>();
 
-        KeysCollector::new(pf_paths, ...).collect().await
-        */
-        todo!()
+                let mut paths = IndexSet::new();
+                paths.extend(originally_requested_paths_for_factor);
+                paths.extend(cache_filling_paths);
+                Ok((factor_source_id, paths))
+            })
+            .collect::<Result<IndexMap<FactorSourceIDFromHash, IndexSet<DerivationPath>>>>()?;
+
+        let keys_collector = KeysCollector::new(factor_sources, pf_paths, interactors)?;
+
+        let pf_instances = keys_collector
+            .collect_keys()
+            .await
+            .factors_by_source
+            .into_iter()
+            .map(|(k, v)| (k, v.into_iter().collect::<FactorInstances>()))
+            .collect::<IndexMap<_, _>>();
+
+        Ok(pf_instances)
+    }
+}
+
+pub trait Excluding {
+    type Item;
+    fn excluding(&self, item: Self::Item) -> Self;
+}
+impl Excluding for IndexSet<DerivationPreset> {
+    type Item = DerivationPreset;
+    fn excluding(&self, item: Self::Item) -> Self {
+        self.iter().filter(|i| i != &item).cloned().collect()
     }
 }

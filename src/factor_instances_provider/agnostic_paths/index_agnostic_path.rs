@@ -9,14 +9,30 @@ pub struct IndexAgnosticPath {
     pub key_space: KeySpace,
 }
 
-impl From<(NetworkID, DerivationPreset)> for IndexAgnosticPath {
-    fn from((network_id, agnostic_path): (NetworkID, DerivationPreset)) -> Self {
+impl IndexAgnosticPath {
+    pub fn new(
+        network_id: NetworkID,
+        entity_kind: CAP26EntityKind,
+        key_kind: CAP26KeyKind,
+        key_space: KeySpace,
+    ) -> Self {
         Self {
             network_id,
-            entity_kind: agnostic_path.entity_kind(),
-            key_kind: agnostic_path.key_kind(),
-            key_space: agnostic_path.key_space(),
+            entity_kind,
+            key_kind,
+            key_space,
         }
+    }
+}
+
+impl From<(NetworkID, DerivationPreset)> for IndexAgnosticPath {
+    fn from((network_id, agnostic_path): (NetworkID, DerivationPreset)) -> Self {
+        Self::new(
+            network_id,
+            agnostic_path.entity_kind(),
+            agnostic_path.key_kind(),
+            agnostic_path.key_space(),
+        )
     }
 }
 impl TryFrom<IndexAgnosticPath> for DerivationPreset {
@@ -47,12 +63,6 @@ impl TryFrom<IndexAgnosticPath> for DerivationPreset {
 #[derive(Clone, Copy, Hash, PartialEq, Eq)]
 pub struct QuantifiedDerivationPresets {
     pub derivation_preset: DerivationPreset,
-    pub quantity: usize,
-}
-
-#[derive(Clone, Hash, PartialEq, Eq)]
-pub struct QuantifiedIndexAgnosticPath {
-    pub agnostic_path: IndexAgnosticPath,
     pub quantity: usize,
 }
 
