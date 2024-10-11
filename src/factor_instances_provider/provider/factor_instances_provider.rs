@@ -476,6 +476,6 @@ pub trait Excluding {
 impl Excluding for IndexSet<DerivationPreset> {
     type Item = DerivationPreset;
     fn excluding(&self, item: Self::Item) -> Self {
-        self.iter().filter(|i| i != &item).cloned().collect()
+        self.iter().filter(|i| *i != &item).cloned().collect()
     }
 }
