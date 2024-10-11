@@ -179,8 +179,8 @@ impl FactorInstancesCache {
 
     pub fn max_index_for(
         &self,
-        agnostic_path: IndexAgnosticPath,
         factor_source_id: FactorSourceIDFromHash,
+        agnostic_path: IndexAgnosticPath,
     ) -> Option<HDPathComponent> {
         let Some(for_factor) = self.values.get(&factor_source_id) else {
             return None;
@@ -210,6 +210,48 @@ impl FactorInstancesCache {
         Ok(pf)
     }
 
+    pub fn get_poly_factor_with_quantities(
+        &self,
+        factor_source_ids: &IndexSet<FactorSourceIDFromHash>,
+        originally_requested_quantified_derivation_preset: &QuantifiedDerivationPresets,
+        network_id: NetworkID,
+    ) -> Result<CachedInstancesWithQuantities> {
+        todo!()
+    }
+}
+
+#[derive(enum_as_inner::EnumAsInner)]
+enum CachedInstancesWithQuantitiesOutcome {
+    Satisfied(IndexMap<FactorSourceIDFromHash, FactorInstances>),
+    NotSatisfied(IndexMap<FactorSourceIDFromHash, FactorInstances>),
+}
+pub struct CachedInstancesWithQuantities {
+    originally_requested_quantified_derivation_preset: QuantifiedDerivationPresets,
+    network_id: NetworkID,
+    outcome: CachedInstancesWithQuantitiesOutcome,
+}
+impl CachedInstancesWithQuantities {
+    pub fn satisfied(&self) -> Option<IndexMap<FactorSourceIDFromHash, FactorInstances>> {
+        self.outcome.as_satisfied().cloned()
+    }
+    pub fn quantities_to_derive(
+        &self,
+    ) -> IndexMap<FactorSourceIDFromHash, IndexMap<DerivationPreset, usize>> {
+        let instances = self._not_requested();
+        todo!()
+    }
+    fn _not_requested(&self) -> IndexMap<FactorSourceIDFromHash, FactorInstances> {
+        self.outcome
+            .as_not_satisfied()
+            .cloned()
+            .expect("not satisfied")
+    }
+    pub fn get_requested(self) -> IndexMap<FactorSourceIDFromHash, FactorInstances> {
+        self._not_requested()
+    }
+}
+
+impl FactorInstancesCache {
     pub fn get_mono_factor(
         &self,
         factor_source_id: &FactorSourceIDFromHash,

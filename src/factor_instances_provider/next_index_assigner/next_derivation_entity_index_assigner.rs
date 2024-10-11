@@ -52,8 +52,9 @@ impl NextDerivationEntityIndexCacheAnalyzingAssigner {
         factor_source_id: FactorSourceIDFromHash,
         index_agnostic_path: IndexAgnosticPath,
     ) -> Result<Option<HDPathComponent>> {
-        self.cache
-            .max_index_for(factor_source_id, index_agnostic_path)
+        Ok(self
+            .cache
+            .max_index_for(factor_source_id, index_agnostic_path))
     }
 }
 

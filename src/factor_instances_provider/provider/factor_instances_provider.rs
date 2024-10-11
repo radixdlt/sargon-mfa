@@ -276,37 +276,6 @@ impl FactorInstancesProvider {
     }
 }
 
-#[derive(enum_as_inner::EnumAsInner)]
-enum CachedInstancesWithQuantitiesOutcome {
-    Satisfied(IndexMap<FactorSourceIDFromHash, FactorInstances>),
-    NotSatisfied(IndexMap<FactorSourceIDFromHash, FactorInstances>),
-}
-pub struct CachedInstancesWithQuantities {
-    originally_requested_quantified_derivation_preset: QuantifiedDerivationPresets,
-    network_id: NetworkID,
-    outcome: CachedInstancesWithQuantitiesOutcome,
-}
-impl CachedInstancesWithQuantities {
-    fn satisfied(&self) -> Option<IndexMap<FactorSourceIDFromHash, FactorInstances>> {
-        self.outcome.as_satisfied().cloned()
-    }
-    fn quantities_to_derive(
-        &self,
-    ) -> IndexMap<FactorSourceIDFromHash, IndexMap<DerivationPreset, usize>> {
-        let instances = self._not_requested();
-        todo!()
-    }
-    fn _not_requested(&self) -> IndexMap<FactorSourceIDFromHash, FactorInstances> {
-        self.outcome
-            .as_not_satisfied()
-            .cloned()
-            .expect("not satisfied")
-    }
-    fn get_requested(self) -> IndexMap<FactorSourceIDFromHash, FactorInstances> {
-        self._not_requested()
-    }
-}
-
 struct Split {
     pf_to_use_directly: IndexMap<FactorSourceIDFromHash, FactorInstances>,
     pf_to_cache: IndexMap<FactorSourceIDFromHash, FactorInstances>,
