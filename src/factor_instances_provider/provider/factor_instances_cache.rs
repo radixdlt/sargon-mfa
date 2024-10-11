@@ -1,4 +1,4 @@
-use std::ops::Add;
+use std::{f32::consts::E, ops::Add};
 
 use crate::prelude::*;
 
@@ -175,6 +175,23 @@ impl FactorInstancesCache {
             _ = self.insert_for_factor(factor_source_id, instances)?;
         }
         Ok(())
+    }
+
+    pub fn max_index_for(
+        &self,
+        agnostic_path: IndexAgnosticPath,
+        factor_source_id: FactorSourceIDFromHash,
+    ) -> Option<HDPathComponent> {
+        let Some(for_factor) = self.values.get(&factor_source_id) else {
+            return None;
+        };
+        let Some(instances) = for_factor.get(&agnostic_path) else {
+            return None;
+        };
+        instances
+            .factor_instances()
+            .last()
+            .map(|fi| fi.derivation_entity_index())
     }
 
     /// Reads out the instance of `factor_source_id` without mutating the cache.
