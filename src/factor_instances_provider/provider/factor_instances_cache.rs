@@ -1,4 +1,4 @@
-use std::{f32::consts::E, ops::Add, process::exit};
+use std::{borrow::Borrow, f32::consts::E, ops::Add, process::exit};
 
 use crate::prelude::*;
 
@@ -201,7 +201,10 @@ impl FactorInstancesCache {
     ) -> Result<IndexMap<FactorSourceIDFromHash, FactorInstances>> {
         let mut pf = IndexMap::new();
         for factor_source_id in factor_source_ids {
-            let instances = self.get_mono_factor(factor_source_id, index_agnostic_path)?;
+            let Some(instances) = self.get_mono_factor(factor_source_id, index_agnostic_path)
+            else {
+                continue;
+            };
             pf.insert(factor_source_id.clone(), instances);
         }
         Ok(pf)
@@ -211,14 +214,14 @@ impl FactorInstancesCache {
         &self,
         factor_source_id: &FactorSourceIDFromHash,
         index_agnostic_path: &IndexAgnosticPath,
-    ) -> Result<FactorInstances> {
+    ) -> Option<FactorInstances> {
         let Some(for_factor) = self.values.get(factor_source_id) else {
-            return Ok(FactorInstances::default());
+            return None;
         };
         let Some(instances) = for_factor.get(index_agnostic_path) else {
-            return Ok(FactorInstances::default());
+            return None;
         };
-        Ok(instances.clone())
+        Some(instances.clone())
     }
 
     pub fn delete(&mut self, pf_instances: IndexMap<FactorSourceIDFromHash, FactorInstances>) {
@@ -405,6 +408,8 @@ impl FactorInstancesCache {
 #[cfg(test)]
 mod tests {
 
+    use std::fs;
+
     use super::*;
 
     type Sut = FactorInstancesCache;
@@ -448,6 +453,56 @@ mod tests {
     }
 
     #[test]
+    fn delete() {
+        let mut sut = Sut::default();
+
+        let factor_source_ids = HDFactorSource::all()
+            .into_iter()
+            .map(|f| f.factor_source_id())
+            .collect::<IndexSet<_>>();
+
+        let n = 30;
+        let mut to_delete = IndexMap::<FactorSourceIDFromHash, FactorInstances>::new();
+        let mut to_remain = IndexMap::<FactorSourceIDFromHash, FactorInstances>::new();
+        for factor_source_id in factor_source_ids.clone() {
+            let fsid = factor_source_id;
+            let instances = (0..n)
+                .map(|i| {
+                    let fi = HierarchicalDeterministicFactorInstance::mainnet_tx(
+                        CAP26EntityKind::Account,
+                        HDPathComponent::unsecurified_hardening_base_index(i),
+                        fsid,
+                    );
+                    if i < 10 {
+                        to_delete.append_or_insert_to(&fsid, IndexSet::just(fi.clone()));
+                    } else {
+                        to_remain.append_or_insert_to(&fsid, IndexSet::just(fi.clone()));
+                    }
+                    fi
+                })
+                .collect::<IndexSet<_>>();
+
+            sut.insert_for_factor(fsid, FactorInstances::from(instances))
+                .unwrap();
+        }
+
+        sut.delete(to_delete);
+        assert_eq!(
+            sut.get_poly_factor(
+                &factor_source_ids,
+                &IndexAgnosticPath::new(
+                    NetworkID::Mainnet,
+                    CAP26EntityKind::Account,
+                    CAP26KeyKind::TransactionSigning,
+                    KeySpace::Unsecurified
+                )
+            )
+            .unwrap(),
+            to_remain
+        );
+    }
+
+    #[test]
     fn throws_if_same_is_added() {
         let mut sut = Sut::default();
         let fsid = FactorSourceIDFromHash::fs0();
@@ -472,6 +527,88 @@ mod tests {
             CommonError::CacheAlreadyContainsFactorInstance {
                 derivation_path: fi0.derivation_path()
             }
+        );
+    }
+}
+
+pub trait AppendableCollection: FromIterator<Self::Element> {
+    type Element: Eq + std::hash::Hash;
+    fn append<T: IntoIterator<Item = Self::Element>>(&mut self, iter: T);
+}
+impl<V: Eq + std::hash::Hash> AppendableCollection for IndexSet<V> {
+    type Element = V;
+
+    fn append<T: IntoIterator<Item = Self::Element>>(&mut self, iter: T) {
+        self.extend(iter)
+    }
+}
+
+impl AppendableCollection for FactorInstances {
+    type Element = HierarchicalDeterministicFactorInstance;
+
+    fn append<T: IntoIterator<Item = Self::Element>>(&mut self, iter: T) {
+        self.extend(iter)
+    }
+}
+
+pub trait AppendableMap {
+    type Key: Eq + std::hash::Hash + Clone;
+    type AC: AppendableCollection;
+    fn append_or_insert_to<I: IntoIterator<Item = <Self::AC as AppendableCollection>::Element>>(
+        &mut self,
+        key: impl Borrow<Self::Key>,
+        items: I,
+    );
+
+    fn append_or_insert_element_to(
+        &mut self,
+        key: impl Borrow<Self::Key>,
+        element: <Self::AC as AppendableCollection>::Element,
+    ) {
+        self.append_or_insert_to(key.borrow(), [element]);
+    }
+}
+
+impl<K, V> AppendableMap for IndexMap<K, V>
+where
+    K: Eq + std::hash::Hash + Clone,
+    V: AppendableCollection,
+{
+    type Key = K;
+    type AC = V;
+    fn append_or_insert_to<I: IntoIterator<Item = <Self::AC as AppendableCollection>::Element>>(
+        &mut self,
+        key: impl Borrow<Self::Key>,
+        items: I,
+    ) {
+        let key = key.borrow();
+        if let Some(existing) = self.get_mut(key) {
+            existing.append(items);
+        } else {
+            self.insert(key.clone(), V::from_iter(items));
+        }
+    }
+}
+
+#[cfg(test)]
+mod test_appendable_collection {
+    use super::*;
+
+    #[test]
+    fn test_append_element() {
+        type Sut = IndexMap<i8, IndexSet<u8>>;
+        let mut map = Sut::new();
+        map.append_or_insert_element_to(-3, 5);
+        map.append_or_insert_element_to(-3, 6);
+        map.append_or_insert_element_to(-3, 6);
+        map.append_or_insert_to(-3, [42, 237]);
+        map.append_or_insert_to(-9, [64, 128]);
+        assert_eq!(
+            map,
+            Sut::from_iter([
+                (-3, IndexSet::<u8>::from_iter([5, 6, 42, 237, 237])),
+                (-9, IndexSet::<u8>::from_iter([64, 128])),
+            ])
         );
     }
 }
