@@ -339,9 +339,15 @@ impl FactorInstancesProvider {
                 }
             })
             .collect::<IndexMap<FactorSourceIDFromHash, usize>>();
-        /*
 
-         let pf_newly_derived = Self::derive_more(pf_quantity_to_derive, network_id, derivation_preset).await?;
+        let pf_newly_derived = Self::derive_more(
+            pf_quantity_to_derive,
+            network_id,
+            originally_requested_derivation_preset,
+            &next_index_assigner,
+        )
+        .await?;
+        /*
 
          let pf_mixed = matrix_of_factor_sources.all().iter().map(|f|) {
              let mut merged = IndexSet::new();
@@ -382,6 +388,62 @@ impl FactorInstancesProvider {
         next_index_assigner.cache.insert(pf_to_cache);
 
         Ok(pf_to_use_directly)
+        */
+        todo!()
+    }
+
+    async fn derive_more(
+        pf_quantity_to_derive: IndexMap<FactorSourceIDFromHash, usize>,
+        network_id: NetworkID,
+        originally_requested_derivation_preset: DerivationPreset,
+        next_index_assigner: &NextDerivationEntityIndexAssigner,
+    ) -> Result<IndexMap<FactorSourceIDFromHash, FactorInstances>> {
+        /*
+         let pf_paths = pf_quantity_to_derive.into_iter().map(|(factor_source_id, qty)| {
+            // `qty` many paths
+            let originally_requested_paths_for_factor = (0..qty).map(|_| {
+                let query = InstanceQuery {
+                    network_id,
+                    factor_source_id,
+                    derivation_preset
+                };
+                let index =  next_index_assigner.next(query);
+                DerivationPath::from((query, index))
+            }).collect::<IndexSet<DerivationPath>>();
+           let cache_filling_paths = DerivationPreset::all()
+               .excluding(originally_requested_derivation_preset)
+               .into_iter()
+               .flat_map(|derivation_preset| {
+                   let cache = next_index_assigner.cache;
+
+                   let single_factor_from_cache = cache
+                       .get_for_single_factor_source(
+                           factor_source_id,
+                           qty,
+                           derivation_preset,
+                           network_id
+                       );
+                   let qty_to_be_full = CACHE_FILLING_SIZE - single_factor_from_cache.len();
+                   // `qty_to_be_full` is `0` if cache full, and the map below => empty
+                   (0..qty_to_be_full).map(|_| {
+                       let query = InstanceQuery {
+                           network_id,
+                           factor_source_id,
+                           derivation_preset
+                       };
+                       let index =  next_index_assigner.next(query);
+                       DerivationPath::from((query, index))
+                   }).collect::<IndexSet<DerivationPath>>()
+               })
+               .collect::<IndexSet<DerivationPath>>();
+
+           let mut paths = IndexSet::new();
+           paths.extend(originally_requested_paths_for_factor);
+           paths.extend(cache_filling_paths);
+            (f, paths)
+         }).collect::<IndexMap<FactorSourceID, IndexSet<DerivationPath>>>();
+
+        KeysCollector::new(pf_paths, ...).collect().await
         */
         todo!()
     }
