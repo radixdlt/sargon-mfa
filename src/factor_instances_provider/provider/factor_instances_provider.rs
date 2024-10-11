@@ -300,12 +300,14 @@ impl FactorInstancesProvider {
             .iter()
             .map(|f| f.factor_source_id())
             .collect::<IndexSet<_>>();
-        let derivation_preset = quantified_derivation_preset.derivation_preset;
-        let index_agnostic_path = derivation_preset.index_agnostic_path_on_network(network_id);
+        let originally_requested_derivation_preset = quantified_derivation_preset.derivation_preset;
+        let index_agnostic_path =
+            originally_requested_derivation_preset.index_agnostic_path_on_network(network_id);
 
+        let originally_requested_quantity = quantified_derivation_preset.quantity;
         let quantified_index_agnostic_path = QuantifiedIndexAgnosticPath {
             agnostic_path: index_agnostic_path,
-            quantity: quantified_derivation_preset.quantity,
+            quantity: originally_requested_quantity,
         };
         let next_index_assigner =
             NextDerivationEntityIndexAssigner::new(network_id, profile, cache.clone());
@@ -314,23 +316,30 @@ impl FactorInstancesProvider {
             .cache()
             .get(factor_source_ids, quantified_index_agnostic_path)?;
 
-        let pf_quantity_missing_from_cache = IndexMap::<FactorSourceIDFromHash, usize>::new();
+        let mut pf_quantity_missing_from_cache = IndexMap::<FactorSourceIDFromHash, usize>::new();
+        let pf_quantity_to_derive = pf_from_cache
+            .iter()
+            .filter_map(|(factor_source_id, found_in_cache)| {
+                let qty_missing_from_cache = originally_requested_quantity - found_in_cache.len();
+                if qty_missing_from_cache <= 0 {
+                    // no instances missing, cache can fully satisfy request amount
+                    None
+                } else {
+                    // We must retain how many were missing from cache so that we can know how many of
+                    // the newly derived we should use directly and how many to cache
+                    pf_quantity_missing_from_cache
+                        .insert(*factor_source_id, qty_missing_from_cache);
+
+                    // If we are gonna derive anyway, lets derive so that we can fulfill the `number_of_accounts`
+                    // originally request + have `CACHE_FILLING_SIZE` many more left after, a.k.a. full cache!
+                    let qty_to_derive = CACHE_FILLING_QUANTITY + originally_requested_quantity
+                        - found_in_cache.len();
+
+                    Some((*factor_source_id, qty_to_derive))
+                }
+            })
+            .collect::<IndexMap<FactorSourceIDFromHash, usize>>();
         /*
-         let pf_quantity_to_derive = pf_from_cache.iter().filter_map(|(factor_source_id, found_in_cache)| {
-             let qty_missing_from_cache = number_of_accounts - found_in_cache.len();
-             if qty_missing_from_cache <= 0 {
-                 // no instances missing, cache can fully satisfy request amount
-                 None
-             } else {
-                // We must retain how many were missing from cache so that we can know how many of
-                // the newly derived we should use directly and how many to cache
-                pf_quantity_missing_from_cache.insert(factor_source_id, qty_missing_from_cache)
-                 // If we are gonna derive anyway, lets derive so that we can fulfill the `number_of_accounts`
-                 // originally request + have `CACHE_FILLING_SIZE` many more left after, a.k.a. full cache!
-                 let qty_to_derive = CACHE_FILLING_SIZE + number_of_accounts - found_in_cache.len();
-                 Some(qty_to_derive)
-             }
-         }).collect::<IndexMap<FactorSourceID, usize>>();
 
          let pf_newly_derived = Self::derive_more(pf_quantity_to_derive, network_id, derivation_preset).await?;
 
