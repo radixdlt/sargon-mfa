@@ -1,4 +1,9 @@
-use std::{borrow::Borrow, f32::consts::E, ops::Add, process::exit};
+use std::{
+    borrow::Borrow,
+    f32::consts::E,
+    ops::{Add, Index},
+    process::exit,
+};
 
 use crate::prelude::*;
 
@@ -215,39 +220,97 @@ impl FactorInstancesCache {
         factor_source_ids: &IndexSet<FactorSourceIDFromHash>,
         originally_requested_quantified_derivation_preset: &QuantifiedDerivationPresets,
         network_id: NetworkID,
-    ) -> Result<CachedInstancesWithQuantities> {
-        todo!()
+    ) -> Result<CachedInstancesWithQuantitiesOutcome> {
+        let originally_requested_derivation_preset =
+            originally_requested_quantified_derivation_preset.derivation_preset;
+        let requested_qty = originally_requested_quantified_derivation_preset.quantity;
+        let mut is_qty_satisfied_for_all_factor_sources = true;
+
+        let mut pf_pdp_qty_to_derive =
+            IndexMap::<FactorSourceIDFromHash, IndexMap<DerivationPreset, usize>>::new();
+
+        let mut pf_instances = IndexMap::<FactorSourceIDFromHash, FactorInstances>::new();
+
+        for factor_source_id in factor_source_ids {
+            let mut pdp_qty_to_derive = IndexMap::<DerivationPreset, usize>::new();
+
+            for derivation_preset in DerivationPreset::all() {
+                let index_agnostic_path =
+                    derivation_preset.index_agnostic_path_on_network(network_id);
+                let instances = self
+                    .get_mono_factor(factor_source_id, &index_agnostic_path)
+                    .unwrap_or_default();
+                if derivation_preset == originally_requested_derivation_preset {
+                    let is_qty_satisfied_for_factor = instances.len() >= requested_qty;
+                    if !is_qty_satisfied_for_factor {
+                        let to_derive = CACHE_FILLING_QUANTITY + requested_qty - instances.len();
+                        pdp_qty_to_derive.insert(derivation_preset, to_derive);
+
+                        pf_instances.insert(*factor_source_id, instances);
+                    } else {
+                        let instances_enough_to_satisfy =
+                            &instances.factor_instances().into_iter().collect_vec()
+                                [..requested_qty];
+                        pf_instances.insert(
+                            *factor_source_id,
+                            FactorInstances::from_iter(
+                                instances_enough_to_satisfy.into_iter().cloned(),
+                            ),
+                        );
+                    }
+                    is_qty_satisfied_for_all_factor_sources =
+                        is_qty_satisfied_for_all_factor_sources && is_qty_satisfied_for_factor;
+                } else if instances.len() < CACHE_FILLING_QUANTITY {
+                    let to_derive = CACHE_FILLING_QUANTITY - instances.len();
+                    pdp_qty_to_derive.insert(derivation_preset, to_derive);
+                }
+            }
+            pf_pdp_qty_to_derive.insert(*factor_source_id, pdp_qty_to_derive);
+        }
+
+        Ok(if is_qty_satisfied_for_all_factor_sources {
+            CachedInstancesWithQuantitiesOutcome::Satisfied(pf_instances)
+        } else {
+            CachedInstancesWithQuantitiesOutcome::NotSatisfied {
+                partial_instances: pf_instances,
+                pf_pdp_qty_to_derive,
+            }
+        })
     }
 }
 
 #[derive(enum_as_inner::EnumAsInner)]
-enum CachedInstancesWithQuantitiesOutcome {
+pub enum CachedInstancesWithQuantitiesOutcome {
     Satisfied(IndexMap<FactorSourceIDFromHash, FactorInstances>),
-    NotSatisfied(IndexMap<FactorSourceIDFromHash, FactorInstances>),
+    NotSatisfied {
+        partial_instances: IndexMap<FactorSourceIDFromHash, FactorInstances>,
+        pf_pdp_qty_to_derive: IndexMap<FactorSourceIDFromHash, IndexMap<DerivationPreset, usize>>,
+    },
 }
-pub struct CachedInstancesWithQuantities {
-    originally_requested_quantified_derivation_preset: QuantifiedDerivationPresets,
-    network_id: NetworkID,
-    outcome: CachedInstancesWithQuantitiesOutcome,
-}
-impl CachedInstancesWithQuantities {
+
+impl CachedInstancesWithQuantitiesOutcome {
     pub fn satisfied(&self) -> Option<IndexMap<FactorSourceIDFromHash, FactorInstances>> {
-        self.outcome.as_satisfied().cloned()
+        self.as_satisfied().cloned()
     }
     pub fn quantities_to_derive(
         &self,
-    ) -> IndexMap<FactorSourceIDFromHash, IndexMap<DerivationPreset, usize>> {
-        let instances = self._not_requested();
-        todo!()
+    ) -> Result<IndexMap<FactorSourceIDFromHash, IndexMap<DerivationPreset, usize>>> {
+        match &self {
+            CachedInstancesWithQuantitiesOutcome::Satisfied(_) => panic!("programmer error"),
+            CachedInstancesWithQuantitiesOutcome::NotSatisfied {
+                pf_pdp_qty_to_derive,
+                ..
+            } => Ok(pf_pdp_qty_to_derive.clone()),
+        }
     }
-    fn _not_requested(&self) -> IndexMap<FactorSourceIDFromHash, FactorInstances> {
-        self.outcome
-            .as_not_satisfied()
-            .cloned()
-            .expect("not satisfied")
-    }
-    pub fn get_requested(self) -> IndexMap<FactorSourceIDFromHash, FactorInstances> {
-        self._not_requested()
+
+    pub fn partially_satisfied(self) -> Result<IndexMap<FactorSourceIDFromHash, FactorInstances>> {
+        match self {
+            CachedInstancesWithQuantitiesOutcome::Satisfied(_) => panic!("programmer error"),
+            CachedInstancesWithQuantitiesOutcome::NotSatisfied {
+                partial_instances, ..
+            } => Ok(partial_instances),
+        }
     }
 }
 
@@ -333,88 +396,6 @@ impl FactorInstancesCache {
             })
             .reduce(Add::add)
             .unwrap_or_default()
-    }
-}
-
-/// The outcome of reading factor instances from the cache, for a requested
-/// quantity.
-pub enum QuantityOutcome {
-    /// No `FactorInstances` was found for the request `(FactorSourceID, IndexAgnosticPath, Quantity)`
-    Empty,
-
-    /// Only some `FactorInstances` was found for the request `(FactorSourceID, IndexAgnosticPath, Quantity)`,
-    /// being less than the requested quantity
-    Partial {
-        /// (NonEmpty) Instances found in cache, which is fewer than `originally_requested`
-        instances: FactorInstances,
-        /// Remaining quantity to satisfy the request, `originally_requested - instances.len()`
-        remaining: usize,
-    },
-
-    /// The cache contained enough `FactorInstances` for the request `(FactorSourceID, IndexAgnosticPath, Quantity)`,
-    /// either the exact same amount, or with "spare" ones.
-    Full {
-        /// (NonEmpty) Instances found in cache, which has the same length as `originally_requested`
-        instances: FactorInstances,
-    },
-}
-
-impl FactorInstancesCache {
-    /// Removes all FactorInstances matching (FactorSourceID, IndexAgnosticPath),
-    /// and returns them - if any.
-    fn __remove(
-        &mut self,
-        factor_source_id: &FactorSourceIDFromHash,
-        index_agnostic_path: &IndexAgnosticPath,
-    ) -> FactorInstances {
-        if let Some(cached_for_factor) = self.values.get_mut(factor_source_id) {
-            if let Some(found_cached) = cached_for_factor.shift_remove(index_agnostic_path) {
-                return found_cached;
-            }
-        }
-        FactorInstances::default()
-    }
-
-    /// Mutates the cache, removing `quantity` many FactorInstances for `factor_source_id`
-    /// for `index_agnostic_path` and return the outcome of this, this result in any
-    /// of these outcomes:
-    /// * Empty
-    /// * Partial
-    /// * Full
-    pub fn remove(
-        &mut self,
-        factor_source_id: &FactorSourceIDFromHash,
-        index_agnostic_path: &IndexAgnosticPath,
-        quantity: usize,
-    ) -> QuantityOutcome {
-        let instances = self.__remove(factor_source_id, index_agnostic_path);
-        if instances.is_empty() {
-            return QuantityOutcome::Empty;
-        }
-        let len = instances.len();
-        if len == quantity {
-            return QuantityOutcome::Full { instances };
-        }
-        if len < quantity {
-            return QuantityOutcome::Partial {
-                instances,
-                remaining: quantity - len,
-            };
-        }
-        assert!(len > quantity);
-        // Split the read instances at `quantity` many.
-        let instances = instances.factor_instances().into_iter().collect_vec();
-        let (to_use, to_put_back) = instances.split_at(quantity);
-        let to_put_back = FactorInstances::from_iter(to_put_back.iter().cloned());
-
-        // put back the ones exceeding requested quantity
-        if let Some(cached_for_factor) = self.values.get_mut(factor_source_id) {
-            cached_for_factor.insert(*index_agnostic_path, to_put_back);
-        }
-
-        QuantityOutcome::Full {
-            instances: FactorInstances::from_iter(to_use.iter().cloned()),
-        }
     }
 }
 

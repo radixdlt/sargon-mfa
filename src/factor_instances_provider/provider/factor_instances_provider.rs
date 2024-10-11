@@ -308,13 +308,17 @@ impl FactorInstancesProvider {
                 satisfied_by_cache.clone(),
             );
             // consume
+            println!(
+                "🌈 originally_requested_quantified_derivation_preset: {:?}, returning satisfied_by_cache: #{}, specifically:\n\n{:?}\n\n",
+                originally_requested_quantified_derivation_preset, satisfied_by_cache.len(), satisfied_by_cache
+            );
             cache.delete(satisfied_by_cache);
             return Ok(outcome);
         }
 
         let pf_newly_derived = Self::derive_more(
             factor_sources,
-            cached.quantities_to_derive(),
+            cached.quantities_to_derive()?,
             network_id,
             profile,
             cache,
@@ -322,7 +326,7 @@ impl FactorInstancesProvider {
         )
         .await?;
 
-        let pf_found_in_cache_leq_requested = cached.get_requested();
+        let pf_found_in_cache_leq_requested = cached.partially_satisfied()?;
 
         let Split {
             pf_to_use_directly,
@@ -351,7 +355,34 @@ impl FactorInstancesProvider {
         pf_found_in_cache_leq_requested: &IndexMap<FactorSourceIDFromHash, FactorInstances>,
         newly_derived: &IndexMap<FactorSourceIDFromHash, FactorInstances>,
     ) -> Split {
-        todo!()
+        let mut pf_to_use_directly = pf_found_in_cache_leq_requested.clone();
+        let mut pf_to_cache = IndexMap::<FactorSourceIDFromHash, FactorInstances>::new();
+
+        let target_qty = originally_requested_quantified_derivation_preset.quantity;
+        for (f, instances) in newly_derived {
+            for instance in instances.factor_instances() {
+                let derivation_preset =
+                    DerivationPreset::try_from(instance.agnostic_path()).unwrap();
+                if derivation_preset
+                    == originally_requested_quantified_derivation_preset.derivation_preset
+                {
+                    // relevant for pf_to_use_directly
+                    let instances_to_use_dir = pf_to_use_directly.get_mut(f).unwrap();
+                    if instances_to_use_dir.len() < target_qty {
+                        instances_to_use_dir.append(FactorInstances::just(instance));
+                    } else {
+                        pf_to_cache.append_or_insert_element_to(f, instance);
+                    }
+                } else {
+                    pf_to_cache.append_or_insert_element_to(f, instance);
+                }
+            }
+        }
+
+        Split {
+            pf_to_use_directly,
+            pf_to_cache,
+        }
     }
 
     async fn derive_more(

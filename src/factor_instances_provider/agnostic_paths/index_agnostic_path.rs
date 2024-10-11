@@ -60,7 +60,7 @@ impl TryFrom<IndexAgnosticPath> for DerivationPreset {
     }
 }
 
-#[derive(Clone, Copy, Hash, PartialEq, Eq)]
+#[derive(Clone, Copy, Hash, Debug, PartialEq, Eq)]
 pub struct QuantifiedDerivationPresets {
     pub derivation_preset: DerivationPreset,
     pub quantity: usize,
