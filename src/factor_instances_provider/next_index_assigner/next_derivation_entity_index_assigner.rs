@@ -39,6 +39,10 @@ pub struct NextDerivationEntityIndexCacheAnalyzingAssigner {
     cache: FactorInstancesCache,
 }
 impl NextDerivationEntityIndexCacheAnalyzingAssigner {
+    pub fn cache(&self) -> FactorInstancesCache {
+        self.cache.clone()
+    }
+
     pub fn new(cache: FactorInstancesCache) -> Self {
         Self { cache }
     }
@@ -68,6 +72,10 @@ impl NextDerivationEntityIndexAssigner {
             cache_analyzing,
             ephemeral_offsets,
         }
+    }
+
+    pub fn cache(&self) -> FactorInstancesCache {
+        self.cache_analyzing.cache()
     }
 
     pub fn next(

@@ -50,18 +50,10 @@ pub struct QuantifiedDerivationPresets {
     pub quantity: usize,
 }
 
-/// For `DerivationPreset` we keep track of
-/// the quantity of instances that are cached and
-#[derive(Clone, Debug, Hash, PartialEq, Eq)]
-pub struct QuantifiedToCacheToUseDerivationPresets {
-    pub derivation_preset: DerivationPreset,
-    pub quantity: QuantityToCacheToUseDirectly,
-}
-
 #[derive(Clone, Hash, PartialEq, Eq)]
-pub struct QuantifiedToCacheToUseIndexAgnosticPath {
+pub struct QuantifiedIndexAgnosticPath {
     pub agnostic_path: IndexAgnosticPath,
-    pub quantity: QuantityToCacheToUseDirectly,
+    pub quantity: usize,
 }
 
 impl From<(IndexAgnosticPath, HDPathComponent)> for DerivationPath {

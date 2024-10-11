@@ -276,6 +276,16 @@ impl FactorInstancesProvider {
     }
 }
 
+impl FactorInstancesCache {
+    fn get(
+        &self,
+        factor_source_idss: IndexSet<FactorSourceIDFromHash>,
+        quantified_index_agnostic_path: QuantifiedIndexAgnosticPath,
+    ) -> Result<IndexMap<FactorSourceIDFromHash, FactorInstances>> {
+        todo!()
+    }
+}
+
 impl FactorInstancesProvider {
     async fn with(
         network_id: NetworkID,
@@ -286,15 +296,26 @@ impl FactorInstancesProvider {
         interactors: Arc<dyn KeysDerivationInteractors>,
     ) -> Result<InternalFactorInstancesProviderOutcome> {
         let profile = profile.into();
+        let factor_source_ids = factor_sources
+            .iter()
+            .map(|f| f.factor_source_id())
+            .collect::<IndexSet<_>>();
+        let derivation_preset = quantified_derivation_preset.derivation_preset;
+        let index_agnostic_path = derivation_preset.index_agnostic_path_on_network(network_id);
+
+        let quantified_index_agnostic_path = QuantifiedIndexAgnosticPath {
+            agnostic_path: index_agnostic_path,
+            quantity: quantified_derivation_preset.quantity,
+        };
         let next_index_assigner =
             NextDerivationEntityIndexAssigner::new(network_id, profile, cache.clone());
-        let derivation_preset = quantified_derivation_preset.derivation_preset;
-        /*
-         // "pf" short for "Per FactorSource"
-         let pf_from_cache: IndexMap<FactorSourceID, Index<HDFactorInstance>> = next_index_assigner.
-             cache.get(matrix_of_factor_sources, number_of_accounts, derivation_preset, network_id);
+        // "pf" short for "Per FactorSource"
+        let pf_from_cache = next_index_assigner
+            .cache()
+            .get(factor_source_ids, quantified_index_agnostic_path)?;
 
-        let pf_quantity_missing_from_cache = IndexMap<FactorSourceID, usize>::new():
+        let pf_quantity_missing_from_cache = IndexMap::<FactorSourceIDFromHash, usize>::new();
+        /*
          let pf_quantity_to_derive = pf_from_cache.iter().filter_map(|(factor_source_id, found_in_cache)| {
              let qty_missing_from_cache = number_of_accounts - found_in_cache.len();
              if qty_missing_from_cache <= 0 {
