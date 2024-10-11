@@ -291,6 +291,13 @@ impl FactorInstancesCache {
     ) -> Result<IndexMap<FactorSourceIDFromHash, FactorInstances>> {
         todo!()
     }
+    fn delete(&mut self, pf_instances: IndexMap<FactorSourceIDFromHash, FactorInstances>) {
+        todo!()
+    }
+
+    fn insert(&mut self, pf_instances: IndexMap<FactorSourceIDFromHash, FactorInstances>) {
+        todo!()
+    }
 }
 
 impl FactorInstancesProvider {
@@ -316,12 +323,12 @@ impl FactorInstancesProvider {
         let next_index_assigner =
             NextDerivationEntityIndexAssigner::new(network_id, profile, cache.clone());
         // "pf" short for "Per FactorSource"
-        let pf_from_cache = next_index_assigner
+        let pf_found_in_cache = next_index_assigner
             .cache()
             .get_poly_factor(&factor_source_ids, index_agnostic_path)?;
 
         let mut pf_quantity_missing_from_cache = IndexMap::<FactorSourceIDFromHash, usize>::new();
-        let pf_quantity_to_derive = pf_from_cache
+        let pf_quantity_to_derive = pf_found_in_cache
             .iter()
             .filter_map(|(factor_source_id, found_in_cache)| {
                 let qty_missing_from_cache = originally_requested_quantity - found_in_cache.len();
@@ -358,7 +365,7 @@ impl FactorInstancesProvider {
             .iter()
             .map(|f| {
                 let mut merged = IndexSet::new();
-                let from_cache = pf_from_cache.get(f).cloned().unwrap_or_default();
+                let from_cache = pf_found_in_cache.get(f).cloned().unwrap_or_default();
                 let newly_derived = pf_newly_derived.get(f).cloned().unwrap_or_default();
                 merged.extend(from_cache); // from cache first, since it has lower indices
                 merged.extend(newly_derived);
@@ -367,38 +374,53 @@ impl FactorInstancesProvider {
             })
             .collect::<IndexMap<FactorSourceIDFromHash, FactorInstances>>();
 
-        /*
-        let mut pf_to_cache = IndexMap::new();
-        let mut pf_to_use_directly = IndexMap::new();
+        let mut pf_to_cache = IndexMap::<FactorSourceIDFromHash, FactorInstances>::new();
+        let mut pf_to_use_directly = IndexMap::<FactorSourceIDFromHash, FactorInstances>::new();
         for (factor_source_id, factor_instances) in pf_mixed {
             let instances_by_derivation_preset = factor_instances
-                    .into_iter()
-                    .into_group_map_by(|f| {
-                        DerivationPreset::try_from(f.derivation_path()).expect("Only valid Presets")
-                    })
-                    .into_iter()
-                    .collect::<IndexMap<DerivationPreset, IndexSet<HDFactorInstance>>>>();
+                .into_iter()
+                .into_group_map_by(|f| {
+                    DerivationPreset::try_from(f.agnostic_path()).expect("Only valid Presets")
+                })
+                .into_iter()
+                .collect::<IndexMap<DerivationPreset, Vec<HierarchicalDeterministicFactorInstance>>>();
+
             for (derivation_preset, instances) in instances_by_derivation_preset {
                 if derivation_preset == originally_requested_derivation_preset {
                     // Must apply split logic
-                    let quantity_missing_from_cache = pf_quantity_missing_from_cache.get(factor_source_id)
-                        .expect("Programmer error, should have saved how many instances remains to fulfill");
-                    let (to_use_directly, to_cache) = instances.split_at(quantity_missing_from_cache);
-                    pf_to_use_directly.append_or_insert(factor_source_id, to_use_directly);
-                    pf_to_cache.append_or_insert(factor_source_id, to_cache);
+                    let quantity_missing_from_cache = pf_quantity_missing_from_cache.get(&factor_source_id)
+                    .expect("Programmer error, should have saved how many instances remains to fulfill");
+                    let (to_use_directly, to_cache) =
+                        instances.split_at(*quantity_missing_from_cache);
+                    let to_use_directly =
+                        to_use_directly.iter().cloned().collect::<FactorInstances>();
+
+                    let to_cache = to_cache.iter().cloned().collect::<FactorInstances>();
+
+                    append_or_insert_to(
+                        &mut pf_to_use_directly,
+                        &factor_source_id,
+                        to_use_directly,
+                    );
+
+                    append_or_insert_to(&mut pf_to_cache, &factor_source_id, to_cache);
                 } else {
                     // Extra derived to fill cache, can simply cache all!
-                    pf_to_cache.append_or_insert(factor_source_id, instances);
+                    append_or_insert_to(&mut pf_to_cache, &factor_source_id, instances);
                 }
             }
         }
 
-        next_index_assigner.cache.delete(pf_from_cache);
-        next_index_assigner.cache.insert(pf_to_cache);
-
-        Ok(pf_to_use_directly)
-        */
-        todo!()
+        cache.delete(pf_found_in_cache.clone());
+        cache.insert(pf_to_cache.clone());
+        let outcome = InternalFactorInstancesProviderOutcome::transpose(
+            pf_to_cache,
+            pf_to_use_directly,
+            pf_found_in_cache,
+            pf_newly_derived,
+        );
+        let outcome = outcome.into();
+        Ok(outcome)
     }
 
     async fn derive_more(
@@ -480,5 +502,38 @@ impl Excluding for IndexSet<DerivationPreset> {
     type Item = DerivationPreset;
     fn excluding(&self, item: Self::Item) -> Self {
         self.iter().filter(|i| *i != &item).cloned().collect()
+    }
+}
+
+pub trait AppendableCollection: FromIterator<Self::Element> {
+    type Element: Eq + std::hash::Hash;
+    fn append<T: IntoIterator<Item = Self::Element>>(&mut self, iter: T);
+}
+impl<V: Eq + std::hash::Hash> AppendableCollection for IndexSet<V> {
+    type Element = V;
+
+    fn append<T: IntoIterator<Item = Self::Element>>(&mut self, iter: T) {
+        self.extend(iter)
+    }
+}
+
+impl AppendableCollection for FactorInstances {
+    type Element = HierarchicalDeterministicFactorInstance;
+
+    fn append<T: IntoIterator<Item = Self::Element>>(&mut self, iter: T) {
+        self.extend(iter)
+    }
+}
+
+pub fn append_or_insert_to<K, V, I>(map: &mut IndexMap<K, V>, key: &K, items: I)
+where
+    I: IntoIterator<Item = V::Element>,
+    K: Eq + std::hash::Hash + Clone,
+    V: AppendableCollection,
+{
+    if let Some(existing) = map.get_mut(key) {
+        existing.append(items);
+    } else {
+        map.insert(key.clone(), V::from_iter(items));
     }
 }
