@@ -276,35 +276,34 @@ impl FactorInstancesProvider {
     }
 }
 
-pub struct CachedInstancesWithQuantities;
+#[derive(enum_as_inner::EnumAsInner)]
+enum CachedInstancesWithQuantitiesOutcome {
+    Satisfied(IndexMap<FactorSourceIDFromHash, FactorInstances>),
+    NotSatisfied(IndexMap<FactorSourceIDFromHash, FactorInstances>),
+}
+pub struct CachedInstancesWithQuantities {
+    originally_requested_quantified_derivation_preset: QuantifiedDerivationPresets,
+    network_id: NetworkID,
+    outcome: CachedInstancesWithQuantitiesOutcome,
+}
 impl CachedInstancesWithQuantities {
-    fn must_derive_more(&self, originally_requested: DerivationPreset) -> bool {
-        todo!()
-    }
     fn satisfied(&self) -> Option<IndexMap<FactorSourceIDFromHash, FactorInstances>> {
-        todo!()
+        self.outcome.as_satisfied().cloned()
     }
     fn quantities_to_derive(
         &self,
     ) -> IndexMap<FactorSourceIDFromHash, IndexMap<DerivationPreset, usize>> {
-        assert!(
-            self.satisfied().is_none(),
-            "Should not use this if we can satisfy the original request with the cache alone"
-        );
+        let instances = self._not_requested();
         todo!()
+    }
+    fn _not_requested(&self) -> IndexMap<FactorSourceIDFromHash, FactorInstances> {
+        self.outcome
+            .as_not_satisfied()
+            .cloned()
+            .expect("not satisfied")
     }
     fn get_requested(self) -> IndexMap<FactorSourceIDFromHash, FactorInstances> {
-        todo!()
-    }
-}
-impl FactorInstancesCache {
-    pub fn get_poly_factor_with_quantities(
-        &self,
-        factor_source_ids: &IndexSet<FactorSourceIDFromHash>,
-        quantified_derivation_preset: &QuantifiedDerivationPresets,
-        network_id: NetworkID,
-    ) -> Result<CachedInstancesWithQuantities> {
-        todo!()
+        self._not_requested()
     }
 }
 
@@ -322,6 +321,7 @@ impl FactorInstancesProvider {
         cache: &mut FactorInstancesCache,
         interactors: Arc<dyn KeysDerivationInteractors>,
     ) -> Result<InternalFactorInstancesProviderOutcome> {
+        let originally_requested_quantified_derivation_preset = quantified_derivation_preset;
         let profile = profile.into();
         let factor_source_ids = factor_sources
             .iter()
@@ -330,13 +330,16 @@ impl FactorInstancesProvider {
 
         let cached = cache.get_poly_factor_with_quantities(
             &factor_source_ids,
-            &quantified_derivation_preset,
+            &originally_requested_quantified_derivation_preset,
             network_id,
         )?;
 
         if let Some(satisfied_by_cache) = cached.satisfied() {
-            let outcome =
-                InternalFactorInstancesProviderOutcome::satisfied_by_cache(satisfied_by_cache);
+            let outcome = InternalFactorInstancesProviderOutcome::satisfied_by_cache(
+                satisfied_by_cache.clone(),
+            );
+            // consume
+            cache.delete(satisfied_by_cache);
             return Ok(outcome);
         }
 
@@ -356,7 +359,7 @@ impl FactorInstancesProvider {
             pf_to_use_directly,
             pf_to_cache,
         } = Self::split(
-            &quantified_derivation_preset,
+            &originally_requested_quantified_derivation_preset,
             &pf_found_in_cache_leq_requested,
             &pf_newly_derived,
         );
@@ -375,7 +378,7 @@ impl FactorInstancesProvider {
     }
 
     fn split(
-        quantified_derivation_preset: &QuantifiedDerivationPresets,
+        originally_requested_quantified_derivation_preset: &QuantifiedDerivationPresets,
         pf_found_in_cache_leq_requested: &IndexMap<FactorSourceIDFromHash, FactorInstances>,
         newly_derived: &IndexMap<FactorSourceIDFromHash, FactorInstances>,
     ) -> Split {

@@ -46,13 +46,14 @@ impl NextDerivationEntityIndexCacheAnalyzingAssigner {
     pub fn new(cache: FactorInstancesCache) -> Self {
         Self { cache }
     }
+
     pub fn next(
         &self,
-        agnostic_path: IndexAgnosticPath,
         factor_source_id: FactorSourceIDFromHash,
+        index_agnostic_path: IndexAgnosticPath,
     ) -> Result<Option<HDPathComponent>> {
-        let cache = self.cache.max_index_for(agnostic_path, factor_source_id);
-        Ok(cache)
+        self.cache
+            .max_index_for(factor_source_id, index_agnostic_path)
     }
 }
 
@@ -90,7 +91,7 @@ impl NextDerivationEntityIndexAssigner {
 
         let maybe_next_from_cache = self
             .cache_analyzing
-            .next(index_agnostic_path, factor_source_id)?;
+            .next(factor_source_id, index_agnostic_path)?;
 
         let next_from_cache = maybe_next_from_cache.unwrap_or(default_index);
         let local = self
@@ -99,7 +100,7 @@ impl NextDerivationEntityIndexAssigner {
 
         let maybe_next_from_profile = self
             .profile_analyzing
-            .next(index_agnostic_path, factor_source_id)?;
+            .next(factor_source_id, index_agnostic_path)?;
 
         let next_from_profile = maybe_next_from_profile.unwrap_or(default_index);
 
