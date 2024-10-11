@@ -7,6 +7,7 @@ pub struct FactorInstances {
     hidden: HiddenConstructor,
     factor_instances: IndexSet<HierarchicalDeterministicFactorInstance>,
 }
+
 impl FactorInstances {
     pub fn extend(
         &mut self,

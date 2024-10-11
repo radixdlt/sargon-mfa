@@ -1,4 +1,4 @@
-use std::{f32::consts::E, ops::Add};
+use std::{f32::consts::E, ops::Add, process::exit};
 
 use crate::prelude::*;
 
@@ -192,6 +192,80 @@ impl FactorInstancesCache {
             .factor_instances()
             .last()
             .map(|fi| fi.derivation_entity_index())
+    }
+
+    pub fn get_poly_factor(
+        &self,
+        factor_source_ids: &IndexSet<FactorSourceIDFromHash>,
+        index_agnostic_path: &IndexAgnosticPath,
+    ) -> Result<IndexMap<FactorSourceIDFromHash, FactorInstances>> {
+        let mut pf = IndexMap::new();
+        for factor_source_id in factor_source_ids {
+            let instances = self.get_mono_factor(factor_source_id, index_agnostic_path)?;
+            pf.insert(factor_source_id.clone(), instances);
+        }
+        Ok(pf)
+    }
+
+    pub fn get_mono_factor(
+        &self,
+        factor_source_id: &FactorSourceIDFromHash,
+        index_agnostic_path: &IndexAgnosticPath,
+    ) -> Result<FactorInstances> {
+        let Some(for_factor) = self.values.get(factor_source_id) else {
+            return Ok(FactorInstances::default());
+        };
+        let Some(instances) = for_factor.get(index_agnostic_path) else {
+            return Ok(FactorInstances::default());
+        };
+        Ok(instances.clone())
+    }
+
+    pub fn delete(&mut self, pf_instances: IndexMap<FactorSourceIDFromHash, FactorInstances>) {
+        for (factor_source_id, instances_to_delete) in pf_instances {
+            if instances_to_delete.is_empty() {
+                continue;
+            }
+            let existing_for_factor = self
+                .values
+                .get_mut(&factor_source_id)
+                .expect("expected to delete factors");
+
+            let instances_to_delete_by_path = instances_to_delete.factor_instances()
+                .into_iter()
+                .into_group_map_by(|f| {
+                    f.agnostic_path()
+                })
+                .into_iter()
+                .collect::<IndexMap<IndexAgnosticPath, Vec<HierarchicalDeterministicFactorInstance>>>();
+
+            for (index_agnostic_path, instances_to_delete) in instances_to_delete_by_path {
+                let instances_to_delete =
+                    IndexSet::<HierarchicalDeterministicFactorInstance>::from_iter(
+                        instances_to_delete.into_iter(),
+                    );
+
+                let existing_for_path = existing_for_factor
+                    .get(&index_agnostic_path)
+                    .expect("expected to delete")
+                    .factor_instances();
+
+                if !existing_for_path.is_superset(&instances_to_delete) {
+                    panic!("Programmer error! Some of the factors to delete were not in cache!");
+                }
+                let to_keep = existing_for_path
+                    .symmetric_difference(&instances_to_delete)
+                    .cloned()
+                    .collect::<FactorInstances>();
+
+                // replace
+                existing_for_factor.insert(index_agnostic_path, to_keep);
+            }
+        }
+    }
+
+    pub fn insert(&mut self, pf_instances: IndexMap<FactorSourceIDFromHash, FactorInstances>) {
+        self.insert_all(pf_instances).expect("works")
     }
 
     /// Reads out the instance of `factor_source_id` without mutating the cache.

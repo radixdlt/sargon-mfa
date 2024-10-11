@@ -34,34 +34,47 @@ impl FactorInstancesProvider {
         network_id: NetworkID, // typically mainnet
         interactors: Arc<dyn KeysDerivationInteractors>,
     ) -> Result<FactorInstancesProviderOutcomeForFactor> {
-        let outcome = Self::with(
-            network_id,
+        // let outcome = Self::with(
+        //     network_id,
+        //     IndexSet::just(factor_source.clone()),
+        //     // This is hacky! We are using `account_veci` as agnostic_path, we could
+        //     // have used any other value... we are not going to use any instances directly
+        //     // at all, why we specify `0` here, we piggyback on the rest of the logic
+        //     // to derive more... We should most definitely switch to `DerivationTemplate` enum
+        //     QuantifiedDerivationPresets {
+        //         quantity: 0,                                      // HACKY
+        //         derivation_preset: DerivationPreset::AccountVeci, // HACKY
+        //     },
+        //     profile,
+        //     cache,
+        //     interactors,
+        // )
+        // .await?;
+        let next_index_assigner =
+            &NextDerivationEntityIndexAssigner::new(network_id, profile, cache.clone());
+
+        let derived = Self::derive_more(
             IndexSet::just(factor_source.clone()),
-            // This is hacky! We are using `account_veci` as agnostic_path, we could
-            // have used any other value... we are not going to use any instances directly
-            // at all, why we specify `0` here, we piggyback on the rest of the logic
-            // to derive more... We should most definitely switch to `DerivationTemplate` enum
-            QuantifiedDerivationPresets {
-                quantity: 0,                                      // HACKY
-                derivation_preset: DerivationPreset::AccountVeci, // HACKY
-            },
-            profile,
-            cache,
+            IndexMap::kv(factor_source.factor_source_id(), CACHE_FILLING_QUANTITY),
+            DerivationPreset::AccountMfa,
+            network_id,
+            next_index_assigner,
             interactors,
         )
         .await?;
+        cache.insert(derived.clone());
 
-        let outcome = outcome
-            .per_factor
+        let derived = derived
             .get(&factor_source.factor_source_id())
-            .cloned()
-            .expect("Expected to have instances for the (new) factor source");
-
-        assert!(
-            outcome.to_use_directly.is_empty(),
-            "Programmer error, expected to return an empty list of instances to use directly"
+            .unwrap()
+            .clone();
+        let outcome = InternalFactorInstancesProviderOutcomeForFactor::new(
+            factor_source.factor_source_id(),
+            derived.clone(),
+            FactorInstances::default(),
+            FactorInstances::default(),
+            derived,
         );
-
         Ok(outcome.into())
     }
 
@@ -276,30 +289,6 @@ impl FactorInstancesProvider {
     }
 }
 
-impl FactorInstancesCache {
-    fn get_poly_factor(
-        &self,
-        factor_source_ids: &IndexSet<FactorSourceIDFromHash>,
-        index_agnostic_path: IndexAgnosticPath,
-    ) -> Result<IndexMap<FactorSourceIDFromHash, FactorInstances>> {
-        todo!()
-    }
-    fn get_mono_factor(
-        &self,
-        factor_source_id: FactorSourceIDFromHash,
-        index_agnostic_path: IndexAgnosticPath,
-    ) -> Result<IndexMap<FactorSourceIDFromHash, FactorInstances>> {
-        todo!()
-    }
-    fn delete(&mut self, pf_instances: IndexMap<FactorSourceIDFromHash, FactorInstances>) {
-        todo!()
-    }
-
-    fn insert(&mut self, pf_instances: IndexMap<FactorSourceIDFromHash, FactorInstances>) {
-        todo!()
-    }
-}
-
 impl FactorInstancesProvider {
     async fn with(
         network_id: NetworkID,
@@ -325,13 +314,15 @@ impl FactorInstancesProvider {
         // "pf" short for "Per FactorSource"
         let pf_found_in_cache = next_index_assigner
             .cache()
-            .get_poly_factor(&factor_source_ids, index_agnostic_path)?;
+            .get_poly_factor(&factor_source_ids, &index_agnostic_path)?;
 
         let mut pf_quantity_missing_from_cache = IndexMap::<FactorSourceIDFromHash, usize>::new();
         let pf_quantity_to_derive = pf_found_in_cache
             .iter()
             .filter_map(|(factor_source_id, found_in_cache)| {
-                let qty_missing_from_cache = originally_requested_quantity - found_in_cache.len();
+                let qty_missing_from_cache =
+                    originally_requested_quantity as i8 - found_in_cache.len() as i8;
+                    println!("🦆 found_in_cache.len(): {}, originally_requested_quantity: {} ==> qty_missing_from_cache: {}", found_in_cache.len(), originally_requested_quantity, qty_missing_from_cache);
                 if qty_missing_from_cache <= 0 {
                     // no instances missing, cache can fully satisfy request amount
                     None
@@ -339,7 +330,7 @@ impl FactorInstancesProvider {
                     // We must retain how many were missing from cache so that we can know how many of
                     // the newly derived we should use directly and how many to cache
                     pf_quantity_missing_from_cache
-                        .insert(*factor_source_id, qty_missing_from_cache);
+                        .insert(*factor_source_id, qty_missing_from_cache as usize);
 
                     // If we are gonna derive anyway, lets derive so that we can fulfill the `number_of_accounts`
                     // originally request + have `CACHE_FILLING_SIZE` many more left after, a.k.a. full cache!
@@ -388,10 +379,16 @@ impl FactorInstancesProvider {
             for (derivation_preset, instances) in instances_by_derivation_preset {
                 if derivation_preset == originally_requested_derivation_preset {
                     // Must apply split logic
-                    let quantity_missing_from_cache = pf_quantity_missing_from_cache.get(&factor_source_id)
-                    .expect("Programmer error, should have saved how many instances remains to fulfill");
-                    let (to_use_directly, to_cache) =
-                        instances.split_at(*quantity_missing_from_cache);
+                    let qty_split: usize;
+                    if let Some(quantity_missing_from_cache) =
+                        pf_quantity_missing_from_cache.get(&factor_source_id)
+                    {
+                        qty_split = *quantity_missing_from_cache;
+                    } else {
+                        println!("🙅‍♀️ pf_quantity_missing_from_cache was NONE for: derivation_preset={:?}", derivation_preset);
+                        qty_split = 0
+                    };
+                    let (to_use_directly, to_cache) = instances.split_at(qty_split);
                     let to_use_directly =
                         to_use_directly.iter().cloned().collect::<FactorInstances>();
 
@@ -453,7 +450,7 @@ impl FactorInstancesProvider {
                         let index_agnostic_path =
                             derivation_preset.index_agnostic_path_on_network(network_id);
                         let single_factor_from_cache =
-                            cache.get_mono_factor(factor_source_id, index_agnostic_path)?;
+                            cache.get_mono_factor(&factor_source_id, &index_agnostic_path)?;
                         let qty_to_be_full =
                             CACHE_FILLING_QUANTITY - single_factor_from_cache.len();
                         // `qty_to_be_full` is `0` if cache full, and the map below => empty
