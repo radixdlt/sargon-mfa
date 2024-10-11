@@ -345,6 +345,7 @@ impl FactorInstancesProvider {
             network_id,
             originally_requested_derivation_preset,
             &next_index_assigner,
+            interactors,
         )
         .await?;
         /*
@@ -397,6 +398,7 @@ impl FactorInstancesProvider {
         network_id: NetworkID,
         originally_requested_derivation_preset: DerivationPreset,
         next_index_assigner: &NextDerivationEntityIndexAssigner,
+        interactors: Arc<dyn KeysDerivationInteractors>,
     ) -> Result<IndexMap<FactorSourceIDFromHash, FactorInstances>> {
         /*
          let pf_paths = pf_quantity_to_derive.into_iter().map(|(factor_source_id, qty)| {
