@@ -279,7 +279,7 @@ impl FactorInstancesProvider {
 impl FactorInstancesCache {
     fn get_poly_factor(
         &self,
-        factor_source_ids: IndexSet<FactorSourceIDFromHash>,
+        factor_source_ids: &IndexSet<FactorSourceIDFromHash>,
         index_agnostic_path: IndexAgnosticPath,
     ) -> Result<IndexMap<FactorSourceIDFromHash, FactorInstances>> {
         todo!()
@@ -318,7 +318,7 @@ impl FactorInstancesProvider {
         // "pf" short for "Per FactorSource"
         let pf_from_cache = next_index_assigner
             .cache()
-            .get_poly_factor(factor_source_ids, index_agnostic_path)?;
+            .get_poly_factor(&factor_source_ids, index_agnostic_path)?;
 
         let mut pf_quantity_missing_from_cache = IndexMap::<FactorSourceIDFromHash, usize>::new();
         let pf_quantity_to_derive = pf_from_cache
@@ -353,18 +353,21 @@ impl FactorInstancesProvider {
             interactors.clone(),
         )
         .await?;
+
+        let pf_mixed = factor_source_ids
+            .iter()
+            .map(|f| {
+                let mut merged = IndexSet::new();
+                let from_cache = pf_from_cache.get(f).cloned().unwrap_or_default();
+                let newly_derived = pf_newly_derived.get(f).cloned().unwrap_or_default();
+                merged.extend(from_cache); // from cache first, since it has lower indices
+                merged.extend(newly_derived);
+
+                (*f, FactorInstances::from(merged))
+            })
+            .collect::<IndexMap<FactorSourceIDFromHash, FactorInstances>>();
+
         /*
-
-         let pf_mixed = matrix_of_factor_sources.all().iter().map(|f|) {
-             let mut merged = IndexSet::new();
-             let from_cache = pf_from_cache.get(f).unwrap_or_default();
-             let newly_derived = pf_newly_derived.get(f).unwrap_or_default();
-             merged.extend(from_cache); // from cache first
-             merged.extend(newly_derived);
-
-             (f, merged)
-         }.collect::<IndexMap<FactorSourceID, Index<HDFactorInstance>>>();
-
         let mut pf_to_cache = IndexMap::new();
         let mut pf_to_use_directly = IndexMap::new();
         for (factor_source_id, factor_instances) in pf_mixed {
