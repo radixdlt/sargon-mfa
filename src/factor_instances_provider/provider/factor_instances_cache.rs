@@ -170,19 +170,24 @@ impl FactorInstancesCache {
         Ok(())
     }
 
+    /// Returns the MAX derivation entity index for the given `factor_source_id` and `index_agnostic_path`.
     pub fn max_index_for(
         &self,
-        factor_source_id: FactorSourceIDFromHash,
-        agnostic_path: IndexAgnosticPath,
+        factor_source_id: impl Borrow<FactorSourceIDFromHash>,
+        index_agnostic_path: impl Borrow<IndexAgnosticPath>,
     ) -> Option<HDPathComponent> {
-        let for_factor = self.map.get(&factor_source_id)?;
-        let instances = for_factor.get(&agnostic_path)?;
-        instances
+        self.get_mono_factor(factor_source_id, index_agnostic_path)
+            .unwrap_or_default()
             .factor_instances()
-            .last()
+            .into_iter()
             .map(|fi| fi.derivation_entity_index())
+            .max()
     }
 
+    /// Returns enough instances to satisfy the requested quantity for each factor source,
+    /// **OR LESS**, never more, and if less, it means we MUST derive more, and if we
+    /// must derive more, this function returns the quantities to derive for each factor source,
+    /// for each derivation preset, not only the originally requested one.
     pub fn get_poly_factor_with_quantities(
         &self,
         factor_source_ids: &IndexSet<FactorSourceIDFromHash>,
@@ -193,45 +198,67 @@ impl FactorInstancesCache {
         let mut pf_instances = IndexMap::<FactorSourceIDFromHash, FactorInstances>::new();
         let mut pf_pdp_qty_to_derive =
             IndexMap::<FactorSourceIDFromHash, IndexMap<DerivationPreset, usize>>::new();
-        let mut is_qty_satisfied_for_all_factor_sources = true;
+        let mut is_quantity_satisfied_for_all_factor_sources = true;
 
         for factor_source_id in factor_source_ids {
             for preset in DerivationPreset::all() {
                 let index_agnostic_path = preset.index_agnostic_path_on_network(network_id);
                 let for_preset = self
-                    .get_mono_factor(factor_source_id, &index_agnostic_path)
+                    .get_mono_factor(factor_source_id, index_agnostic_path)
                     .unwrap_or_default();
-                let count = for_preset.len();
+                let count_in_cache = for_preset.len();
                 if preset == originally_requested_quantified_derivation_preset.derivation_preset {
-                    let satisfies_requested_quantity = count >= target_quantity;
-                    if !satisfies_requested_quantity {
-                        is_qty_satisfied_for_all_factor_sources = false;
-                        let qty_to_derive = CACHE_FILLING_QUANTITY - count + target_quantity;
-                        pf_pdp_qty_to_derive
-                            .append_or_insert_element_to(factor_source_id, (preset, qty_to_derive));
-                        pf_instances.append_or_insert_to(factor_source_id, for_preset.clone());
-                    } else {
+                    let satisfies_requested_quantity = count_in_cache >= target_quantity;
+                    if satisfies_requested_quantity {
+                        // The instances in the cache can satisfy the requested quantity
+                        // for this factor source for this derivation preset
                         pf_instances.append_or_insert_to(
                             factor_source_id,
+                            // Only take the first `target_quantity` instances
+                            // to be used, the rest are not needed and should
+                            // remain in the cache (later we will call delete on
+                            // all those instances.)
                             for_preset.split_at(target_quantity).0,
                         );
+                    } else {
+                        // The instances in the cache cannot satisfy the requested quantity
+                        // we must derive more!
+                        is_quantity_satisfied_for_all_factor_sources = false;
+                        // Since we are deriving more we might as well ensure that the
+                        // cache is filled with `CACHE_FILLING_QUANTITY` **AFTER** the
+                        // requested quantity is satisfied, meaning we will not only
+                        // derive `CACHE_FILLING_QUANTITY - count_in_cache`, instead we
+                        // derive the `target_quantity` as well.
+                        let quantity_to_derive =
+                            CACHE_FILLING_QUANTITY - count_in_cache + target_quantity;
+                        pf_pdp_qty_to_derive.append_or_insert_element_to(
+                            factor_source_id,
+                            (preset, quantity_to_derive),
+                        );
+                        // insert all instances to be used directly
+                        pf_instances.append_or_insert_to(factor_source_id, for_preset.clone());
                     }
-                } else if count < CACHE_FILLING_QUANTITY {
-                    let qty_to_derive = CACHE_FILLING_QUANTITY - count;
-                    pf_pdp_qty_to_derive
-                        .append_or_insert_element_to(factor_source_id, (preset, qty_to_derive));
+                } else {
+                    // Not originally requested derivation preset, calculate number
+                    // of instances to derive IF we are going to derive anyway,
+                    // we wanna FILL the cache for those derivation presets as well.
+                    if count_in_cache < CACHE_FILLING_QUANTITY {
+                        let qty_to_derive = CACHE_FILLING_QUANTITY - count_in_cache;
+                        pf_pdp_qty_to_derive
+                            .append_or_insert_element_to(factor_source_id, (preset, qty_to_derive));
+                    }
                 }
             }
         }
-
-        Ok(if is_qty_satisfied_for_all_factor_sources {
+        let outcome = if is_quantity_satisfied_for_all_factor_sources {
             CachedInstancesWithQuantitiesOutcome::Satisfied(pf_instances)
         } else {
             CachedInstancesWithQuantitiesOutcome::NotSatisfied {
                 partial_instances: pf_instances,
                 pf_pdp_qty_to_derive,
             }
-        })
+        };
+        Ok(outcome)
     }
 }
 
@@ -342,11 +369,11 @@ impl From<FactorInstances> for InstancesByDerivationPreset {
 impl FactorInstancesCache {
     pub fn get_mono_factor(
         &self,
-        factor_source_id: &FactorSourceIDFromHash,
-        index_agnostic_path: &IndexAgnosticPath,
+        factor_source_id: impl Borrow<FactorSourceIDFromHash>,
+        index_agnostic_path: impl Borrow<IndexAgnosticPath>,
     ) -> Option<FactorInstances> {
-        let for_factor = self.map.get(factor_source_id)?;
-        let instances = for_factor.get(index_agnostic_path)?;
+        let for_factor = self.map.get(factor_source_id.borrow())?;
+        let instances = for_factor.get(index_agnostic_path.borrow())?;
         Some(instances.clone())
     }
 
@@ -559,7 +586,7 @@ mod tests {
             KeySpace::Unsecurified,
         );
         for (f, instances) in to_remain {
-            assert_eq!(sut.get_mono_factor(&f, path).unwrap(), instances)
+            assert_eq!(sut.get_mono_factor(f, path).unwrap(), instances)
         }
     }
 
