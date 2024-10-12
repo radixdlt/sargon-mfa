@@ -189,49 +189,39 @@ impl FactorInstancesCache {
         originally_requested_quantified_derivation_preset: &QuantifiedDerivationPreset,
         network_id: NetworkID,
     ) -> Result<CachedInstancesWithQuantitiesOutcome> {
-        let originally_requested_derivation_preset =
-            originally_requested_quantified_derivation_preset.derivation_preset;
-        let requested_qty = originally_requested_quantified_derivation_preset.quantity;
-        let mut is_qty_satisfied_for_all_factor_sources = true;
-
+        let target_quantity = originally_requested_quantified_derivation_preset.quantity;
+        let mut pf_instances = IndexMap::<FactorSourceIDFromHash, FactorInstances>::new();
         let mut pf_pdp_qty_to_derive =
             IndexMap::<FactorSourceIDFromHash, IndexMap<DerivationPreset, usize>>::new();
-
-        let mut pf_instances = IndexMap::<FactorSourceIDFromHash, FactorInstances>::new();
+        let mut is_qty_satisfied_for_all_factor_sources = true;
 
         for factor_source_id in factor_source_ids {
-            let mut pdp_qty_to_derive = IndexMap::<DerivationPreset, usize>::new();
-
-            for derivation_preset in DerivationPreset::all() {
-                let index_agnostic_path =
-                    derivation_preset.index_agnostic_path_on_network(network_id);
-                let instances = self
+            for preset in DerivationPreset::all() {
+                let index_agnostic_path = preset.index_agnostic_path_on_network(network_id);
+                let for_preset = self
                     .get_mono_factor(factor_source_id, &index_agnostic_path)
                     .unwrap_or_default();
-                if derivation_preset == originally_requested_derivation_preset {
-                    let is_qty_satisfied_for_factor = instances.len() >= requested_qty;
-                    if !is_qty_satisfied_for_factor {
-                        let to_derive = CACHE_FILLING_QUANTITY + requested_qty - instances.len();
-                        pdp_qty_to_derive.insert(derivation_preset, to_derive);
-
-                        pf_instances.insert(*factor_source_id, instances);
+                let count = for_preset.len();
+                if preset == originally_requested_quantified_derivation_preset.derivation_preset {
+                    let satisfies_requested_quantity = count >= target_quantity;
+                    if !satisfies_requested_quantity {
+                        is_qty_satisfied_for_all_factor_sources = false;
+                        let qty_to_derive = CACHE_FILLING_QUANTITY - count + target_quantity;
+                        pf_pdp_qty_to_derive
+                            .append_or_insert_element_to(factor_source_id, (preset, qty_to_derive));
+                        pf_instances.append_or_insert_to(factor_source_id, for_preset.clone());
                     } else {
-                        let instances_enough_to_satisfy =
-                            &instances.factor_instances().into_iter().collect_vec()
-                                [..requested_qty];
-                        pf_instances.insert(
-                            *factor_source_id,
-                            FactorInstances::from_iter(instances_enough_to_satisfy.iter().cloned()),
+                        pf_instances.append_or_insert_to(
+                            factor_source_id,
+                            for_preset.split_at(target_quantity).0,
                         );
                     }
-                    is_qty_satisfied_for_all_factor_sources =
-                        is_qty_satisfied_for_all_factor_sources && is_qty_satisfied_for_factor;
-                } else if instances.len() < CACHE_FILLING_QUANTITY {
-                    let to_derive = CACHE_FILLING_QUANTITY - instances.len();
-                    pdp_qty_to_derive.insert(derivation_preset, to_derive);
+                } else if count < CACHE_FILLING_QUANTITY {
+                    let qty_to_derive = CACHE_FILLING_QUANTITY - count;
+                    pf_pdp_qty_to_derive
+                        .append_or_insert_element_to(factor_source_id, (preset, qty_to_derive));
                 }
             }
-            pf_pdp_qty_to_derive.insert(*factor_source_id, pdp_qty_to_derive);
         }
 
         Ok(if is_qty_satisfied_for_all_factor_sources {
