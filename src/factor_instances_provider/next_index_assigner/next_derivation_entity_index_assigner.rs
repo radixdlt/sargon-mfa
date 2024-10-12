@@ -52,10 +52,6 @@ impl NextDerivationEntityIndexAssigner {
         }
     }
 
-    pub fn cache(&self) -> FactorInstancesCache {
-        self.cache_analyzing.cache()
-    }
-
     pub fn next(
         &self,
         factor_source_id: FactorSourceIDFromHash,

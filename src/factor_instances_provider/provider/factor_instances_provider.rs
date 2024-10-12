@@ -285,13 +285,11 @@ impl FactorInstancesProvider {
     async fn with(
         network_id: NetworkID,
         factor_sources: IndexSet<HDFactorSource>,
-        quantified_derivation_preset: QuantifiedDerivationPresets,
+        originally_requested_quantified_derivation_preset: QuantifiedDerivationPresets,
         profile: impl Into<Option<Profile>>,
         cache: &mut FactorInstancesCache,
         interactors: Arc<dyn KeysDerivationInteractors>,
     ) -> Result<InternalFactorInstancesProviderOutcome> {
-        let originally_requested_quantified_derivation_preset = quantified_derivation_preset;
-
         let profile = profile.into();
         let factor_source_ids = factor_sources
             .iter()
