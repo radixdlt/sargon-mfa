@@ -142,10 +142,7 @@ impl FactorInstancesProvider {
         let outcome = Self::with(
             network_id,
             IndexSet::just(factor_source.clone()),
-            QuantifiedDerivationPresets {
-                quantity: 1,
-                derivation_preset: DerivationPreset::veci_entity_kind(entity_kind),
-            },
+            QuantifiedDerivationPreset::new(DerivationPreset::veci_entity_kind(entity_kind), 1),
             profile,
             cache,
             interactors,
@@ -262,10 +259,7 @@ impl FactorInstancesProvider {
         let outcome = Self::with(
             network_id,
             factor_sources_to_use,
-            QuantifiedDerivationPresets {
-                quantity: addresses_of_entities.len(),
-                derivation_preset,
-            },
+            QuantifiedDerivationPreset::new(derivation_preset, addresses_of_entities.len()),
             profile,
             cache,
             interactors,
@@ -285,7 +279,7 @@ impl FactorInstancesProvider {
     async fn with(
         network_id: NetworkID,
         factor_sources: IndexSet<HDFactorSource>,
-        originally_requested_quantified_derivation_preset: QuantifiedDerivationPresets,
+        originally_requested_quantified_derivation_preset: QuantifiedDerivationPreset,
         profile: impl Into<Option<Profile>>,
         cache: &mut FactorInstancesCache,
         interactors: Arc<dyn KeysDerivationInteractors>,
@@ -321,13 +315,28 @@ impl FactorInstancesProvider {
 
         let pf_found_in_cache_leq_requested = cached.partially_satisfied()?;
 
+        let pf_found_in_cache_and_derived_mixed = factor_source_ids
+            .iter()
+            .map(|f| {
+                let mut merged = IndexSet::new();
+                let from_cache = pf_found_in_cache_leq_requested
+                    .get(f)
+                    .cloned()
+                    .unwrap_or_default();
+                let newly_derived = pf_newly_derived.get(f).cloned().unwrap_or_default();
+                merged.extend(from_cache); // from cache first
+                merged.extend(newly_derived);
+
+                (*f, FactorInstances::from(merged))
+            })
+            .collect::<IndexMap<FactorSourceIDFromHash, FactorInstances>>();
+
         let Split {
             pf_to_use_directly,
             pf_to_cache,
         } = Self::split(
             &originally_requested_quantified_derivation_preset,
-            &pf_found_in_cache_leq_requested,
-            &pf_newly_derived,
+            pf_found_in_cache_and_derived_mixed,
         );
 
         cache.delete(&pf_found_in_cache_leq_requested);
@@ -344,32 +353,32 @@ impl FactorInstancesProvider {
     }
 
     fn split(
-        originally_requested_quantified_derivation_preset: &QuantifiedDerivationPresets,
-        pf_found_in_cache_leq_requested: &IndexMap<FactorSourceIDFromHash, FactorInstances>,
-        newly_derived: &IndexMap<FactorSourceIDFromHash, FactorInstances>,
+        originally_requested_quantified_derivation_preset: &QuantifiedDerivationPreset,
+        found_in_cache_and_derived_mixed: IndexMap<FactorSourceIDFromHash, FactorInstances>,
     ) -> Split {
-        let mut pf_to_use_directly = pf_found_in_cache_leq_requested.clone();
+        let mut pf_to_use_directly = IndexMap::new();
         let mut pf_to_cache = IndexMap::<FactorSourceIDFromHash, FactorInstances>::new();
+        let quantity_originally_requested =
+            originally_requested_quantified_derivation_preset.quantity;
+        let preset_originally_requested =
+            originally_requested_quantified_derivation_preset.derivation_preset;
 
-        let target_qty = originally_requested_quantified_derivation_preset.quantity;
-        for (f, instances) in newly_derived {
-            for instance in instances.factor_instances() {
-                let derivation_preset =
-                    DerivationPreset::try_from(instance.agnostic_path()).unwrap();
-                if derivation_preset
-                    == originally_requested_quantified_derivation_preset.derivation_preset
-                {
-                    // relevant for pf_to_use_directly
-                    let instances_to_use_dir = pf_to_use_directly.get_mut(f).unwrap();
-                    if instances_to_use_dir.len() < target_qty {
-                        instances_to_use_dir.append(FactorInstances::just(instance));
-                    } else {
-                        pf_to_cache.append_or_insert_element_to(f, instance);
-                    }
-                } else {
-                    pf_to_cache.append_or_insert_element_to(f, instance);
-                }
+        for (factor_source_id, instances) in found_in_cache_and_derived_mixed.clone().into_iter() {
+            let mut instances_by_derivation_preset = InstancesByDerivationPreset::from(instances);
+
+            if let Some(instances_relevant_to_use_directly_with_abundance) =
+                instances_by_derivation_preset.remove(preset_originally_requested)
+            {
+                let (to_use_directly, to_cache) = instances_relevant_to_use_directly_with_abundance
+                    .split_at(quantity_originally_requested);
+                pf_to_use_directly.insert(factor_source_id, to_use_directly);
+                pf_to_cache.insert(factor_source_id, to_cache);
             }
+
+            pf_to_cache.append_or_insert_to(
+                factor_source_id,
+                instances_by_derivation_preset.all_instances(),
+            );
         }
 
         Split {
