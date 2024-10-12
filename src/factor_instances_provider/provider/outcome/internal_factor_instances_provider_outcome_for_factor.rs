@@ -1,6 +1,14 @@
 use crate::prelude::*;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, derive_more::Debug)]
+#[debug(
+    "InternalFactorInstancesProviderOutcomeForFactor[ factor: {:?}\n\n\t⚡️ to_use_directly: {:?}\n\n\t➡️💾to_cache: {:?}\n\n\t💾➡️found_in_cache: {:?}\n\n\t🔮derived: {:?}\n\n]\n",
+    factor_source_id,
+    to_use_directly,
+    to_cache,
+    found_in_cache,
+    newly_derived
+)]
 pub struct InternalFactorInstancesProviderOutcomeForFactor {
     #[allow(dead_code)]
     hidden: HiddenConstructor,

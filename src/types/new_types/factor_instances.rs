@@ -25,8 +25,19 @@ impl FactorInstances {
     pub fn first(&self) -> Option<HierarchicalDeterministicFactorInstance> {
         self.factor_instances.first().cloned()
     }
+    pub fn split_at(self, mid: usize) -> (Self, Self) {
+        let instances = self.factor_instances.into_iter().collect_vec();
+        let (head, tail) = instances.split_at(mid);
+        (Self::from(head), Self::from(tail))
+    }
 }
-
+impl From<&[HierarchicalDeterministicFactorInstance]> for FactorInstances {
+    fn from(value: &[HierarchicalDeterministicFactorInstance]) -> Self {
+        Self::from(
+            IndexSet::<HierarchicalDeterministicFactorInstance>::from_iter(value.iter().cloned()),
+        )
+    }
+}
 impl From<IndexSet<HierarchicalDeterministicFactorInstance>> for FactorInstances {
     fn from(instances: IndexSet<HierarchicalDeterministicFactorInstance>) -> Self {
         Self::new(instances)

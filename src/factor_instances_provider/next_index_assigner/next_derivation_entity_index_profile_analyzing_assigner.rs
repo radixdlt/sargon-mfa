@@ -23,7 +23,8 @@ impl NextDerivationEntityIndexProfileAnalyzingAssigner {
     /// `Profile` is optional so that one can use the same initializer from `FactorInstancesProvider`,
     /// which accepts an optional Profile. Will just default to empty lists if `None` is passed,
     /// effectively making this whole assigner NOOP.
-    pub fn new(network_id: NetworkID, profile: Option<Profile>) -> Self {
+    pub fn new(network_id: NetworkID, profile: impl Into<Option<Profile>>) -> Self {
+        let profile = profile.into();
         let unsecurified_accounts_on_network = profile
             .as_ref()
             .map(|p| p.unsecurified_accounts_on_network(network_id))

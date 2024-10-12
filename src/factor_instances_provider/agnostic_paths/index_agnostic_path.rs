@@ -1,5 +1,7 @@
 use crate::prelude::*;
 
+use super::quantities;
+
 /// A DerivationPath which is not indexed. On a specific network.
 #[derive(Clone, Copy, Hash, PartialEq, Eq, derive_more::Debug, derive_more::Display)]
 #[display("{}/{}/{}/?{}", network_id, entity_kind, key_kind, key_space.indicator())]
@@ -64,9 +66,17 @@ impl TryFrom<IndexAgnosticPath> for DerivationPreset {
 
 #[derive(Clone, Copy, Hash, PartialEq, Eq, derive_more::Debug)]
 #[debug("🎯: {:?} #{}", self.derivation_preset, self.quantity)]
-pub struct QuantifiedDerivationPresets {
+pub struct QuantifiedDerivationPreset {
     pub derivation_preset: DerivationPreset,
     pub quantity: usize,
+}
+impl QuantifiedDerivationPreset {
+    pub fn new(derivation_preset: DerivationPreset, quantity: usize) -> Self {
+        Self {
+            derivation_preset,
+            quantity,
+        }
+    }
 }
 
 impl From<(IndexAgnosticPath, HDPathComponent)> for DerivationPath {

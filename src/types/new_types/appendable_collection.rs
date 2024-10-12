@@ -2,7 +2,7 @@ use crate::prelude::*;
 use std::borrow::Borrow;
 
 pub trait AppendableCollection: FromIterator<Self::Element> {
-    type Element: Eq + std::hash::Hash;
+    type Element;
     fn append<T: IntoIterator<Item = Self::Element>>(&mut self, iter: T);
 }
 impl<V: Eq + std::hash::Hash> AppendableCollection for IndexSet<V> {
@@ -36,6 +36,17 @@ pub trait AppendableMap {
         element: <Self::AC as AppendableCollection>::Element,
     ) {
         self.append_or_insert_to(key.borrow(), [element]);
+    }
+}
+
+impl<K, V> AppendableCollection for IndexMap<K, V>
+where
+    K: Eq + std::hash::Hash + Clone,
+{
+    type Element = (K, V);
+
+    fn append<T: IntoIterator<Item = Self::Element>>(&mut self, iter: T) {
+        self.extend(iter)
     }
 }
 

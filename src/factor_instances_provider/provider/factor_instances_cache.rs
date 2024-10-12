@@ -117,21 +117,10 @@ impl FactorInstancesCache {
         factor_source_id: &FactorSourceIDFromHash,
         instances: &FactorInstances,
     ) -> Result<bool> {
-        let instances = instances.clone().into_iter().collect_vec();
-
-        let instances_by_agnostic_path = instances
-            .into_iter()
-            .into_group_map_by(|f| f.agnostic_path())
-            .into_iter()
-            .map(|(k, v)| {
-                if v.iter().any(|f| f.factor_source_id != *factor_source_id) {
-                    return Err(CommonError::FactorSourceDiscrepancy);
-                }
-                Ok((k, FactorInstances::from_iter(v)))
-            })
-            .collect::<Result<IndexMap<IndexAgnosticPath, FactorInstances>>>()?;
         let mut skipped_an_index_resulting_in_non_contiguousness = false;
 
+        let instances_by_agnostic_path = InstancesByAgnosticPath::from(instances.clone());
+        instances_by_agnostic_path.validate_from_source(factor_source_id)?;
         if let Some(existing_for_factor) = self.map.get_mut(factor_source_id) {
             for (agnostic_path, instances) in instances_by_agnostic_path {
                 let instances = instances.factor_instances();
@@ -164,7 +153,7 @@ impl FactorInstancesCache {
             }
         } else {
             self.map
-                .insert(*factor_source_id, instances_by_agnostic_path);
+                .insert(*factor_source_id, instances_by_agnostic_path.0);
         }
 
         Ok(skipped_an_index_resulting_in_non_contiguousness)
@@ -181,94 +170,95 @@ impl FactorInstancesCache {
         Ok(())
     }
 
+    /// Returns the MAX derivation entity index for the given `factor_source_id` and `index_agnostic_path`.
     pub fn max_index_for(
         &self,
-        factor_source_id: FactorSourceIDFromHash,
-        agnostic_path: IndexAgnosticPath,
+        factor_source_id: impl Borrow<FactorSourceIDFromHash>,
+        index_agnostic_path: impl Borrow<IndexAgnosticPath>,
     ) -> Option<HDPathComponent> {
-        let for_factor = self.map.get(&factor_source_id)?;
-        let instances = for_factor.get(&agnostic_path)?;
-        instances
+        self.get_mono_factor(factor_source_id, index_agnostic_path)
+            .unwrap_or_default()
             .factor_instances()
-            .last()
+            .into_iter()
             .map(|fi| fi.derivation_entity_index())
+            .max()
     }
 
-    pub fn get_poly_factor(
-        &self,
-        factor_source_ids: &IndexSet<FactorSourceIDFromHash>,
-        index_agnostic_path: &IndexAgnosticPath,
-    ) -> Result<IndexMap<FactorSourceIDFromHash, FactorInstances>> {
-        let mut pf = IndexMap::new();
-        for factor_source_id in factor_source_ids {
-            let Some(instances) = self.get_mono_factor(factor_source_id, index_agnostic_path)
-            else {
-                continue;
-            };
-            pf.insert(*factor_source_id, instances);
-        }
-        Ok(pf)
-    }
-
+    /// Returns enough instances to satisfy the requested quantity for each factor source,
+    /// **OR LESS**, never more, and if less, it means we MUST derive more, and if we
+    /// must derive more, this function returns the quantities to derive for each factor source,
+    /// for each derivation preset, not only the originally requested one.
     pub fn get_poly_factor_with_quantities(
         &self,
         factor_source_ids: &IndexSet<FactorSourceIDFromHash>,
-        originally_requested_quantified_derivation_preset: &QuantifiedDerivationPresets,
+        originally_requested_quantified_derivation_preset: &QuantifiedDerivationPreset,
         network_id: NetworkID,
     ) -> Result<CachedInstancesWithQuantitiesOutcome> {
-        let originally_requested_derivation_preset =
-            originally_requested_quantified_derivation_preset.derivation_preset;
-        let requested_qty = originally_requested_quantified_derivation_preset.quantity;
-        let mut is_qty_satisfied_for_all_factor_sources = true;
-
+        let target_quantity = originally_requested_quantified_derivation_preset.quantity;
+        let mut pf_instances = IndexMap::<FactorSourceIDFromHash, FactorInstances>::new();
         let mut pf_pdp_qty_to_derive =
             IndexMap::<FactorSourceIDFromHash, IndexMap<DerivationPreset, usize>>::new();
-
-        let mut pf_instances = IndexMap::<FactorSourceIDFromHash, FactorInstances>::new();
+        let mut is_quantity_satisfied_for_all_factor_sources = true;
 
         for factor_source_id in factor_source_ids {
-            let mut pdp_qty_to_derive = IndexMap::<DerivationPreset, usize>::new();
-
-            for derivation_preset in DerivationPreset::all() {
-                let index_agnostic_path =
-                    derivation_preset.index_agnostic_path_on_network(network_id);
-                let instances = self
-                    .get_mono_factor(factor_source_id, &index_agnostic_path)
+            for preset in DerivationPreset::all() {
+                let index_agnostic_path = preset.index_agnostic_path_on_network(network_id);
+                let for_preset = self
+                    .get_mono_factor(factor_source_id, index_agnostic_path)
                     .unwrap_or_default();
-                if derivation_preset == originally_requested_derivation_preset {
-                    let is_qty_satisfied_for_factor = instances.len() >= requested_qty;
-                    if !is_qty_satisfied_for_factor {
-                        let to_derive = CACHE_FILLING_QUANTITY + requested_qty - instances.len();
-                        pdp_qty_to_derive.insert(derivation_preset, to_derive);
-
-                        pf_instances.insert(*factor_source_id, instances);
-                    } else {
-                        let instances_enough_to_satisfy =
-                            &instances.factor_instances().into_iter().collect_vec()
-                                [..requested_qty];
-                        pf_instances.insert(
-                            *factor_source_id,
-                            FactorInstances::from_iter(instances_enough_to_satisfy.iter().cloned()),
+                let count_in_cache = for_preset.len();
+                if preset == originally_requested_quantified_derivation_preset.derivation_preset {
+                    let satisfies_requested_quantity = count_in_cache >= target_quantity;
+                    if satisfies_requested_quantity {
+                        // The instances in the cache can satisfy the requested quantity
+                        // for this factor source for this derivation preset
+                        pf_instances.append_or_insert_to(
+                            factor_source_id,
+                            // Only take the first `target_quantity` instances
+                            // to be used, the rest are not needed and should
+                            // remain in the cache (later we will call delete on
+                            // all those instances.)
+                            for_preset.split_at(target_quantity).0,
                         );
+                    } else {
+                        // The instances in the cache cannot satisfy the requested quantity
+                        // we must derive more!
+                        is_quantity_satisfied_for_all_factor_sources = false;
+                        // Since we are deriving more we might as well ensure that the
+                        // cache is filled with `CACHE_FILLING_QUANTITY` **AFTER** the
+                        // requested quantity is satisfied, meaning we will not only
+                        // derive `CACHE_FILLING_QUANTITY - count_in_cache`, instead we
+                        // derive the `target_quantity` as well.
+                        let quantity_to_derive =
+                            CACHE_FILLING_QUANTITY - count_in_cache + target_quantity;
+                        pf_pdp_qty_to_derive.append_or_insert_element_to(
+                            factor_source_id,
+                            (preset, quantity_to_derive),
+                        );
+                        // insert all instances to be used directly
+                        pf_instances.append_or_insert_to(factor_source_id, for_preset.clone());
                     }
-                    is_qty_satisfied_for_all_factor_sources =
-                        is_qty_satisfied_for_all_factor_sources && is_qty_satisfied_for_factor;
-                } else if instances.len() < CACHE_FILLING_QUANTITY {
-                    let to_derive = CACHE_FILLING_QUANTITY - instances.len();
-                    pdp_qty_to_derive.insert(derivation_preset, to_derive);
+                } else {
+                    // Not originally requested derivation preset, calculate number
+                    // of instances to derive IF we are going to derive anyway,
+                    // we wanna FILL the cache for those derivation presets as well.
+                    if count_in_cache < CACHE_FILLING_QUANTITY {
+                        let qty_to_derive = CACHE_FILLING_QUANTITY - count_in_cache;
+                        pf_pdp_qty_to_derive
+                            .append_or_insert_element_to(factor_source_id, (preset, qty_to_derive));
+                    }
                 }
             }
-            pf_pdp_qty_to_derive.insert(*factor_source_id, pdp_qty_to_derive);
         }
-
-        Ok(if is_qty_satisfied_for_all_factor_sources {
+        let outcome = if is_quantity_satisfied_for_all_factor_sources {
             CachedInstancesWithQuantitiesOutcome::Satisfied(pf_instances)
         } else {
             CachedInstancesWithQuantitiesOutcome::NotSatisfied {
                 partial_instances: pf_instances,
-                pf_pdp_qty_to_derive,
+                quantities_to_derive: pf_pdp_qty_to_derive,
             }
-        })
+        };
+        Ok(outcome)
     }
 }
 
@@ -277,44 +267,18 @@ pub enum CachedInstancesWithQuantitiesOutcome {
     Satisfied(IndexMap<FactorSourceIDFromHash, FactorInstances>),
     NotSatisfied {
         partial_instances: IndexMap<FactorSourceIDFromHash, FactorInstances>,
-        pf_pdp_qty_to_derive: IndexMap<FactorSourceIDFromHash, IndexMap<DerivationPreset, usize>>,
+        quantities_to_derive: IndexMap<FactorSourceIDFromHash, IndexMap<DerivationPreset, usize>>,
     },
-}
-
-impl CachedInstancesWithQuantitiesOutcome {
-    pub fn satisfied(&self) -> Option<IndexMap<FactorSourceIDFromHash, FactorInstances>> {
-        self.as_satisfied().cloned()
-    }
-    pub fn quantities_to_derive(
-        &self,
-    ) -> Result<IndexMap<FactorSourceIDFromHash, IndexMap<DerivationPreset, usize>>> {
-        match &self {
-            CachedInstancesWithQuantitiesOutcome::Satisfied(_) => panic!("programmer error"),
-            CachedInstancesWithQuantitiesOutcome::NotSatisfied {
-                pf_pdp_qty_to_derive,
-                ..
-            } => Ok(pf_pdp_qty_to_derive.clone()),
-        }
-    }
-
-    pub fn partially_satisfied(self) -> Result<IndexMap<FactorSourceIDFromHash, FactorInstances>> {
-        match self {
-            CachedInstancesWithQuantitiesOutcome::Satisfied(_) => panic!("programmer error"),
-            CachedInstancesWithQuantitiesOutcome::NotSatisfied {
-                partial_instances, ..
-            } => Ok(partial_instances),
-        }
-    }
 }
 
 impl FactorInstancesCache {
     pub fn get_mono_factor(
         &self,
-        factor_source_id: &FactorSourceIDFromHash,
-        index_agnostic_path: &IndexAgnosticPath,
+        factor_source_id: impl Borrow<FactorSourceIDFromHash>,
+        index_agnostic_path: impl Borrow<IndexAgnosticPath>,
     ) -> Option<FactorInstances> {
-        let for_factor = self.map.get(factor_source_id)?;
-        let instances = for_factor.get(index_agnostic_path)?;
+        let for_factor = self.map.get(factor_source_id.borrow())?;
+        let instances = for_factor.get(index_agnostic_path.borrow())?;
         Some(instances.clone())
     }
 
@@ -328,14 +292,8 @@ impl FactorInstancesCache {
                 .get_mut(factor_source_id)
                 .expect("expected to delete factors");
 
-            let instances_to_delete_by_path = instances_to_delete.factor_instances()
-                .into_iter()
-                .into_group_map_by(|f| {
-                    f.agnostic_path()
-                })
-                .into_iter()
-                .collect::<IndexMap<IndexAgnosticPath, Vec<HierarchicalDeterministicFactorInstance>>>();
-
+            let instances_to_delete_by_path =
+                InstancesByAgnosticPath::from(instances_to_delete.clone());
             for (index_agnostic_path, instances_to_delete) in instances_to_delete_by_path {
                 let instances_to_delete =
                     IndexSet::<HierarchicalDeterministicFactorInstance>::from_iter(
@@ -421,23 +379,21 @@ impl FactorInstancesCache {
     /// Queries the cache to see if the cache is full for factor_source_id for
     /// each DerivationPreset
     pub fn is_full(&self, network_id: NetworkID, factor_source_id: FactorSourceIDFromHash) -> bool {
-        let count: usize = self
-            .map
-            .get(&factor_source_id)
-            .and_then(|c| {
-                c.values()
-                    .map(|xs| {
-                        xs.factor_instances()
-                            .iter()
-                            .filter(|x| x.agnostic_path().network_id == network_id)
-                            .collect_vec()
-                            .len()
-                    })
-                    .reduce(Add::add)
+        DerivationPreset::all()
+            .into_iter()
+            .map(|preset| {
+                self.get_poly_factor_with_quantities(
+                    &IndexSet::just(factor_source_id),
+                    &QuantifiedDerivationPreset::new(preset, CACHE_FILLING_QUANTITY),
+                    network_id,
+                )
             })
-            .unwrap_or(0);
-
-        count == DerivationPreset::all().len() * CACHE_FILLING_QUANTITY
+            .all(|outcome| {
+                matches!(
+                    outcome,
+                    Ok(CachedInstancesWithQuantitiesOutcome::Satisfied(_))
+                )
+            })
     }
 
     pub fn assert_is_full(&self, network_id: NetworkID, factor_source_id: FactorSourceIDFromHash) {
@@ -527,19 +483,16 @@ mod tests {
         }
 
         sut.delete(&to_delete);
-        assert_eq!(
-            sut.get_poly_factor(
-                &factor_source_ids,
-                &IndexAgnosticPath::new(
-                    NetworkID::Mainnet,
-                    CAP26EntityKind::Account,
-                    CAP26KeyKind::TransactionSigning,
-                    KeySpace::Unsecurified
-                )
-            )
-            .unwrap(),
-            to_remain
+
+        let path = &IndexAgnosticPath::new(
+            NetworkID::Mainnet,
+            CAP26EntityKind::Account,
+            CAP26KeyKind::TransactionSigning,
+            KeySpace::Unsecurified,
         );
+        for (f, instances) in to_remain {
+            assert_eq!(sut.get_mono_factor(f, path).unwrap(), instances)
+        }
     }
 
     #[test]
