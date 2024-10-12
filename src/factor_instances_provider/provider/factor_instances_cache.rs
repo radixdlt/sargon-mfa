@@ -187,12 +187,8 @@ impl FactorInstancesCache {
         factor_source_id: FactorSourceIDFromHash,
         agnostic_path: IndexAgnosticPath,
     ) -> Option<HDPathComponent> {
-        let Some(for_factor) = self.map.get(&factor_source_id) else {
-            return None;
-        };
-        let Some(instances) = for_factor.get(&agnostic_path) else {
-            return None;
-        };
+        let for_factor = self.map.get(&factor_source_id)?;
+        let instances = for_factor.get(&agnostic_path)?;
         instances
             .factor_instances()
             .last()
@@ -210,7 +206,7 @@ impl FactorInstancesCache {
             else {
                 continue;
             };
-            pf.insert(factor_source_id.clone(), instances);
+            pf.insert(*factor_source_id, instances);
         }
         Ok(pf)
     }
@@ -253,9 +249,7 @@ impl FactorInstancesCache {
                                 [..requested_qty];
                         pf_instances.insert(
                             *factor_source_id,
-                            FactorInstances::from_iter(
-                                instances_enough_to_satisfy.into_iter().cloned(),
-                            ),
+                            FactorInstances::from_iter(instances_enough_to_satisfy.iter().cloned()),
                         );
                     }
                     is_qty_satisfied_for_all_factor_sources =
@@ -320,12 +314,8 @@ impl FactorInstancesCache {
         factor_source_id: &FactorSourceIDFromHash,
         index_agnostic_path: &IndexAgnosticPath,
     ) -> Option<FactorInstances> {
-        let Some(for_factor) = self.map.get(factor_source_id) else {
-            return None;
-        };
-        let Some(instances) = for_factor.get(index_agnostic_path) else {
-            return None;
-        };
+        let for_factor = self.map.get(factor_source_id)?;
+        let instances = for_factor.get(index_agnostic_path)?;
         Some(instances.clone())
     }
 

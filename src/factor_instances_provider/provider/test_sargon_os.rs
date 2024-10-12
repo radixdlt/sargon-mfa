@@ -169,7 +169,11 @@ impl SargonOS {
         shield: MatrixOfFactorSources,
     ) -> Result<(IndexSet<E>, FactorInstancesProviderOutcome)> {
         let profile_snapshot = self.profile_snapshot();
-
+        println!(
+            "🛡️ securifying #{} entities with shield: {:?}",
+            addresses_of_entities.len(),
+            shield
+        );
         let outcome = FactorInstancesProvider::for_entity_mfa::<E::BaseEntity>(
             &mut self.cache,
             shield.clone(),
@@ -187,6 +191,18 @@ impl SargonOS {
             .map(|(k, outcome_per_factor)| (k, outcome_per_factor.to_use_directly))
             .collect::<IndexMap<FactorSourceIDFromHash, FactorInstances>>();
 
+        assert_eq!(
+            instance_per_factor
+                .keys()
+                .cloned()
+                .collect::<HashSet<FactorSourceIDFromHash>>(),
+            shield
+                .all_factors()
+                .into_iter()
+                .map(|f| f.factor_source_id())
+                .collect::<HashSet<FactorSourceIDFromHash>>()
+        );
+
         // Now we need to map the flat set of instances into many MatrixOfFactorInstances, and assign
         // one to each account
         let updated_entities = addresses_of_entities
@@ -200,6 +216,8 @@ impl SargonOS {
                         shield.clone(),
                     )
                     .unwrap();
+                println!("🇸🇪 instance_per_factor: {:?}", instance_per_factor);
+                println!("🇸🇪 matrix_of_instances: {:?}", matrix_of_instances);
                 let access_controller = match entity.security_state() {
                     EntitySecurityState::Unsecured(_) => {
                         AccessController::from_unsecurified_address(a)

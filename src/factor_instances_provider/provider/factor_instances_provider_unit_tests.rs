@@ -1185,7 +1185,6 @@ async fn securify_accounts_when_cache_is_half_full_multiple_factor_sources() {
         )
         .await
         .unwrap();
-
     assert!(
         !stats.derived_any_new_instance_for_any_factor_source(),
         "should have used cache"

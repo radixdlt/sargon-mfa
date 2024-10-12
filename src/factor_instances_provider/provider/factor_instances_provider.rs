@@ -45,7 +45,7 @@ impl FactorInstancesProvider {
             ),
             network_id,
             profile,
-            &cache,
+            cache,
             interactors,
         )
         .await?;
@@ -261,7 +261,7 @@ impl FactorInstancesProvider {
 
         let outcome = Self::with(
             network_id,
-            factor_sources,
+            factor_sources_to_use,
             QuantifiedDerivationPresets {
                 quantity: addresses_of_entities.len(),
                 derivation_preset,
@@ -416,7 +416,7 @@ impl FactorInstancesProvider {
             pf_found_in_cache_leq_requested,
             pf_newly_derived,
         );
-        let outcome = outcome.into();
+        let outcome = outcome;
         Ok(outcome)
     }
 
@@ -492,7 +492,7 @@ impl FactorInstancesProvider {
                     .collect::<Result<Vec<IndexSet<DerivationPath>>>>()?;
 
                 // flatten (I was unable to use `flat_map` above combined with `Result`...)
-                let paths = paths.into_iter().flat_map(|xs| xs).collect::<IndexSet<_>>();
+                let paths = paths.into_iter().flatten().collect::<IndexSet<_>>();
 
                 Ok((factor_source_id, paths))
             })
