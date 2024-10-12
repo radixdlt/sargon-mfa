@@ -2,26 +2,30 @@ use crate::prelude::*;
 
 /// Derivation Presets are Network agnostic and Index agnostic
 /// "templates" for DerivationPaths.
-#[derive(Clone, Debug, Copy, Hash, PartialEq, Eq, enum_iterator::Sequence)]
+#[derive(Clone, Copy, Hash, PartialEq, Eq, enum_iterator::Sequence, derive_more::Debug)]
 pub enum DerivationPreset {
     /// Used to form DerivationPaths used to derive FactorInstances
     /// for "veci": Virtual Entity Creating (Factor)Instance for accounts.
     /// `(EntityKind::Account, KeySpace::Unsecurified, KeyKind::TransactionSigning)`
+    #[debug("A-VECI")]
     AccountVeci,
 
     /// Used to form DerivationPaths used to derive FactorInstances
     /// for "mfa" to securify accounts.
     /// `(EntityKind::Account, KeySpace::Securified, KeyKind::TransactionSigning)`
+    #[debug("A-MFA")]
     AccountMfa,
 
     /// Used to form DerivationPaths used to derive FactorInstances
     /// for "veci": Virtual Entity Creating (Factor)Instance for personas.
     /// `(EntityKind::Identity, KeySpace::Unsecurified, KeyKind::TransactionSigning)`
+    #[debug("I-VECI")]
     IdentityVeci,
 
     /// Used to form DerivationPaths used to derive FactorInstances
     /// for "mfa" to securify personas.
     /// `(EntityKind::Identity, KeySpace::Securified, KeyKind::TransactionSigning)`
+    #[debug("I-MFA")]
     IdentityMfa,
 }
 impl DerivationPreset {

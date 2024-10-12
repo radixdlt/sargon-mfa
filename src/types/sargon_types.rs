@@ -347,8 +347,8 @@ impl UnhardenedIndex {
 #[derive(
     Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, derive_more::Display, derive_more::Debug,
 )]
-#[display("{}'", self.base_index())]
-#[debug("{}'", self.base_index())]
+#[display("{}{}", self.base_index(), KeySpace::Unsecurified.indicator())]
+#[debug("{}{}", self.base_index(), KeySpace::Unsecurified.indicator())]
 pub struct UnsecurifiedIndex(HDPathValue);
 impl UnsecurifiedIndex {
     /// # Panics
@@ -382,8 +382,8 @@ impl UnsecurifiedIndex {
 #[derive(
     Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, derive_more::Display, derive_more::Debug,
 )]
-#[display("{}^", self.base_index())]
-#[debug("{}^", self.base_index())]
+#[display("{}{}", self.base_index(), KeySpace::Securified.indicator())]
+#[debug("{}{}", self.base_index(), KeySpace::Securified.indicator())]
 pub struct SecurifiedIndex(u32);
 impl SecurifiedIndex {
     /// # Panics
@@ -904,7 +904,7 @@ impl HierarchicalDeterministicPublicKey {
 }
 
 #[derive(Clone, PartialEq, Eq, std::hash::Hash, derive_more::Debug)]
-#[debug("{}", self.debug_str())]
+#[debug("{}", self.derivation_entity_index())]
 pub struct HierarchicalDeterministicFactorInstance {
     pub factor_source_id: FactorSourceIDFromHash,
     pub public_key: HierarchicalDeterministicPublicKey,

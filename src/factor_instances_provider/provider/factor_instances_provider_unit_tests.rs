@@ -1073,14 +1073,12 @@ async fn securify_accounts_when_cache_is_half_full_single_factor_source() {
                 .primary_role_instances()
                 .into_iter()
                 .map(|f| f.derivation_entity_index())
-                .map(|x| format!("{:?}", x))
                 .next()
                 .unwrap()) // single factor per role text
             .collect_vec(),
-        [
-            "0^", "1^", "2^", "3^", "4^", "5^", "6^", "7^", "8^", "9^", "10^", "11^", "12^", "13^",
-            "14^"
-        ]
+        (0..CACHE_FILLING_QUANTITY / 2)
+            .map(|i| HDPathComponent::securifying_base_index(i as u32))
+            .collect_vec()
     );
 
     let (second_half_securified_accounts, stats) = os
@@ -1108,15 +1106,12 @@ async fn securify_accounts_when_cache_is_half_full_single_factor_source() {
                 .primary_role_instances()
                 .into_iter()
                 .map(|f| f.derivation_entity_index())
-                .map(|x| format!("{:?}", x))
                 .next()
                 .unwrap()) // single factor per role text
             .collect_vec(),
-        [
-            "15^", "16^", "17^", "18^", "19^", "20^", "21^", "22^", "23^", "24^", "25^", "26^",
-            "27^", "28^", "29^", "30^", "31^", "32^", "33^", "34^", "35^", "36^", "37^", "38^",
-            "39^", "40^", "41^", "42^", "43^", "44^"
-        ]
+        (CACHE_FILLING_QUANTITY / 2..(CACHE_FILLING_QUANTITY / 2 + CACHE_FILLING_QUANTITY))
+            .map(|i| HDPathComponent::securifying_base_index(i as u32))
+            .collect_vec()
     );
 }
 
@@ -1186,7 +1181,6 @@ async fn securify_accounts_when_cache_is_half_full_multiple_factor_sources() {
         )
         .await
         .unwrap();
-
     assert!(
         !stats.derived_any_new_instance_for_any_factor_source(),
         "should have used cache"
@@ -1401,6 +1395,34 @@ async fn securify_personas_when_cache_is_half_full_single_factor_source() {
             "27^", "28^", "29^", "30^", "31^", "32^", "33^", "34^", "35^", "36^", "37^", "38^",
             "39^", "40^", "41^", "42^", "43^", "44^"
         ]
+    );
+}
+
+#[actix_rt::test]
+async fn create_single_account() {
+    let (mut os, bdfs) = SargonOS::with_bdfs().await;
+    let (alice, stats) = os.new_mainnet_account_with_bdfs("alice").await.unwrap();
+    assert!(stats.debug_was_derived.is_empty(), "should have used cache");
+    let (sec_accounts, stats) = os
+        .securify_accounts(
+            IndexSet::just(alice.entity_address()),
+            MatrixOfFactorSources::new([], 0, [bdfs]),
+        )
+        .await
+        .unwrap();
+    assert!(
+        !stats.derived_any_new_instance_for_any_factor_source(),
+        "should have used cache"
+    );
+    let alice_sec = sec_accounts.into_iter().next().unwrap();
+    assert_eq!(
+        alice_sec
+            .securified_entity_control()
+            .primary_role_instances()
+            .first()
+            .unwrap()
+            .derivation_entity_index(),
+        HDPathComponent::securifying_base_index(0)
     );
 }
 

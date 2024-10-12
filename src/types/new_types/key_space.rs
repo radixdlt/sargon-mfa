@@ -34,4 +34,11 @@ impl KeySpace {
     pub fn both() -> [Self; 2] {
         [Self::Unsecurified, Self::Securified]
     }
+
+    pub fn indicator(&self) -> String {
+        match self {
+            Self::Unsecurified => "'".to_owned(),
+            Self::Securified => "^".to_owned(),
+        }
+    }
 }

@@ -158,23 +158,23 @@ impl NextDerivationEntityIndexProfileAnalyzingAssigner {
     /// for more details.
     pub fn next(
         &self,
-        agnostic_path: IndexAgnosticPath,
         factor_source_id: FactorSourceIDFromHash,
+        agnostic_path: IndexAgnosticPath,
     ) -> Result<Option<HDPathComponent>> {
         if agnostic_path.network_id != self.network_id {
             return Err(CommonError::NetworkDiscrepancy);
         }
         let derivation_preset = DerivationPreset::try_from(agnostic_path)?;
 
-        let last = match derivation_preset {
+        let max = match derivation_preset {
             DerivationPreset::AccountVeci => self.max_account_veci(factor_source_id),
             DerivationPreset::AccountMfa => self.max_account_mfa(factor_source_id),
             DerivationPreset::IdentityVeci => self.max_identity_veci(factor_source_id),
             DerivationPreset::IdentityMfa => self.max_identity_mfa(factor_source_id),
         };
 
-        let Some(last) = last else { return Ok(None) };
-        last.add_one().map(Some)
+        let Some(max) = max else { return Ok(None) };
+        max.add_one().map(Some)
     }
 }
 
@@ -189,8 +189,8 @@ mod tests {
         let sut = Sut::new(NetworkID::Mainnet, None);
         assert_eq!(
             sut.next(
+                FactorSourceIDFromHash::fs0(),
                 DerivationPreset::AccountVeci.index_agnostic_path_on_network(NetworkID::Stokenet),
-                FactorSourceIDFromHash::fs0()
             ),
             Err(CommonError::NetworkDiscrepancy)
         );
@@ -206,8 +206,8 @@ mod tests {
         );
         let next = sut
             .next(
-                preset.index_agnostic_path_on_network(network_id),
                 FactorSourceIDFromHash::fs0(),
+                preset.index_agnostic_path_on_network(network_id),
             )
             .unwrap();
 
@@ -227,8 +227,8 @@ mod tests {
         );
         let next = sut
             .next(
-                preset.index_agnostic_path_on_network(network_id),
                 FactorSourceIDFromHash::fs1(), // <-- UNUSED
+                preset.index_agnostic_path_on_network(network_id),
             )
             .unwrap();
 
@@ -245,8 +245,8 @@ mod tests {
         );
         let next = sut
             .next(
-                preset.index_agnostic_path_on_network(network_id),
                 FactorSourceIDFromHash::fs0(),
+                preset.index_agnostic_path_on_network(network_id),
             )
             .unwrap();
 
@@ -270,8 +270,8 @@ mod tests {
         );
         let next = sut
             .next(
-                preset.index_agnostic_path_on_network(network_id),
                 FactorSourceIDFromHash::fs10(),
+                preset.index_agnostic_path_on_network(network_id),
             )
             .unwrap();
 
@@ -299,7 +299,7 @@ mod tests {
         type F = FactorSourceIDFromHash;
         for fid in [F::fs2(), F::fs6(), F::fs7(), F::fs8(), F::fs9()] {
             let next = sut
-                .next(preset.index_agnostic_path_on_network(network_id), fid)
+                .next(fid, preset.index_agnostic_path_on_network(network_id))
                 .unwrap();
 
             assert_eq!(next, Some(HDPathComponent::securifying_base_index(8)))
@@ -317,7 +317,7 @@ mod tests {
         type F = FactorSourceIDFromHash;
         for fid in [F::fs2(), F::fs6(), F::fs7(), F::fs8(), F::fs9()] {
             let next = sut
-                .next(preset.index_agnostic_path_on_network(network_id), fid)
+                .next(fid, preset.index_agnostic_path_on_network(network_id))
                 .unwrap();
 
             assert_eq!(next, Some(HDPathComponent::securifying_base_index(8)))
@@ -341,8 +341,8 @@ mod tests {
         );
         let next = sut
             .next(
-                preset.index_agnostic_path_on_network(network_id),
                 FactorSourceIDFromHash::fs1(),
+                preset.index_agnostic_path_on_network(network_id),
             )
             .unwrap();
 
@@ -388,8 +388,8 @@ mod tests {
         );
         let next = sut
             .next(
-                DerivationPreset::AccountVeci.index_agnostic_path_on_network(network_id),
                 fsid,
+                DerivationPreset::AccountVeci.index_agnostic_path_on_network(network_id),
             )
             .unwrap();
 

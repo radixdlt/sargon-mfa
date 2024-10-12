@@ -1,7 +1,9 @@
 use crate::prelude::*;
 
 /// A DerivationPath which is not indexed. On a specific network.
-#[derive(Clone, Debug, Copy, Hash, PartialEq, Eq)]
+#[derive(Clone, Copy, Hash, PartialEq, Eq, derive_more::Debug, derive_more::Display)]
+#[display("{}/{}/{}/?{}", network_id, entity_kind, key_kind, key_space.indicator())]
+#[debug("{:?}/{:?}/{:?}/?{}", network_id, entity_kind, key_kind, key_space.indicator())]
 pub struct IndexAgnosticPath {
     pub network_id: NetworkID,
     pub entity_kind: CAP26EntityKind,
@@ -9,14 +11,30 @@ pub struct IndexAgnosticPath {
     pub key_space: KeySpace,
 }
 
-impl From<(NetworkID, DerivationPreset)> for IndexAgnosticPath {
-    fn from((network_id, agnostic_path): (NetworkID, DerivationPreset)) -> Self {
+impl IndexAgnosticPath {
+    pub fn new(
+        network_id: NetworkID,
+        entity_kind: CAP26EntityKind,
+        key_kind: CAP26KeyKind,
+        key_space: KeySpace,
+    ) -> Self {
         Self {
             network_id,
-            entity_kind: agnostic_path.entity_kind(),
-            key_kind: agnostic_path.key_kind(),
-            key_space: agnostic_path.key_space(),
+            entity_kind,
+            key_kind,
+            key_space,
         }
+    }
+}
+
+impl From<(NetworkID, DerivationPreset)> for IndexAgnosticPath {
+    fn from((network_id, agnostic_path): (NetworkID, DerivationPreset)) -> Self {
+        Self::new(
+            network_id,
+            agnostic_path.entity_kind(),
+            agnostic_path.key_kind(),
+            agnostic_path.key_space(),
+        )
     }
 }
 impl TryFrom<IndexAgnosticPath> for DerivationPreset {
@@ -44,24 +62,11 @@ impl TryFrom<IndexAgnosticPath> for DerivationPreset {
     }
 }
 
-#[derive(Clone, Copy, Hash, PartialEq, Eq)]
+#[derive(Clone, Copy, Hash, PartialEq, Eq, derive_more::Debug)]
+#[debug("🎯: {:?} #{}", self.derivation_preset, self.quantity)]
 pub struct QuantifiedDerivationPresets {
     pub derivation_preset: DerivationPreset,
     pub quantity: usize,
-}
-
-/// For `DerivationPreset` we keep track of
-/// the quantity of instances that are cached and
-#[derive(Clone, Debug, Hash, PartialEq, Eq)]
-pub struct QuantifiedToCacheToUseDerivationPresets {
-    pub derivation_preset: DerivationPreset,
-    pub quantity: QuantityToCacheToUseDirectly,
-}
-
-#[derive(Clone, Hash, PartialEq, Eq)]
-pub struct QuantifiedToCacheToUseIndexAgnosticPath {
-    pub agnostic_path: IndexAgnosticPath,
-    pub quantity: QuantityToCacheToUseDirectly,
 }
 
 impl From<(IndexAgnosticPath, HDPathComponent)> for DerivationPath {

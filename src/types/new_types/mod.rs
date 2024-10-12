@@ -1,4 +1,5 @@
 mod accounts;
+mod appendable_collection;
 mod factor_instances;
 mod is_securified_entity;
 mod key_space;
@@ -11,6 +12,7 @@ mod unsecurified_entity;
 mod veci;
 
 pub use accounts::*;
+pub use appendable_collection::*;
 pub use factor_instances::*;
 pub use is_securified_entity::*;
 pub use key_space::*;
