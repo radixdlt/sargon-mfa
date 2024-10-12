@@ -1,7 +1,8 @@
 use crate::prelude::*;
 
 /// A collection of factor instances.
-#[derive(Debug, Default, Clone, PartialEq, Eq)]
+#[derive(Default, Clone, PartialEq, Eq, derive_more::Debug)]
+#[debug("FIS[{:?}]", self.factor_instances)]
 pub struct FactorInstances {
     #[allow(dead_code)]
     hidden: HiddenConstructor,

@@ -384,7 +384,6 @@ impl FactorInstancesCache {
         self.values.get(&factor_source_id).cloned()
     }
 
-    #[cfg(test)]
     pub fn total_number_of_factor_instances(&self) -> usize {
         self.values
             .values()

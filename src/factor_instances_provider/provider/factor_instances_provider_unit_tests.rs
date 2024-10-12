@@ -1073,14 +1073,12 @@ async fn securify_accounts_when_cache_is_half_full_single_factor_source() {
                 .primary_role_instances()
                 .into_iter()
                 .map(|f| f.derivation_entity_index())
-                .map(|x| format!("{:?}", x))
                 .next()
                 .unwrap()) // single factor per role text
             .collect_vec(),
-        [
-            "0^", "1^", "2^", "3^", "4^", "5^", "6^", "7^", "8^", "9^", "10^", "11^", "12^", "13^",
-            "14^"
-        ]
+        (0..CACHE_FILLING_QUANTITY / 2)
+            .map(|i| HDPathComponent::securifying_base_index(i as u32))
+            .collect_vec()
     );
 
     let (second_half_securified_accounts, stats) = os
@@ -1108,15 +1106,12 @@ async fn securify_accounts_when_cache_is_half_full_single_factor_source() {
                 .primary_role_instances()
                 .into_iter()
                 .map(|f| f.derivation_entity_index())
-                .map(|x| format!("{:?}", x))
                 .next()
                 .unwrap()) // single factor per role text
             .collect_vec(),
-        [
-            "15^", "16^", "17^", "18^", "19^", "20^", "21^", "22^", "23^", "24^", "25^", "26^",
-            "27^", "28^", "29^", "30^", "31^", "32^", "33^", "34^", "35^", "36^", "37^", "38^",
-            "39^", "40^", "41^", "42^", "43^", "44^"
-        ]
+        (CACHE_FILLING_QUANTITY / 2..(CACHE_FILLING_QUANTITY / 2 + CACHE_FILLING_QUANTITY))
+            .map(|i| HDPathComponent::securifying_base_index(i as u32))
+            .collect_vec()
     );
 }
 

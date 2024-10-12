@@ -166,15 +166,15 @@ impl NextDerivationEntityIndexProfileAnalyzingAssigner {
         }
         let derivation_preset = DerivationPreset::try_from(agnostic_path)?;
 
-        let last = match derivation_preset {
+        let max = match derivation_preset {
             DerivationPreset::AccountVeci => self.max_account_veci(factor_source_id),
             DerivationPreset::AccountMfa => self.max_account_mfa(factor_source_id),
             DerivationPreset::IdentityVeci => self.max_identity_veci(factor_source_id),
             DerivationPreset::IdentityMfa => self.max_identity_mfa(factor_source_id),
         };
 
-        let Some(last) = last else { return Ok(None) };
-        last.add_one().map(Some)
+        let Some(max) = max else { return Ok(None) };
+        max.add_one().map(Some)
     }
 }
 

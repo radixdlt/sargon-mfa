@@ -52,9 +52,11 @@ impl NextDerivationEntityIndexCacheAnalyzingAssigner {
         factor_source_id: FactorSourceIDFromHash,
         index_agnostic_path: IndexAgnosticPath,
     ) -> Result<Option<HDPathComponent>> {
-        Ok(self
+        let max = self
             .cache
-            .max_index_for(factor_source_id, index_agnostic_path))
+            .max_index_for(factor_source_id, index_agnostic_path);
+        let Some(max) = max else { return Ok(None) };
+        max.add_one().map(Some)
     }
 }
 
@@ -95,7 +97,7 @@ impl NextDerivationEntityIndexAssigner {
             .next(factor_source_id, index_agnostic_path)?;
 
         let next_from_cache = maybe_next_from_cache.unwrap_or(default_index);
-        let local = self
+        let ephemeral = self
             .ephemeral_offsets
             .reserve(factor_source_id, index_agnostic_path);
 
@@ -105,16 +107,19 @@ impl NextDerivationEntityIndexAssigner {
 
         let next_from_profile = maybe_next_from_profile.unwrap_or(default_index);
 
-        if next_from_profile > next_from_cache {
-            println!("🧚‍♀️ using `next_from_profile`: {:?}", next_from_profile)
-        } else {
-            println!("🧚‍♀️ using `next_from_cache`: {:?}", next_from_cache)
-        }
-
         let max_index = std::cmp::max(next_from_profile, next_from_cache);
-        println!("🧚‍♀️ adding local: {:?}", local);
-        let next = max_index.add_n(local);
-        println!("🧚‍♀️ next: {:?}", next);
+
+        let next = max_index.add_n(ephemeral);
+        println!(
+            "🐱 {} => adding ephemeral {} ===> next: {:?}",
+            if next_from_cache > next_from_profile {
+                format!(" using `next_from_cache`: {:?}", next_from_cache)
+            } else {
+                format!(" using `next_from_profile`: {:?}", next_from_profile)
+            },
+            ephemeral,
+            next
+        );
         next
     }
 }

@@ -1,7 +1,9 @@
 use crate::prelude::*;
 
 /// A DerivationPath which is not indexed. On a specific network.
-#[derive(Clone, Debug, Copy, Hash, PartialEq, Eq)]
+#[derive(Clone, Copy, Hash, PartialEq, Eq, derive_more::Debug, derive_more::Display)]
+#[display("{}/{}/{}/?{}", network_id, entity_kind, key_kind, key_space.indicator())]
+#[debug("{:?}/{:?}/{:?}/?{}", network_id, entity_kind, key_kind, key_space.indicator())]
 pub struct IndexAgnosticPath {
     pub network_id: NetworkID,
     pub entity_kind: CAP26EntityKind,
@@ -60,7 +62,8 @@ impl TryFrom<IndexAgnosticPath> for DerivationPreset {
     }
 }
 
-#[derive(Clone, Copy, Hash, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Hash, PartialEq, Eq, derive_more::Debug)]
+#[debug("🎯: {:?} #{}", self.derivation_preset, self.quantity)]
 pub struct QuantifiedDerivationPresets {
     pub derivation_preset: DerivationPreset,
     pub quantity: usize,
