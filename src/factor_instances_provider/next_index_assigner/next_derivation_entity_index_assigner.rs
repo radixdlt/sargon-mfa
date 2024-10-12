@@ -37,7 +37,7 @@ pub struct NextDerivationEntityIndexAssigner {
 impl NextDerivationEntityIndexAssigner {
     pub fn new(
         network_id: NetworkID,
-        profile: Option<Profile>,
+        profile: impl Into<Option<Profile>>,
         cache: FactorInstancesCache,
     ) -> Self {
         let profile_analyzing =

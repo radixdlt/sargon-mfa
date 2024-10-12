@@ -255,7 +255,7 @@ impl FactorInstancesCache {
         } else {
             CachedInstancesWithQuantitiesOutcome::NotSatisfied {
                 partial_instances: pf_instances,
-                pf_pdp_qty_to_derive,
+                quantities_to_derive: pf_pdp_qty_to_derive,
             }
         };
         Ok(outcome)
@@ -267,34 +267,8 @@ pub enum CachedInstancesWithQuantitiesOutcome {
     Satisfied(IndexMap<FactorSourceIDFromHash, FactorInstances>),
     NotSatisfied {
         partial_instances: IndexMap<FactorSourceIDFromHash, FactorInstances>,
-        pf_pdp_qty_to_derive: IndexMap<FactorSourceIDFromHash, IndexMap<DerivationPreset, usize>>,
+        quantities_to_derive: IndexMap<FactorSourceIDFromHash, IndexMap<DerivationPreset, usize>>,
     },
-}
-
-impl CachedInstancesWithQuantitiesOutcome {
-    pub fn satisfied(&self) -> Option<IndexMap<FactorSourceIDFromHash, FactorInstances>> {
-        self.as_satisfied().cloned()
-    }
-    pub fn quantities_to_derive(
-        &self,
-    ) -> Result<IndexMap<FactorSourceIDFromHash, IndexMap<DerivationPreset, usize>>> {
-        match &self {
-            CachedInstancesWithQuantitiesOutcome::Satisfied(_) => panic!("programmer error"),
-            CachedInstancesWithQuantitiesOutcome::NotSatisfied {
-                pf_pdp_qty_to_derive,
-                ..
-            } => Ok(pf_pdp_qty_to_derive.clone()),
-        }
-    }
-
-    pub fn partially_satisfied(self) -> Result<IndexMap<FactorSourceIDFromHash, FactorInstances>> {
-        match self {
-            CachedInstancesWithQuantitiesOutcome::Satisfied(_) => panic!("programmer error"),
-            CachedInstancesWithQuantitiesOutcome::NotSatisfied {
-                partial_instances, ..
-            } => Ok(partial_instances),
-        }
-    }
 }
 
 impl FactorInstancesCache {
