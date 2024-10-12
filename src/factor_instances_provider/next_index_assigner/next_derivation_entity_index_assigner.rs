@@ -5,7 +5,7 @@ use crate::prelude::*;
 /// some NetworkID.
 ///
 /// This assigner works with the:
-/// * cache (indirectly, via the `OffsetFromCache` parameter on `next` [should probably clean up])
+/// * cache
 /// * profile
 /// * local offsets
 ///
@@ -17,9 +17,8 @@ use crate::prelude::*;
 ///    &mut self,
 ///    fs_id: FactorSourceIDFromHash,
 ///    path: IndexAgnosticPath,
-///    cache_offset: OffsetFromCache,
 /// ) -> Result<HDPathComponent> {
-///     let next_from_cache = offset_from_cache.next(fs_id, path).unwrap_or(0);
+///     let next_from_cache = self.cache_analyzing.next(fs_id, path).unwrap_or(0);
 ///     let next_from_profile = self.profile_analyzing.next(fs_id, path).unwrap_or(0);
 ///     
 ///     let max_index = std::cmp::max(next_from_profile, next_from_cache);
@@ -33,31 +32,6 @@ pub struct NextDerivationEntityIndexAssigner {
     profile_analyzing: NextDerivationEntityIndexProfileAnalyzingAssigner,
     cache_analyzing: NextDerivationEntityIndexCacheAnalyzingAssigner,
     ephemeral_offsets: NextDerivationEntityIndexWithEphemeralOffsets,
-}
-
-pub struct NextDerivationEntityIndexCacheAnalyzingAssigner {
-    cache: FactorInstancesCache,
-}
-impl NextDerivationEntityIndexCacheAnalyzingAssigner {
-    pub fn cache(&self) -> FactorInstancesCache {
-        self.cache.clone()
-    }
-
-    pub fn new(cache: FactorInstancesCache) -> Self {
-        Self { cache }
-    }
-
-    pub fn next(
-        &self,
-        factor_source_id: FactorSourceIDFromHash,
-        index_agnostic_path: IndexAgnosticPath,
-    ) -> Result<Option<HDPathComponent>> {
-        let max = self
-            .cache
-            .max_index_for(factor_source_id, index_agnostic_path);
-        let Some(max) = max else { return Ok(None) };
-        max.add_one().map(Some)
-    }
 }
 
 impl NextDerivationEntityIndexAssigner {
