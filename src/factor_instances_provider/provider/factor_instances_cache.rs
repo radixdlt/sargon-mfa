@@ -101,7 +101,7 @@ use crate::prelude::*;
 #[derive(Debug, Default, Clone)]
 pub struct FactorInstancesCache {
     /// PER FactorSource PER IndexAgnosticPath FactorInstances (matching that IndexAgnosticPath)
-    pub values: IndexMap<FactorSourceIDFromHash, IndexMap<IndexAgnosticPath, FactorInstances>>,
+    map: IndexMap<FactorSourceIDFromHash, IndexMap<IndexAgnosticPath, FactorInstances>>,
 }
 
 impl FactorInstancesCache {
@@ -133,7 +133,7 @@ impl FactorInstancesCache {
             })
             .collect::<Result<IndexMap<IndexAgnosticPath, FactorInstances>>>()?;
         let mut skipped_an_index_resulting_in_non_contiguousness = false;
-        if let Some(existing_for_factor) = self.values.get_mut(&factor_source_id) {
+        if let Some(existing_for_factor) = self.map.get_mut(&factor_source_id) {
             for (agnostic_path, instances) in instances_by_agnostic_path {
                 let instances = instances.factor_instances();
 
@@ -164,7 +164,7 @@ impl FactorInstancesCache {
                 }
             }
         } else {
-            self.values
+            self.map
                 .insert(factor_source_id, instances_by_agnostic_path);
         }
 
@@ -187,7 +187,7 @@ impl FactorInstancesCache {
         factor_source_id: FactorSourceIDFromHash,
         agnostic_path: IndexAgnosticPath,
     ) -> Option<HDPathComponent> {
-        let Some(for_factor) = self.values.get(&factor_source_id) else {
+        let Some(for_factor) = self.map.get(&factor_source_id) else {
             return None;
         };
         let Some(instances) = for_factor.get(&agnostic_path) else {
@@ -320,7 +320,7 @@ impl FactorInstancesCache {
         factor_source_id: &FactorSourceIDFromHash,
         index_agnostic_path: &IndexAgnosticPath,
     ) -> Option<FactorInstances> {
-        let Some(for_factor) = self.values.get(factor_source_id) else {
+        let Some(for_factor) = self.map.get(factor_source_id) else {
             return None;
         };
         let Some(instances) = for_factor.get(index_agnostic_path) else {
@@ -335,7 +335,7 @@ impl FactorInstancesCache {
                 continue;
             }
             let existing_for_factor = self
-                .values
+                .map
                 .get_mut(&factor_source_id)
                 .expect("expected to delete factors");
 
@@ -370,8 +370,37 @@ impl FactorInstancesCache {
                 existing_for_factor.insert(index_agnostic_path, to_keep);
             }
         }
+
+        self.prune();
     }
 
+    /// "Prunes" the cache from empty collections
+    fn prune(&mut self) {
+        let ids = self.factor_source_ids();
+        for factor_source_id in ids.iter() {
+            let inner_map = self.map.get_mut(factor_source_id).unwrap();
+            if inner_map.is_empty() {
+                // empty map, prune it!
+                self.map.shift_remove(factor_source_id);
+                continue;
+            }
+            // see if pruning of instances inside of values `inner_map` is needed
+            let inner_ids = inner_map
+                .keys()
+                .cloned()
+                .collect::<IndexSet<IndexAgnosticPath>>();
+            for inner_id in inner_ids.iter() {
+                if inner_map.get(inner_id).unwrap().is_empty() {
+                    // FactorInstances empty, prune it!
+                    inner_map.shift_remove(inner_id);
+                }
+            }
+        }
+    }
+
+    fn factor_source_ids(&self) -> IndexSet<FactorSourceIDFromHash> {
+        self.map.keys().cloned().collect()
+    }
     pub fn insert(&mut self, pf_instances: IndexMap<FactorSourceIDFromHash, FactorInstances>) {
         self.insert_all(pf_instances).expect("works")
     }
@@ -381,11 +410,11 @@ impl FactorInstancesCache {
         &self,
         factor_source_id: FactorSourceIDFromHash,
     ) -> Option<IndexMap<IndexAgnosticPath, FactorInstances>> {
-        self.values.get(&factor_source_id).cloned()
+        self.map.get(&factor_source_id).cloned()
     }
 
     pub fn total_number_of_factor_instances(&self) -> usize {
-        self.values
+        self.map
             .values()
             .map(|x| {
                 x.values()
@@ -404,7 +433,7 @@ impl FactorInstancesCache {
     /// each DerivationPreset
     pub fn is_full(&self, network_id: NetworkID, factor_source_id: FactorSourceIDFromHash) -> bool {
         let count: usize = self
-            .values
+            .map
             .get(&factor_source_id)
             .and_then(|c| {
                 c.values()

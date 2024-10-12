@@ -496,6 +496,10 @@ async fn cache_is_always_filled_account_veci_then_after_all_used_we_start_over_a
         .peek_all_instances_of_factor_source(bdfs.factor_source_id())
         .unwrap();
 
+    println!(
+        "👻👻👻👻👻👻 EMPTY RIGHT??? {:?}",
+        cached.get(&DerivationPreset::AccountVeci.index_agnostic_path_on_network(network))
+    );
     assert!(
         cached
             .get(&DerivationPreset::AccountVeci.index_agnostic_path_on_network(network))
