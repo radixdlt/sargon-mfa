@@ -49,7 +49,7 @@ impl FactorInstancesProvider {
             interactors,
         )
         .await?;
-        cache.insert(derived.clone());
+        cache.insert(&derived);
 
         let derived = derived
             .get(&factor_source.factor_source_id())
@@ -290,10 +290,6 @@ impl FactorInstancesProvider {
         cache: &mut FactorInstancesCache,
         interactors: Arc<dyn KeysDerivationInteractors>,
     ) -> Result<InternalFactorInstancesProviderOutcome> {
-        println!("\n\n🌈 start: {:?}", quantified_derivation_preset,);
-
-        println!("🎭 cache {:?}", cache);
-
         let originally_requested_quantified_derivation_preset = quantified_derivation_preset;
 
         let profile = profile.into();
@@ -309,24 +305,10 @@ impl FactorInstancesProvider {
         )?;
 
         if let Some(satisfied_by_cache) = cached.satisfied() {
-            let outcome = InternalFactorInstancesProviderOutcome::satisfied_by_cache(
+            cache.delete(&satisfied_by_cache); // Consume!
+            return Ok(InternalFactorInstancesProviderOutcome::satisfied_by_cache(
                 satisfied_by_cache.clone(),
-            );
-            println!(
-                "🗃️⭐️ Satisfied by cache: {:?}",
-                satisfied_by_cache
-                    .values()
-                    .flat_map(|xs| {
-                        xs.factor_instances()
-                            .into_iter()
-                            .map(|x| x.derivation_entity_index())
-                            .collect_vec()
-                    })
-                    .collect_vec()
-            );
-            // consume
-            cache.delete(satisfied_by_cache);
-            return Ok(outcome);
+            ));
         }
 
         let pf_newly_derived = Self::derive_more(
@@ -341,32 +323,6 @@ impl FactorInstancesProvider {
 
         let pf_found_in_cache_leq_requested = cached.partially_satisfied()?;
 
-        println!(
-            "🤡 pf_newly_derived {:?}",
-            pf_newly_derived
-                .values()
-                .flat_map(|xs| {
-                    xs.factor_instances()
-                        .into_iter()
-                        .map(|x| x.derivation_entity_index())
-                        .collect_vec()
-                })
-                .collect_vec()
-        );
-
-        println!(
-            "🤡 pf_found_in_cache_leq_requested {:?}",
-            pf_found_in_cache_leq_requested
-                .values()
-                .flat_map(|xs| {
-                    xs.factor_instances()
-                        .into_iter()
-                        .map(|x| x.derivation_entity_index())
-                        .collect_vec()
-                })
-                .collect_vec()
-        );
-
         let Split {
             pf_to_use_directly,
             pf_to_cache,
@@ -376,39 +332,8 @@ impl FactorInstancesProvider {
             &pf_newly_derived,
         );
 
-        println!(
-            "🤡 pf_to_use_directly {:?}",
-            pf_to_use_directly
-                .values()
-                .flat_map(|xs| {
-                    xs.factor_instances()
-                        .into_iter()
-                        .map(|x| x.derivation_entity_index())
-                        .collect_vec()
-                })
-                .collect_vec()
-        );
-
-        println!(
-            "🤡 pf_to_cache {:?}",
-            pf_to_cache
-                .values()
-                .flat_map(|xs| {
-                    xs.factor_instances()
-                        .into_iter()
-                        .map(|x| x.derivation_entity_index())
-                        .collect_vec()
-                })
-                .collect_vec()
-        );
-        println!("🎭 cache {:?}", cache);
-        println!("🐝 deleting #{}", pf_found_in_cache_leq_requested.len());
-        cache.delete(pf_found_in_cache_leq_requested.clone());
-
-        println!("🎭 cache {:?}", cache);
-        println!("🐝 inserting #{}", pf_to_cache.len());
-        cache.insert(pf_to_cache.clone());
-        println!("🎭 cache {:?}", cache);
+        cache.delete(&pf_found_in_cache_leq_requested);
+        cache.insert(&pf_to_cache);
 
         let outcome = InternalFactorInstancesProviderOutcome::transpose(
             pf_to_cache,
@@ -466,7 +391,6 @@ impl FactorInstancesProvider {
         cache: &FactorInstancesCache,
         interactors: Arc<dyn KeysDerivationInteractors>,
     ) -> Result<IndexMap<FactorSourceIDFromHash, FactorInstances>> {
-        println!("🔮 deriving more: {:?}", pf_pdp_quantity_to_derive);
         let next_index_assigner =
             NextDerivationEntityIndexAssigner::new(network_id, profile, cache.clone());
 

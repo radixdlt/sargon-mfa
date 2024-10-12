@@ -116,24 +116,24 @@ impl FactorInstancesCache {
     /// in the future.
     pub fn insert_for_factor(
         &mut self,
-        factor_source_id: FactorSourceIDFromHash,
-        instances: FactorInstances,
+        factor_source_id: &FactorSourceIDFromHash,
+        instances: &FactorInstances,
     ) -> Result<bool> {
-        let instances = instances.into_iter().collect_vec();
+        let instances = instances.clone().into_iter().collect_vec();
 
         let instances_by_agnostic_path = instances
             .into_iter()
             .into_group_map_by(|f| f.agnostic_path())
             .into_iter()
             .map(|(k, v)| {
-                if v.iter().any(|f| f.factor_source_id != factor_source_id) {
+                if v.iter().any(|f| f.factor_source_id != *factor_source_id) {
                     return Err(CommonError::FactorSourceDiscrepancy);
                 }
                 Ok((k, FactorInstances::from_iter(v)))
             })
             .collect::<Result<IndexMap<IndexAgnosticPath, FactorInstances>>>()?;
         let mut skipped_an_index_resulting_in_non_contiguousness = false;
-        if let Some(existing_for_factor) = self.map.get_mut(&factor_source_id) {
+        if let Some(existing_for_factor) = self.map.get_mut(factor_source_id) {
             for (agnostic_path, instances) in instances_by_agnostic_path {
                 let instances = instances.factor_instances();
 
@@ -165,7 +165,7 @@ impl FactorInstancesCache {
             }
         } else {
             self.map
-                .insert(factor_source_id, instances_by_agnostic_path);
+                .insert(*factor_source_id, instances_by_agnostic_path);
         }
 
         Ok(skipped_an_index_resulting_in_non_contiguousness)
@@ -174,7 +174,7 @@ impl FactorInstancesCache {
     /// Inserts all instance in `per_factor`.
     pub fn insert_all(
         &mut self,
-        per_factor: IndexMap<FactorSourceIDFromHash, FactorInstances>,
+        per_factor: &IndexMap<FactorSourceIDFromHash, FactorInstances>,
     ) -> Result<()> {
         for (factor_source_id, instances) in per_factor {
             _ = self.insert_for_factor(factor_source_id, instances)?;
@@ -319,14 +319,14 @@ impl FactorInstancesCache {
         Some(instances.clone())
     }
 
-    pub fn delete(&mut self, pf_instances: IndexMap<FactorSourceIDFromHash, FactorInstances>) {
+    pub fn delete(&mut self, pf_instances: &IndexMap<FactorSourceIDFromHash, FactorInstances>) {
         for (factor_source_id, instances_to_delete) in pf_instances {
             if instances_to_delete.is_empty() {
                 continue;
             }
             let existing_for_factor = self
                 .map
-                .get_mut(&factor_source_id)
+                .get_mut(factor_source_id)
                 .expect("expected to delete factors");
 
             let instances_to_delete_by_path = instances_to_delete.factor_instances()
@@ -391,7 +391,7 @@ impl FactorInstancesCache {
     fn factor_source_ids(&self) -> IndexSet<FactorSourceIDFromHash> {
         self.map.keys().cloned().collect()
     }
-    pub fn insert(&mut self, pf_instances: IndexMap<FactorSourceIDFromHash, FactorInstances>) {
+    pub fn insert(&mut self, pf_instances: &IndexMap<FactorSourceIDFromHash, FactorInstances>) {
         self.insert_all(pf_instances).expect("works")
     }
 
@@ -465,7 +465,7 @@ mod tests {
             fsid,
         );
         assert!(!sut
-            .insert_for_factor(fsid, FactorInstances::from_iter([fi0]))
+            .insert_for_factor(&fsid, &FactorInstances::from_iter([fi0]))
             .unwrap());
         let fi2 = HierarchicalDeterministicFactorInstance::mainnet_tx(
             CAP26EntityKind::Account,
@@ -473,7 +473,7 @@ mod tests {
             fsid,
         );
         assert!(sut
-            .insert_for_factor(fsid, FactorInstances::from_iter([fi2]))
+            .insert_for_factor(&fsid, &FactorInstances::from_iter([fi2]))
             .unwrap(),);
     }
 
@@ -487,8 +487,8 @@ mod tests {
         );
         assert!(sut
             .insert_for_factor(
-                FactorSourceIDFromHash::fs1(),
-                FactorInstances::from_iter([fi0])
+                &FactorSourceIDFromHash::fs1(),
+                &FactorInstances::from_iter([fi0])
             )
             .is_err());
     }
@@ -523,11 +523,11 @@ mod tests {
                 })
                 .collect::<IndexSet<_>>();
 
-            sut.insert_for_factor(fsid, FactorInstances::from(instances))
+            sut.insert_for_factor(&fsid, &FactorInstances::from(instances))
                 .unwrap();
         }
 
-        sut.delete(to_delete);
+        sut.delete(&to_delete);
         assert_eq!(
             sut.get_poly_factor(
                 &factor_source_ids,
@@ -558,11 +558,11 @@ mod tests {
             fsid,
         );
         assert!(!sut
-            .insert_for_factor(fsid, FactorInstances::from_iter([fi0.clone(), fi1]))
+            .insert_for_factor(&fsid, &FactorInstances::from_iter([fi0.clone(), fi1]))
             .unwrap());
 
         assert_eq!(
-            sut.insert_for_factor(fsid, FactorInstances::from_iter([fi0.clone()]))
+            sut.insert_for_factor(&fsid, &FactorInstances::from_iter([fi0.clone()]))
                 .err()
                 .unwrap(),
             CommonError::CacheAlreadyContainsFactorInstance {

@@ -109,17 +109,6 @@ impl NextDerivationEntityIndexAssigner {
 
         let max_index = std::cmp::max(next_from_profile, next_from_cache);
 
-        let next = max_index.add_n(ephemeral);
-        println!(
-            "🐱 {} => adding ephemeral {} ===> next: {:?}",
-            if next_from_cache > next_from_profile {
-                format!(" using `next_from_cache`: {:?}", next_from_cache)
-            } else {
-                format!(" using `next_from_profile`: {:?}", next_from_profile)
-            },
-            ephemeral,
-            next
-        );
-        next
+        max_index.add_n(ephemeral)
     }
 }
