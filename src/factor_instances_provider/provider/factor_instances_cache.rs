@@ -1,8 +1,6 @@
 use std::{
     borrow::Borrow,
-    f32::consts::E,
     ops::{Add, Index},
-    process::exit,
 };
 
 use crate::prelude::*;
