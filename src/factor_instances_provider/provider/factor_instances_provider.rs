@@ -131,7 +131,7 @@ impl FactorInstancesProvider {
     ///
     /// We are always reading from the beginning of each FactorInstance collection in the cache,
     /// and we are always appending to the end.
-    pub async fn for_entity_veci<'c>(
+    pub async fn for_entity_veci(
         cache: &mut FactorInstancesCache,
         entity_kind: CAP26EntityKind,
         profile: Option<Profile>,
