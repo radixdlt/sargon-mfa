@@ -96,7 +96,7 @@ use crate::prelude::*;
 /// Or if we don't wanna use such a "custom" one we can use `525`/`616`
 /// discriminator for EntityKind and `1460`/`1678` for KeyKind:
 /// "1/525/1460/U".
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct FactorInstancesCache {
     /// PER FactorSource PER IndexAgnosticPath FactorInstances (matching that IndexAgnosticPath)
     map: IndexMap<FactorSourceIDFromHash, IndexMap<IndexAgnosticPath, FactorInstances>>,

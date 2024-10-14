@@ -2652,6 +2652,9 @@ pub enum CommonError {
 
     #[error("Cache Already Contains FactorInstance with path: {derivation_path}")]
     CacheAlreadyContainsFactorInstance { derivation_path: DerivationPath },
+
+    #[error("Too Few FactorInstances derived")]
+    FactorInstancesProviderDidNotDeriveEnoughFactors,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]

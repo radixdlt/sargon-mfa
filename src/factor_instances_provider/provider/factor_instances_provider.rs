@@ -291,16 +291,27 @@ impl<'a> FactorInstancesProvider<'a> {
             .collect::<Result<IndexMap<FactorSourceIDFromHash, IndexSet<DerivationPath>>>>()?;
 
         let keys_collector =
-            KeysCollector::new(factor_sources, pf_paths, self.interactors.clone())?;
+            KeysCollector::new(factor_sources, pf_paths.clone(), self.interactors.clone())?;
 
-        let pf_instances = keys_collector
-            .collect_keys()
-            .await
-            .factors_by_source
-            .into_iter()
-            .map(|(k, v)| (k, v.into_iter().collect::<FactorInstances>()))
-            .collect::<IndexMap<_, _>>();
+        let pf_derived = keys_collector.collect_keys().await.factors_by_source;
 
+        let mut pf_instances = IndexMap::<FactorSourceIDFromHash, FactorInstances>::new();
+
+        for (factor_source_id, paths) in pf_paths {
+            let derived_for_factor = pf_derived
+                .get(&factor_source_id)
+                .cloned()
+                .unwrap_or_default(); // if None -> Empty -> fail below.
+            if derived_for_factor.len() < paths.len() {
+                return Err(CommonError::FactorInstancesProviderDidNotDeriveEnoughFactors);
+            }
+            pf_instances.insert(
+                factor_source_id,
+                derived_for_factor.into_iter().collect::<FactorInstances>(),
+            );
+        }
+
+        println!("🐙  KEYS COLLECTOR collect_keys did NOT fail. hmm...");
         Ok(pf_instances)
     }
 }

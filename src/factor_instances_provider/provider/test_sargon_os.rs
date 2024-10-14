@@ -142,10 +142,28 @@ impl SargonOS {
         account_addresses: IndexSet<AccountAddress>,
         shield: MatrixOfFactorSources,
     ) -> Result<(SecurifiedAccounts, FactorInstancesProviderOutcome)> {
+        self.securify_accounts_with_interactor(
+            Arc::new(TestDerivationInteractors::default()),
+            account_addresses,
+            shield,
+        )
+        .await
+    }
+
+    pub(super) async fn securify_accounts_with_interactor(
+        &mut self,
+        interactor: Arc<TestDerivationInteractors>,
+        account_addresses: IndexSet<AccountAddress>,
+        shield: MatrixOfFactorSources,
+    ) -> Result<(SecurifiedAccounts, FactorInstancesProviderOutcome)> {
         assert!(!account_addresses.is_empty());
         let network = account_addresses.first().unwrap().network_id();
         let (entities, stats) = self
-            .securify_entities::<SecurifiedAccount>(account_addresses, shield)
+            .securify_entities_with_interactor::<SecurifiedAccount>(
+                interactor,
+                account_addresses,
+                shield,
+            )
             .await?;
         Ok((SecurifiedAccounts::new(network, entities).unwrap(), stats))
     }
@@ -155,16 +173,35 @@ impl SargonOS {
         identity_addresses: IndexSet<IdentityAddress>,
         shield: MatrixOfFactorSources,
     ) -> Result<(SecurifiedPersonas, FactorInstancesProviderOutcome)> {
+        self.securify_personas_with_interactor(
+            Arc::new(TestDerivationInteractors::default()),
+            identity_addresses,
+            shield,
+        )
+        .await
+    }
+
+    pub(super) async fn securify_personas_with_interactor(
+        &mut self,
+        interactor: Arc<TestDerivationInteractors>,
+        identity_addresses: IndexSet<IdentityAddress>,
+        shield: MatrixOfFactorSources,
+    ) -> Result<(SecurifiedPersonas, FactorInstancesProviderOutcome)> {
         assert!(!identity_addresses.is_empty());
         let network = identity_addresses.first().unwrap().network_id();
         let (entities, stats) = self
-            .securify_entities::<SecurifiedPersona>(identity_addresses, shield)
+            .securify_entities_with_interactor::<SecurifiedPersona>(
+                interactor,
+                identity_addresses,
+                shield,
+            )
             .await?;
         Ok((SecurifiedPersonas::new(network, entities).unwrap(), stats))
     }
 
-    pub(super) async fn securify_entities<E: IsSecurifiedEntity>(
+    pub(super) async fn securify_entities_with_interactor<E: IsSecurifiedEntity>(
         &mut self,
+        interactor: Arc<TestDerivationInteractors>,
         addresses_of_entities: IndexSet<<E::BaseEntity as IsEntity>::Address>,
         shield: MatrixOfFactorSources,
     ) -> Result<(IndexSet<E>, FactorInstancesProviderOutcome)> {
@@ -175,10 +212,9 @@ impl SargonOS {
             shield.clone(),
             profile_snapshot.clone(),
             addresses_of_entities.clone(),
-            Arc::new(TestDerivationInteractors::default()),
+            interactor,
         )
-        .await
-        .unwrap();
+        .await?;
 
         let mut instance_per_factor = outcome
             .clone()

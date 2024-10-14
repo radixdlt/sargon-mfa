@@ -506,6 +506,104 @@ async fn test_securified_accounts() {
 }
 
 #[actix_rt::test]
+async fn cache_is_unchanged_in_case_of_failure() {
+    let (mut os, bdfs) = SargonOS::with_bdfs().await;
+
+    let factor_sources = os.profile_snapshot().factor_sources.clone();
+    assert_eq!(
+        factor_sources.clone().into_iter().collect_vec(),
+        vec![bdfs.clone(),]
+    );
+
+    let n = CACHE_FILLING_QUANTITY / 2;
+
+    for i in 0..3 * n {
+        let _ = os
+            .new_mainnet_account_with_bdfs(format!("Acco: {}", i))
+            .await
+            .unwrap();
+    }
+
+    let shield_0 = MatrixOfFactorSources::new([bdfs.clone()], 1, []);
+
+    let all_accounts = os
+        .profile_snapshot()
+        .get_accounts()
+        .into_iter()
+        .collect_vec();
+
+    let first_half_of_accounts = all_accounts.clone()[0..n]
+        .iter()
+        .cloned()
+        .collect::<IndexSet<Account>>();
+
+    let second_half_of_accounts = all_accounts.clone()[n..3 * n]
+        .iter()
+        .cloned()
+        .collect::<IndexSet<Account>>();
+
+    assert_eq!(
+        first_half_of_accounts.len() + second_half_of_accounts.len(),
+        3 * n
+    );
+
+    let (first_half_securified_accounts, stats) = os
+        .securify_accounts(
+            first_half_of_accounts
+                .clone()
+                .into_iter()
+                .map(|a| a.entity_address())
+                .collect(),
+            shield_0.clone(),
+        )
+        .await
+        .unwrap();
+
+    assert!(
+        !stats.derived_any_new_instance_for_any_factor_source(),
+        "should have used cache"
+    );
+
+    assert_eq!(
+        first_half_securified_accounts
+            .into_iter()
+            .map(|a| a
+                .securified_entity_control()
+                .primary_role_instances()
+                .into_iter()
+                .map(|f| f.derivation_entity_index())
+                .next()
+                .unwrap()) // single factor per role text
+            .collect_vec(),
+        (0..CACHE_FILLING_QUANTITY / 2)
+            .map(|i| HDPathComponent::securifying_base_index(i as u32))
+            .collect_vec()
+    );
+
+    let cache_before_fail = os.cache_snapshot();
+    let fail_interactor = Arc::new(TestDerivationInteractors::fail()); // <--- FAIL
+
+    let res = os
+        .securify_accounts_with_interactor(
+            fail_interactor,
+            second_half_of_accounts
+                .clone()
+                .into_iter()
+                .map(|a| a.entity_address())
+                .collect(),
+            shield_0,
+        )
+        .await;
+
+    assert!(res.is_err());
+    assert_eq!(
+        os.cache_snapshot(),
+        cache_before_fail,
+        "Cache should not have changed when failing."
+    );
+}
+
+#[actix_rt::test]
 async fn securify_accounts_when_cache_is_half_full_single_factor_source() {
     let (mut os, bdfs) = SargonOS::with_bdfs().await;
 
