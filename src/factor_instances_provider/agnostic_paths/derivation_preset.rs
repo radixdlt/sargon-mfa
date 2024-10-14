@@ -28,15 +28,18 @@ pub enum DerivationPreset {
     #[debug("I-MFA")]
     IdentityMfa,
 }
+
+// =============
+// Construction
+// =============
 impl DerivationPreset {
+    /// All DerivationPreset's, used to fill cache.
     pub fn all() -> IndexSet<Self> {
         enum_iterator::all::<Self>().collect()
     }
 
-    pub fn index_agnostic_path_on_network(&self, network_id: NetworkID) -> IndexAgnosticPath {
-        IndexAgnosticPath::from((network_id, *self))
-    }
-
+    /// Selects a `DerivationPreset` for veci based on `CAP26EntityKind`,
+    /// i.e. either `DerivationPreset::AccountVeci` or `DerivationPreset::IdentityVeci`.
     pub fn veci_entity_kind(entity_kind: CAP26EntityKind) -> Self {
         match entity_kind {
             CAP26EntityKind::Account => Self::AccountVeci,
@@ -44,28 +47,46 @@ impl DerivationPreset {
         }
     }
 
+    /// Selects a `DerivationPreset` for MFA based on `CAP26EntityKind`,
+    /// i.e. either `DerivationPreset::AccountMfa` or `DerivationPreset::IdentityMfa`.
     pub fn mfa_entity_kind(entity_kind: CAP26EntityKind) -> Self {
         match entity_kind {
             CAP26EntityKind::Account => Self::AccountMfa,
             CAP26EntityKind::Identity => Self::IdentityMfa,
         }
     }
+}
+
+// =============
+// Instance Methods
+// =============
+impl DerivationPreset {
+    /// Returns the `CAP26EntityKind` of the `DerivationPreset`.
     pub fn entity_kind(&self) -> CAP26EntityKind {
         match self {
             Self::AccountVeci | Self::AccountMfa => CAP26EntityKind::Account,
             Self::IdentityVeci | Self::IdentityMfa => CAP26EntityKind::Identity,
         }
     }
+
+    /// Returns the `CAP26KeyKind` of the `DerivationPreset`.
     pub fn key_kind(&self) -> CAP26KeyKind {
         match self {
             Self::AccountVeci | Self::IdentityVeci => CAP26KeyKind::TransactionSigning,
             Self::AccountMfa | Self::IdentityMfa => CAP26KeyKind::TransactionSigning,
         }
     }
+
+    /// Returns the `KeySpace` of the `DerivationPreset`.
     pub fn key_space(&self) -> KeySpace {
         match self {
             Self::AccountVeci | Self::IdentityVeci => KeySpace::Unsecurified,
             Self::AccountMfa | Self::IdentityMfa => KeySpace::Securified,
         }
+    }
+
+    /// Maps a DerivationPreset to a `IndexAgnosticPath` which is network aware.
+    pub fn index_agnostic_path_on_network(&self, network_id: NetworkID) -> IndexAgnosticPath {
+        IndexAgnosticPath::from((network_id, *self))
     }
 }

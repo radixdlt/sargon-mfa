@@ -39,8 +39,11 @@ impl From<(NetworkID, DerivationPreset)> for IndexAgnosticPath {
         )
     }
 }
+
 impl TryFrom<IndexAgnosticPath> for DerivationPreset {
     type Error = CommonError;
+    /// Tries to convert an IndexAgnosticPath to a DerivationPreset,
+    /// is failing if the path is not a standard DerivationPreset
     fn try_from(value: IndexAgnosticPath) -> Result<DerivationPreset> {
         match (value.entity_kind, value.key_kind, value.key_space) {
             (
@@ -60,21 +63,6 @@ impl TryFrom<IndexAgnosticPath> for DerivationPreset {
                 Ok(DerivationPreset::IdentityMfa)
             }
             _ => Err(CommonError::NonStandardDerivationPath),
-        }
-    }
-}
-
-#[derive(Clone, Copy, Hash, PartialEq, Eq, derive_more::Debug)]
-#[debug("🎯: {:?} #{}", self.derivation_preset, self.quantity)]
-pub struct QuantifiedDerivationPreset {
-    pub derivation_preset: DerivationPreset,
-    pub quantity: usize,
-}
-impl QuantifiedDerivationPreset {
-    pub fn new(derivation_preset: DerivationPreset, quantity: usize) -> Self {
-        Self {
-            derivation_preset,
-            quantity,
         }
     }
 }

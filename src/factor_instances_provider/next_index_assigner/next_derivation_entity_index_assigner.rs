@@ -52,6 +52,9 @@ impl NextDerivationEntityIndexAssigner {
         }
     }
 
+    /// Returns the next index for the given `FactorSourceIDFromHash` and
+    /// `IndexAgnosticPath`, by analyzing the cache, the profile and adding
+    /// local ephemeral offsets.
     pub fn next(
         &self,
         factor_source_id: FactorSourceIDFromHash,

@@ -157,6 +157,8 @@ impl NextDerivationEntityIndexProfileAnalyzingAssigner {
     /// the `IndexAgnosticPath` for `factor_source_id`, which is `Max + 1`, or
     /// returns `None` if `Max` is `None`. See `max_account_veci`, `max_identity_mfa`
     /// for more details.
+    ///
+    /// Returns `Err` if the addition of one would overflow.
     pub fn next(
         &self,
         factor_source_id: FactorSourceIDFromHash,
