@@ -100,7 +100,7 @@ impl SargonOS {
         name: impl AsRef<str>,
     ) -> Result<(E, FactorInstancesProviderOutcomeForFactor)> {
         let profile_snapshot = self.profile_snapshot();
-        let outcome = FactorInstancesProvider::for_entity_veci(
+        let outcome = VirtualEntityCreatingInstanceProvider::for_entity_veci(
             &mut self.cache,
             E::kind(),
             Some(profile_snapshot),
@@ -170,7 +170,7 @@ impl SargonOS {
     ) -> Result<(IndexSet<E>, FactorInstancesProviderOutcome)> {
         let profile_snapshot = self.profile_snapshot();
 
-        let outcome = FactorInstancesProvider::for_entity_mfa::<E::BaseEntity>(
+        let outcome = SecurifyEntityFactorInstancesProvider::for_entity_mfa::<E::BaseEntity>(
             &mut self.cache,
             shield.clone(),
             profile_snapshot.clone(),
@@ -260,7 +260,7 @@ impl SargonOS {
                 .any(|x| x.factor_source_id() == factor_source.factor_source_id()),
             "factor already in Profile"
         );
-        let outcome = FactorInstancesProvider::for_new_factor_source(
+        let outcome = CacheFiller::for_new_factor_source(
             &mut self.cache,
             Some(profile_snapshot),
             factor_source.clone(),
