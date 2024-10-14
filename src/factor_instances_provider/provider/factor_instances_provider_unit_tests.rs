@@ -1226,8 +1226,6 @@ async fn securified_personas() {
             .into_iter()
             .map(|f| f.derivation_entity_index())
             .collect_vec(),
-        [
-                HDPathComponent::securifying_base_index(1) // Carol used `0`.
-            ]
+        [HDPathComponent::securifying_base_index(1)]
     );
 }
