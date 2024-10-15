@@ -23,8 +23,8 @@ impl VirtualEntityCreatingInstanceProvider {
         interactors: Arc<dyn KeysDerivationInteractors>,
     ) -> Result<FactorInstancesProviderOutcomeForFactor> {
         Self::for_entity_veci(
-            cache,
             CAP26EntityKind::Account,
+            cache,
             profile,
             factor_source,
             network_id,
@@ -51,8 +51,8 @@ impl VirtualEntityCreatingInstanceProvider {
         interactors: Arc<dyn KeysDerivationInteractors>,
     ) -> Result<FactorInstancesProviderOutcomeForFactor> {
         Self::for_entity_veci(
-            cache,
             CAP26EntityKind::Identity,
+            cache,
             profile,
             factor_source,
             network_id,
@@ -72,8 +72,8 @@ impl VirtualEntityCreatingInstanceProvider {
     /// We are always reading from the beginning of each FactorInstance collection in the cache,
     /// and we are always appending to the end.
     pub async fn for_entity_veci(
-        cache: &mut FactorInstancesCache,
         entity_kind: CAP26EntityKind,
+        cache: &mut FactorInstancesCache,
         profile: Option<Profile>,
         factor_source: HDFactorSource,
         network_id: NetworkID,

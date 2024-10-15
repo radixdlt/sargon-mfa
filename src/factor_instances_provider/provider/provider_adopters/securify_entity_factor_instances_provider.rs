@@ -15,15 +15,15 @@ impl SecurifyEntityFactorInstancesProvider {
     /// and we are always appending to the end.
     pub async fn for_account_mfa(
         cache: &mut FactorInstancesCache,
-        matrix_of_factor_sources: MatrixOfFactorSources,
         profile: Profile,
+        matrix_of_factor_sources: MatrixOfFactorSources,
         account_addresses: IndexSet<AccountAddress>,
         interactors: Arc<dyn KeysDerivationInteractors>,
     ) -> Result<FactorInstancesProviderOutcome> {
         Self::for_entity_mfa::<Account>(
             cache,
-            matrix_of_factor_sources,
             profile,
+            matrix_of_factor_sources,
             account_addresses,
             interactors,
         )
@@ -43,15 +43,15 @@ impl SecurifyEntityFactorInstancesProvider {
     /// and we are always appending to the end.
     pub async fn for_persona_mfa(
         cache: &mut FactorInstancesCache,
-        matrix_of_factor_sources: MatrixOfFactorSources,
         profile: Profile,
+        matrix_of_factor_sources: MatrixOfFactorSources,
         persona_addresses: IndexSet<IdentityAddress>,
         interactors: Arc<dyn KeysDerivationInteractors>,
     ) -> Result<FactorInstancesProviderOutcome> {
         Self::for_entity_mfa::<Persona>(
             cache,
-            matrix_of_factor_sources,
             profile,
+            matrix_of_factor_sources,
             persona_addresses,
             interactors,
         )
@@ -71,8 +71,8 @@ impl SecurifyEntityFactorInstancesProvider {
     /// and we are always appending to the end.
     pub async fn for_entity_mfa<E: IsEntity>(
         cache: &mut FactorInstancesCache,
-        matrix_of_factor_sources: MatrixOfFactorSources,
         profile: Profile,
+        matrix_of_factor_sources: MatrixOfFactorSources,
         addresses_of_entities: IndexSet<E::Address>,
         interactors: Arc<dyn KeysDerivationInteractors>,
     ) -> Result<FactorInstancesProviderOutcome> {
@@ -134,8 +134,8 @@ mod tests {
         let a = Account::sample_unsecurified();
         let _ = Sut::for_account_mfa(
             &mut FactorInstancesCache::default(),
+            Profile::new([fs.clone()], [&a], []),
             MatrixOfFactorSources::new([], 1, [fs.clone()]),
-            Profile::new([fs], [&a], []),
             IndexSet::new(), // <---- EMPTY => should_panic
             Arc::new(TestDerivationInteractors::default()),
         )
@@ -150,8 +150,8 @@ mod tests {
         let a = Account::sample_unsecurified();
         let _ = Sut::for_account_mfa(
             &mut FactorInstancesCache::default(),
+            Profile::new([fs.clone()], [&a], []),
             MatrixOfFactorSources::new([], 1, [fs.clone()]),
-            Profile::new([fs], [&a], []),
             IndexSet::just(Account::a1().entity_address()), // <---- unknown => should_panic
             Arc::new(TestDerivationInteractors::default()),
         )
@@ -189,8 +189,8 @@ mod tests {
         assert_eq!(profile.networks.len(), 2);
         let _ = Sut::for_account_mfa(
             &mut FactorInstancesCache::default(),
-            MatrixOfFactorSources::new([], 1, [fs.clone()]),
             profile,
+            MatrixOfFactorSources::new([], 1, [fs.clone()]),
             IndexSet::from_iter([
                 mainnet_account.entity_address(),
                 stokenet_account.entity_address(),
@@ -219,8 +219,8 @@ mod tests {
         let interactors = Arc::new(TestDerivationInteractors::default());
         let outcome = Sut::for_account_mfa(
             &mut cache,
-            shield_0.clone(),
             os.profile_snapshot(),
+            shield_0.clone(),
             IndexSet::just(alice.entity_address()),
             interactors.clone(),
         )
@@ -231,8 +231,8 @@ mod tests {
 
         let outcome = Sut::for_persona_mfa(
             &mut cache,
-            shield_0.clone(),
             os.profile_snapshot(),
+            shield_0.clone(),
             IndexSet::just(batman.entity_address()),
             interactors.clone(),
         )

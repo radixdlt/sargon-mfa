@@ -101,8 +101,8 @@ impl SargonOS {
     ) -> Result<(E, FactorInstancesProviderOutcomeForFactor)> {
         let profile_snapshot = self.profile_snapshot();
         let outcome = VirtualEntityCreatingInstanceProvider::for_entity_veci(
-            &mut self.cache,
             E::kind(),
+            &mut self.cache,
             Some(profile_snapshot),
             factor_source.clone(),
             network,
@@ -209,8 +209,8 @@ impl SargonOS {
 
         let outcome = SecurifyEntityFactorInstancesProvider::for_entity_mfa::<E::BaseEntity>(
             &mut self.cache,
-            shield.clone(),
             profile_snapshot.clone(),
+            shield.clone(),
             addresses_of_entities.clone(),
             interactor,
         )

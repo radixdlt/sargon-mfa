@@ -117,7 +117,7 @@ impl FactorInstancesCache {
         factor_source_id: &FactorSourceIDFromHash,
         instances: &FactorInstances,
     ) -> Result<bool> {
-        let mut skipped_an_index_resulting_in_non_contiguousness = false;
+        let mut skipped_an_index_resulting_in_non_contiguity = false;
 
         let instances_by_agnostic_path = InstancesByAgnosticPath::from(instances.clone());
         instances_by_agnostic_path.validate_from_source(factor_source_id)?;
@@ -143,7 +143,7 @@ impl FactorInstancesCache {
                                 "Non-contiguous indices, the index `{}` was skipped!",
                                 last.derivation_entity_base_index() + 1
                             );
-                            skipped_an_index_resulting_in_non_contiguousness = true;
+                            skipped_an_index_resulting_in_non_contiguity = true;
                         }
                     }
                     existing_for_path.extend(instances);
@@ -156,7 +156,7 @@ impl FactorInstancesCache {
                 .insert(*factor_source_id, instances_by_agnostic_path.0);
         }
 
-        Ok(skipped_an_index_resulting_in_non_contiguousness)
+        Ok(skipped_an_index_resulting_in_non_contiguity)
     }
 
     /// Inserts all instance in `per_factor`.
