@@ -156,9 +156,8 @@ impl NextDerivationEntityIndexProfileAnalyzingAssigner {
     }
 
     /// Finds the "next" derivation entity index `HDPathComponent`, for
-    /// the `IndexAgnosticPath` for `factor_source_id`, which is `Max + 1`, or
-    /// returns `None` if `Max` is `None`. See `max_account_veci`, `max_identity_mfa`
-    /// for more details.
+    /// the given `IndexAgnosticPath` adnd `factor_source_id`, which is `Max + 1`.
+    /// Returns `None` if `Max` is `None` (see `max_account_veci`, `max_identity_mfa` for more details).
     ///
     /// Returns `Err` if the addition of one would overflow.
     pub fn next(
