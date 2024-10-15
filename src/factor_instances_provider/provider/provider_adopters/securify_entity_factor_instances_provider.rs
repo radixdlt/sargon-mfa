@@ -31,10 +31,10 @@ impl SecurifyEntityFactorInstancesProvider {
     }
 
     /// Reads FactorInstances for every `factor_source` in matrix_of_factor_sources
-    /// on `network_id` of kind `account_mfa`,
-    /// meaning `(EntityKind::Account, KeyKind::TransactionSigning, KeySpace::Securified)`,
+    /// on `network_id` of kind `identity_mfa`,
+    /// meaning `(EntityKind::Identity, KeyKind::TransactionSigning, KeySpace::Securified)`,
     /// from cache, if any, otherwise derives more of that kind AND other kinds:
-    /// identity_veci, account_veci, identity_mfa
+    /// identity_veci, account_veci, account_mfa
     /// and saves into the cache and returns a collection of instances, per factor source,
     /// split into factor instance to use directly and factor instances which was cached, into
     /// the mutable `cache` parameter.
