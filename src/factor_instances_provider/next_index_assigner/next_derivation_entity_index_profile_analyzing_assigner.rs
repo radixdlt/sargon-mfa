@@ -54,6 +54,31 @@ impl NextDerivationEntityIndexProfileAnalyzingAssigner {
         }
     }
 
+    fn max_entity_veci(
+        &self,
+        factor_source_id: FactorSourceIDFromHash,
+        entities: impl IntoIterator<Item = UnsecurifiedEntity>,
+        entity_kind: CAP26EntityKind,
+        key_space: KeySpace,
+    ) -> Option<HDPathComponent> {
+        entities
+            .into_iter()
+            .map(|x| x.veci().factor_instance())
+            .filter(|f| f.factor_source_id == factor_source_id)
+            .map(|f| f.derivation_path())
+            .map(|p| {
+                AssertMatches {
+                    network_id: self.network_id,
+                    key_kind: CAP26KeyKind::TransactionSigning,
+                    entity_kind,
+                    key_space,
+                }
+                .matches(&p)
+            })
+            .map(|fi| fi.index)
+            .max()
+    }
+
     /// Returns the Max Derivation Entity Index of Unsecurified Accounts controlled
     /// by `factor_source_id`, or `None` if no unsecurified account controlled by that
     /// factor source id found.
@@ -61,23 +86,12 @@ impl NextDerivationEntityIndexProfileAnalyzingAssigner {
         &self,
         factor_source_id: FactorSourceIDFromHash,
     ) -> Option<HDPathComponent> {
-        self.unsecurified_accounts_on_network
-            .clone()
-            .into_iter()
-            .map(|x: UnsecurifiedEntity| x.veci().factor_instance())
-            .filter(|f| f.factor_source_id == factor_source_id)
-            .map(|f| f.derivation_path())
-            .map(|p| {
-                AssertMatches {
-                    network_id: self.network_id,
-                    key_kind: CAP26KeyKind::TransactionSigning,
-                    entity_kind: CAP26EntityKind::Account,
-                    key_space: KeySpace::Unsecurified,
-                }
-                .matches(&p)
-            })
-            .map(|fi| fi.index)
-            .max()
+        self.max_entity_veci(
+            factor_source_id,
+            self.unsecurified_accounts_on_network.clone(),
+            CAP26EntityKind::Account,
+            KeySpace::Unsecurified,
+        )
     }
 
     /// Returns the Max Derivation Entity Index of Unsecurified Personas controlled
@@ -87,23 +101,12 @@ impl NextDerivationEntityIndexProfileAnalyzingAssigner {
         &self,
         factor_source_id: FactorSourceIDFromHash,
     ) -> Option<HDPathComponent> {
-        self.unsecurified_identities_on_network
-            .clone()
-            .into_iter()
-            .map(|x: UnsecurifiedEntity| x.veci().factor_instance())
-            .filter(|f| f.factor_source_id == factor_source_id)
-            .map(|f| f.derivation_path())
-            .map(|p| {
-                AssertMatches {
-                    network_id: self.network_id,
-                    key_kind: CAP26KeyKind::TransactionSigning,
-                    entity_kind: CAP26EntityKind::Identity,
-                    key_space: KeySpace::Unsecurified,
-                }
-                .matches(&p)
-            })
-            .map(|fi| fi.index)
-            .max()
+        self.max_entity_veci(
+            factor_source_id,
+            self.unsecurified_identities_on_network.clone(),
+            CAP26EntityKind::Identity,
+            KeySpace::Unsecurified,
+        )
     }
 
     /// Returns the Max Derivation Entity Index of Securified Accounts controlled
