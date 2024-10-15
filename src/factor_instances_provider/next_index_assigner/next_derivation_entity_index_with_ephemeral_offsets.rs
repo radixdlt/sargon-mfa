@@ -24,12 +24,10 @@ impl NextDerivationEntityIndexWithEphemeralOffsets {
     ) -> HDPathValue {
         let mut binding = self.ephemeral_offsets_per_factor_source.write().unwrap();
         if let Some(for_factor) = binding.get_mut(&factor_source_id) {
-            for_factor.reserve(factor_source_id, agnostic_path)
+            for_factor.reserve(agnostic_path)
         } else {
-            let new = NextDerivationEntityIndexWithEphemeralOffsetsForFactorSource::empty(
-                factor_source_id,
-            );
-            let next = new.reserve(factor_source_id, agnostic_path);
+            let new = NextDerivationEntityIndexWithEphemeralOffsetsForFactorSource::default();
+            let next = new.reserve(agnostic_path);
             binding.insert(factor_source_id, new);
             next
         }

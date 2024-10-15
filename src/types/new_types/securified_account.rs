@@ -1,7 +1,5 @@
 use crate::prelude::*;
 
-use super::securified_entity;
-
 /// The `SecurifiedEntityControl`, address and possibly third party deposit state of some
 /// Securified entity.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]

@@ -1,6 +1,6 @@
 use crate::prelude::*;
 
-/// Identical to `FactorInstancesProviderOutcome` but `FactorInstancesProviderOutcomeForFactor` instead of `InternalFactorInstancesProviderOutcomeForFactor`, having
+/// Identical to `InternalFactorInstancesProviderOutcome` but `FactorInstancesProviderOutcomeForFactor` instead of `InternalFactorInstancesProviderOutcomeForFactor`, having
 /// renamed field values to make it clear that `to_cache` instances  already have been cached.
 #[derive(Clone, Debug)]
 pub struct FactorInstancesProviderOutcome {

@@ -12,11 +12,9 @@ impl NextDerivationEntityIndexCacheAnalyzingAssigner {
         &self,
         factor_source_id: FactorSourceIDFromHash,
         index_agnostic_path: IndexAgnosticPath,
-    ) -> Result<Option<HDPathComponent>> {
-        let max = self
-            .cache
-            .max_index_for(factor_source_id, index_agnostic_path);
-        Ok(max)
+    ) -> Option<HDPathComponent> {
+        self.cache
+            .max_index_for(factor_source_id, index_agnostic_path)
     }
 
     /// Returns the next index for the given `FactorSourceIDFromHash` and
@@ -32,7 +30,7 @@ impl NextDerivationEntityIndexCacheAnalyzingAssigner {
         factor_source_id: FactorSourceIDFromHash,
         index_agnostic_path: IndexAgnosticPath,
     ) -> Result<Option<HDPathComponent>> {
-        let max = self.max(factor_source_id, index_agnostic_path)?;
+        let max = self.max(factor_source_id, index_agnostic_path);
         let Some(max) = max else { return Ok(None) };
         max.add_one().map(Some)
     }

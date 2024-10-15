@@ -87,7 +87,7 @@ mod test_appendable_collection {
         assert_eq!(
             map,
             Sut::from_iter([
-                (-3, IndexSet::<u8>::from_iter([5, 6, 42, 237, 237])),
+                (-3, IndexSet::<u8>::from_iter([5, 6, 42, 237])),
                 (-9, IndexSet::<u8>::from_iter([64, 128])),
             ])
         );

@@ -27,8 +27,6 @@ use crate::prelude::*;
 ///     max_index + ephemeral_offset
 /// ```
 pub struct NextDerivationEntityIndexAssigner {
-    #[allow(dead_code)]
-    network_id: NetworkID,
     profile_analyzing: NextDerivationEntityIndexProfileAnalyzingAssigner,
     cache_analyzing: NextDerivationEntityIndexCacheAnalyzingAssigner,
     ephemeral_offsets: NextDerivationEntityIndexWithEphemeralOffsets,
@@ -45,7 +43,6 @@ impl NextDerivationEntityIndexAssigner {
         let cache_analyzing = NextDerivationEntityIndexCacheAnalyzingAssigner::new(cache);
         let ephemeral_offsets = NextDerivationEntityIndexWithEphemeralOffsets::default();
         Self {
-            network_id,
             profile_analyzing,
             cache_analyzing,
             ephemeral_offsets,

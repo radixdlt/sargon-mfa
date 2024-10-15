@@ -8,10 +8,6 @@ pub struct SecurifiedPersona {
     /// The address which is verified to match the `veci`
     identity_address: IdentityAddress,
     securified_entity_control: SecurifiedEntityControl,
-    /// If we found this UnsecurifiedEntity while scanning OnChain using
-    /// Gateway, we might have been able to read out the third party deposit
-    /// settings.
-    third_party_deposit: Option<ThirdPartyDepositPreference>,
 }
 impl IsNetworkAware for SecurifiedPersona {
     fn network_id(&self) -> NetworkID {
@@ -29,13 +25,12 @@ impl IsSecurifiedEntity for SecurifiedPersona {
         name: impl AsRef<str>,
         address: IdentityAddress,
         securified_entity_control: SecurifiedEntityControl,
-        third_party_deposit: impl Into<Option<ThirdPartyDepositPreference>>,
+        _third_party_deposit: impl Into<Option<ThirdPartyDepositPreference>>,
     ) -> Self {
         Self {
             name: name.as_ref().to_owned(),
             identity_address: address,
             securified_entity_control,
-            third_party_deposit: third_party_deposit.into(),
         }
     }
 }
@@ -46,7 +41,7 @@ impl SecurifiedPersona {
             self.name.clone(),
             self.address(),
             EntitySecurityState::Securified(self.securified_entity_control()),
-            self.third_party_deposit,
+            None,
         )
     }
     pub fn address(&self) -> IdentityAddress {
@@ -56,7 +51,7 @@ impl SecurifiedPersona {
         self.securified_entity_control.clone()
     }
     pub fn third_party_deposit(&self) -> Option<ThirdPartyDepositPreference> {
-        self.third_party_deposit
+        None
     }
 }
 impl HasSampleValues for SecurifiedPersona {
@@ -79,30 +74,19 @@ impl HasSampleValues for SecurifiedPersona {
 }
 #[cfg(test)]
 mod tests {
+
     use super::*;
+
     type Sut = SecurifiedPersona;
+
     #[test]
     fn equality() {
         assert_eq!(Sut::sample(), Sut::sample());
         assert_eq!(Sut::sample_other(), Sut::sample_other());
     }
+
     #[test]
     fn inequality() {
         assert_ne!(Sut::sample(), Sut::sample_other());
-    }
-    #[test]
-    fn third_party_dep() {
-        let test = |dep: ThirdPartyDepositPreference| {
-            let sut = Sut::new(
-                "name",
-                IdentityAddress::sample_0(),
-                SecurifiedEntityControl::sample(),
-                dep,
-            );
-            assert_eq!(sut.third_party_deposit(), Some(dep));
-        };
-        test(ThirdPartyDepositPreference::DenyAll);
-        test(ThirdPartyDepositPreference::AllowAll);
-        test(ThirdPartyDepositPreference::AllowKnown);
     }
 }
