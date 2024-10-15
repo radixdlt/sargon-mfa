@@ -137,6 +137,19 @@ impl SargonOS {
         Ok((entity, outcome_for_factor))
     }
 
+    pub(super) async fn securify_account(
+        &mut self,
+        account_addresses: AccountAddress,
+        shield: MatrixOfFactorSources,
+    ) -> Result<(SecurifiedAccount, FactorInstancesProviderOutcome)> {
+        let (accounts, stats) = self
+            .securify_accounts(IndexSet::just(account_addresses), shield)
+            .await?;
+        assert_eq!(accounts.len(), 1);
+        let account = accounts.into_iter().next().unwrap();
+        Ok((account, stats))
+    }
+
     pub(super) async fn securify_accounts(
         &mut self,
         account_addresses: IndexSet<AccountAddress>,

@@ -1,6 +1,8 @@
 #![cfg(test)]
 
-use std::ops::Add;
+use std::ops::{Add, AddAssign};
+
+use rand::seq::index::IndexVec;
 
 use crate::{factor_instances_provider::provider::test_sargon_os::SargonOS, prelude::*};
 
@@ -1327,5 +1329,318 @@ async fn securified_all_accounts_next_veci_does_not_start_at_zero() {
             .factor_instance()
             .derivation_entity_index(),
         HDPathComponent::unsecurified_hardening_base_index(30) // <-- IMPORTANT this tests that we do not start at 0', asserts that the next index from profile analyzer
-    )
+    );
+
+    // later when securified we want the next index in securified key space to be 30^
+    let (securified_alice, stats) = os
+        .securify_account(
+            alice.entity_address(),
+            MatrixOfFactorSources::new([], 0, [fs_device.clone()]),
+        )
+        .await
+        .unwrap();
+    assert!(stats.found_any_instances_in_cache_for_any_factor_source());
+    assert!(!stats.derived_any_new_instance_for_any_factor_source());
+
+    assert_eq!(
+        securified_alice
+            .securified_entity_control()
+            .primary_role_instances()
+            .into_iter()
+            .map(|f| (f.factor_source_id(), f.derivation_entity_index()))
+            .collect::<IndexMap<_, _>>(),
+        [(
+            fs_device.factor_source_id(),
+            HDPathComponent::securifying_base_index(30)
+        )]
+        .into_iter()
+        .collect::<IndexMap<_, _>>()
+    );
+}
+
+#[actix_rt::test]
+async fn securified_accounts_asymmetric_indices() {
+    let mut os = SargonOS::new();
+    assert_eq!(os.cache_snapshot().total_number_of_factor_instances(), 0);
+
+    let fs_device = HDFactorSource::device();
+    let fs_arculus = HDFactorSource::arculus();
+    let fs_ledger = HDFactorSource::ledger();
+
+    os.add_factor_source(fs_device.clone()).await.unwrap();
+    os.add_factor_source(fs_arculus.clone()).await.unwrap();
+    os.add_factor_source(fs_ledger.clone()).await.unwrap();
+
+    assert_eq!(
+        os.cache_snapshot().total_number_of_factor_instances(),
+        3 * 4 * CACHE_FILLING_QUANTITY
+    );
+
+    assert!(os.profile_snapshot().get_accounts().is_empty());
+    assert_eq!(os.profile_snapshot().factor_sources.len(), 3);
+
+    let network = NetworkID::Mainnet;
+
+    // first create CACHE_FILLING_QUANTITY many "unnamed" accounts
+
+    for i in 0..CACHE_FILLING_QUANTITY {
+        let (_, stats) = os
+            .new_account(fs_device.clone(), network, format!("@{}", i))
+            .await
+            .unwrap();
+        assert!(stats.debug_was_derived.is_empty());
+    }
+
+    let unnamed_accounts = os
+        .profile_snapshot()
+        .get_accounts()
+        .into_iter()
+        .collect_vec();
+
+    let (_, stats) = os
+        .securify_accounts(
+            unnamed_accounts
+                .clone()
+                .into_iter()
+                .map(|a| a.entity_address())
+                .collect(),
+            MatrixOfFactorSources::new([fs_device.clone()], 1, []),
+        )
+        .await
+        .unwrap();
+
+    assert!(
+        !stats.derived_any_new_instance_for_any_factor_source(),
+        "should have used cache"
+    );
+
+    let (alice, stats) = os
+        .new_account(fs_device.clone(), network, "Alice")
+        .await
+        .unwrap();
+    assert!(
+        stats.debug_found_in_cache.is_empty(),
+        "Cache should have been empty"
+    );
+    assert!(
+        !stats.debug_was_derived.is_empty(),
+        "should have filled cache"
+    );
+
+    let (bob, _) = os
+        .new_account(fs_device.clone(), network, "Bob")
+        .await
+        .unwrap();
+
+    let (carol, _) = os
+        .new_account(fs_device.clone(), network, "Carol")
+        .await
+        .unwrap();
+
+    let (diana, _) = os
+        .new_account(fs_device.clone(), network, "Diana")
+        .await
+        .unwrap();
+
+    assert_eq!(
+        diana
+            .as_unsecurified()
+            .unwrap()
+            .veci()
+            .factor_instance()
+            .derivation_entity_index(),
+        HDPathComponent::unsecurified_hardening_base_index(33)
+    );
+
+    let (securified_alice, stats) = os
+        .securify_account(
+            alice.entity_address(),
+            MatrixOfFactorSources::new([], 0, [fs_device.clone(), fs_arculus.clone()]),
+        )
+        .await
+        .unwrap();
+    assert!(stats.found_any_instances_in_cache_for_any_factor_source());
+    assert!(!stats.derived_any_new_instance_for_any_factor_source());
+
+    assert_eq!(
+        securified_alice
+            .securified_entity_control()
+            .primary_role_instances()
+            .into_iter()
+            .map(|f| (f.factor_source_id(), f.derivation_entity_index()))
+            .collect::<IndexMap<_, _>>(),
+        [
+            (
+                fs_device.factor_source_id(),
+                HDPathComponent::securifying_base_index(30)
+            ),
+            (
+                fs_arculus.factor_source_id(),
+                HDPathComponent::securifying_base_index(0)
+            ),
+        ]
+        .into_iter()
+        .collect::<IndexMap<_, _>>()
+    );
+
+    let (securified_bob, stats) = os
+        .securify_account(
+            bob.entity_address(),
+            MatrixOfFactorSources::new([], 0, [fs_device.clone(), fs_ledger.clone()]),
+        )
+        .await
+        .unwrap();
+    assert!(stats.found_any_instances_in_cache_for_any_factor_source());
+    assert!(!stats.derived_any_new_instance_for_any_factor_source());
+
+    assert_eq!(
+        securified_bob
+            .securified_entity_control()
+            .primary_role_instances()
+            .into_iter()
+            .map(|f| (f.factor_source_id(), f.derivation_entity_index()))
+            .collect::<IndexMap<_, _>>(),
+        [
+            (
+                fs_device.factor_source_id(),
+                HDPathComponent::securifying_base_index(31)
+            ),
+            (
+                fs_ledger.factor_source_id(),
+                HDPathComponent::securifying_base_index(0)
+            ),
+        ]
+        .into_iter()
+        .collect::<IndexMap<_, _>>()
+    );
+
+    let (securified_carol, stats) = os
+        .securify_account(
+            carol.entity_address(),
+            MatrixOfFactorSources::new([], 0, [fs_device.clone(), fs_arculus.clone()]),
+        )
+        .await
+        .unwrap();
+    assert!(stats.found_any_instances_in_cache_for_any_factor_source());
+    assert!(!stats.derived_any_new_instance_for_any_factor_source());
+
+    assert_eq!(
+        securified_carol
+            .securified_entity_control()
+            .primary_role_instances()
+            .into_iter()
+            .map(|f| (f.factor_source_id(), f.derivation_entity_index()))
+            .collect::<IndexMap<_, _>>(),
+        [
+            (
+                fs_device.factor_source_id(),
+                HDPathComponent::securifying_base_index(32)
+            ),
+            (
+                fs_arculus.factor_source_id(),
+                HDPathComponent::securifying_base_index(1)
+            ),
+        ]
+        .into_iter()
+        .collect::<IndexMap<_, _>>()
+    );
+
+    // CLEAR CACHE
+    os.clear_cache();
+
+    let shield_3fa = MatrixOfFactorSources::new(
+        [],
+        0,
+        [fs_device.clone(), fs_arculus.clone(), fs_ledger.clone()],
+    );
+    let (securified_diana, stats) = os
+        .securify_account(diana.entity_address(), shield_3fa.clone())
+        .await
+        .unwrap();
+    assert!(!stats.found_any_instances_in_cache_for_any_factor_source());
+    assert!(stats.derived_any_new_instance_for_any_factor_source());
+
+    let diana_mfa_device = 33;
+    let diana_mfa_arculus = 2;
+    let diana_mfa_ledger = 1;
+
+    assert_eq!(
+        securified_diana
+            .securified_entity_control()
+            .primary_role_instances()
+            .into_iter()
+            .map(|f| (f.factor_source_id(), f.derivation_entity_index()))
+            .collect::<IndexMap<_, _>>(),
+        [
+            (
+                fs_device.factor_source_id(),
+                HDPathComponent::securifying_base_index(diana_mfa_device)
+            ),
+            (
+                fs_arculus.factor_source_id(),
+                HDPathComponent::securifying_base_index(diana_mfa_arculus)
+            ),
+            (
+                fs_ledger.factor_source_id(),
+                HDPathComponent::securifying_base_index(diana_mfa_ledger)
+            ),
+        ]
+        .into_iter()
+        .collect::<IndexMap<_, _>>()
+    );
+
+    // lets create 2 * CACHE_FILLING_QUANTITY many more accounts and securify them with
+    // the same shield as Diana
+
+    os.clear_cache(); // CLEAR CACHE
+    let mut more_unnamed_accounts = IndexSet::new();
+    for i in 0..2 * CACHE_FILLING_QUANTITY {
+        let (unnamed, _) = os
+            .new_account(fs_device.clone(), network, format!("more@{}", i))
+            .await
+            .unwrap();
+        more_unnamed_accounts.insert(unnamed.entity_address());
+    }
+
+    let (many_securified_accounts, stats) = os
+        .securify_accounts(more_unnamed_accounts.clone(), shield_3fa.clone())
+        .await
+        .unwrap();
+    assert!(
+        stats.derived_any_new_instance_for_any_factor_source(),
+        "twice the cache size => derive more"
+    );
+    os.clear_cache(); // CLEAR CACHE
+    for index in 0..many_securified_accounts.len() {
+        let securified_account = many_securified_accounts
+            .clone()
+            .into_iter()
+            .nth(index)
+            .unwrap();
+        let offset = (index + 1) as HDPathValue;
+        assert_eq!(
+            securified_account
+                .securified_entity_control()
+                .primary_role_instances()
+                .into_iter()
+                .map(|f| (f.factor_source_id(), f.derivation_entity_index()))
+                .collect::<IndexMap<_, _>>(),
+            [
+                (
+                    fs_device.factor_source_id(),
+                    HDPathComponent::securifying_base_index(diana_mfa_device + offset)
+                ),
+                (
+                    fs_arculus.factor_source_id(),
+                    HDPathComponent::securifying_base_index(diana_mfa_arculus + offset)
+                ),
+                (
+                    fs_ledger.factor_source_id(),
+                    HDPathComponent::securifying_base_index(diana_mfa_ledger + offset)
+                ),
+            ]
+            .into_iter()
+            .collect::<IndexMap<_, _>>()
+        );
+    }
 }
