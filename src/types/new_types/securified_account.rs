@@ -1,4 +1,5 @@
 use crate::prelude::*;
+
 /// The `SecurifiedEntityControl`, address and possibly third party deposit state of some
 /// Securified entity.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -12,8 +13,18 @@ pub struct SecurifiedAccount {
     /// settings.
     third_party_deposit: Option<ThirdPartyDepositPreference>,
 }
-impl SecurifiedAccount {
-    pub fn new(
+impl From<SecurifiedAccount> for Account {
+    fn from(value: SecurifiedAccount) -> Account {
+        value.account()
+    }
+}
+impl IsSecurifiedEntity for SecurifiedAccount {
+    type BaseEntity = Account;
+    fn securified_entity_control(&self) -> SecurifiedEntityControl {
+        self.securified_entity_control()
+    }
+
+    fn new(
         name: impl AsRef<str>,
         address: AccountAddress,
         securified_entity_control: SecurifiedEntityControl,
@@ -26,6 +37,67 @@ impl SecurifiedAccount {
             third_party_deposit: third_party_deposit.into(),
         }
     }
+}
+
+impl IsNetworkAware for SecurifiedAccount {
+    fn network_id(&self) -> NetworkID {
+        self.address().network_id()
+    }
+}
+
+impl TryFrom<Account> for SecurifiedAccount {
+    type Error = CommonError;
+    fn try_from(value: Account) -> Result<Self> {
+        let securified_entity_control = value
+            .security_state()
+            .as_securified()
+            .cloned()
+            .ok_or(CommonError::AccountNotSecurified)?;
+        Ok(SecurifiedAccount::new(
+            value.name(),
+            value.entity_address(),
+            securified_entity_control,
+            value.third_party_deposit(),
+        ))
+    }
+}
+
+impl TryFrom<AccountOrPersona> for SecurifiedAccount {
+    type Error = CommonError;
+    fn try_from(value: AccountOrPersona) -> Result<Self> {
+        Account::try_from(value).and_then(SecurifiedAccount::try_from)
+    }
+}
+impl From<SecurifiedPersona> for Persona {
+    fn from(value: SecurifiedPersona) -> Persona {
+        value.persona()
+    }
+}
+impl TryFrom<Persona> for SecurifiedPersona {
+    type Error = CommonError;
+    fn try_from(value: Persona) -> Result<Self> {
+        let securified_entity_control = value
+            .security_state()
+            .as_securified()
+            .cloned()
+            .ok_or(CommonError::PersonaNotSecurified)?;
+        Ok(SecurifiedPersona::new(
+            value.name(),
+            value.entity_address(),
+            securified_entity_control,
+            value.third_party_deposit(),
+        ))
+    }
+}
+
+impl TryFrom<AccountOrPersona> for SecurifiedPersona {
+    type Error = CommonError;
+    fn try_from(value: AccountOrPersona) -> Result<Self> {
+        Persona::try_from(value).and_then(SecurifiedPersona::try_from)
+    }
+}
+
+impl SecurifiedAccount {
     pub fn account(&self) -> Account {
         Account::new(
             self.name.clone(),
@@ -37,9 +109,6 @@ impl SecurifiedAccount {
     pub fn address(&self) -> AccountAddress {
         self.account_address.clone()
     }
-    pub fn network_id(&self) -> NetworkID {
-        self.address().network_id()
-    }
     pub fn securified_entity_control(&self) -> SecurifiedEntityControl {
         self.securified_entity_control.clone()
     }
@@ -47,6 +116,7 @@ impl SecurifiedAccount {
         self.third_party_deposit
     }
 }
+
 impl HasSampleValues for SecurifiedAccount {
     fn sample() -> Self {
         Self::new(
@@ -65,6 +135,7 @@ impl HasSampleValues for SecurifiedAccount {
         )
     }
 }
+
 #[cfg(test)]
 mod tests {
     use super::*;

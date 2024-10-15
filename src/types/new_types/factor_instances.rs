@@ -1,12 +1,14 @@
 use crate::prelude::*;
 
 /// A collection of factor instances.
-#[derive(Debug, Default, Clone, PartialEq, Eq)]
+#[derive(Default, Clone, PartialEq, Eq, derive_more::Debug)]
+#[debug("FIS[{:?}]", self.factor_instances)]
 pub struct FactorInstances {
     #[allow(dead_code)]
     hidden: HiddenConstructor,
     factor_instances: IndexSet<HierarchicalDeterministicFactorInstance>,
 }
+
 impl FactorInstances {
     pub fn extend(
         &mut self,
@@ -23,8 +25,19 @@ impl FactorInstances {
     pub fn first(&self) -> Option<HierarchicalDeterministicFactorInstance> {
         self.factor_instances.first().cloned()
     }
+    pub fn split_at(self, mid: usize) -> (Self, Self) {
+        let instances = self.factor_instances.into_iter().collect_vec();
+        let (head, tail) = instances.split_at(mid);
+        (Self::from(head), Self::from(tail))
+    }
 }
-
+impl From<&[HierarchicalDeterministicFactorInstance]> for FactorInstances {
+    fn from(value: &[HierarchicalDeterministicFactorInstance]) -> Self {
+        Self::from(
+            IndexSet::<HierarchicalDeterministicFactorInstance>::from_iter(value.iter().cloned()),
+        )
+    }
+}
 impl From<IndexSet<HierarchicalDeterministicFactorInstance>> for FactorInstances {
     fn from(instances: IndexSet<HierarchicalDeterministicFactorInstance>) -> Self {
         Self::new(instances)
@@ -76,6 +89,11 @@ impl FactorInstances {
             factor_instances,
         }
     }
+
+    pub fn just(factor_instance: HierarchicalDeterministicFactorInstance) -> Self {
+        Self::new(IndexSet::just(factor_instance))
+    }
+
     pub fn factor_instances(&self) -> IndexSet<HierarchicalDeterministicFactorInstance> {
         self.factor_instances.clone()
     }

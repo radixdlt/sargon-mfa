@@ -328,16 +328,14 @@ impl UnhardenedIndex {
         self.0.to_be_bytes().to_vec()
     }
 
-    pub fn add_n(&self, n: HDPathValue) -> Self {
+    pub fn add_n(&self, n: HDPathValue) -> Result<Self> {
         let base_index = self.base_index();
 
-        assert!(
-            (base_index as u64 + n as u64) < BIP32_HARDENED as u64,
-            "Index would overflow beyond BIP32_HARDENED if we would add {}.",
-            n
-        );
+        if !(base_index as u64 + n as u64) < BIP32_HARDENED as u64 {
+            return Err(CommonError::EntityIndexWouldOverflowIfAddedTo);
+        }
 
-        Self::new(self.0 + n)
+        Ok(Self::new(self.0 + n))
     }
 
     pub(crate) fn base_index(&self) -> HDPathValue {
@@ -349,8 +347,8 @@ impl UnhardenedIndex {
 #[derive(
     Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, derive_more::Display, derive_more::Debug,
 )]
-#[display("{}'", self.base_index())]
-#[debug("{}'", self.base_index())]
+#[display("{}{}", self.base_index(), KeySpace::Unsecurified.indicator())]
+#[debug("{}{}", self.base_index(), KeySpace::Unsecurified.indicator())]
 pub struct UnsecurifiedIndex(HDPathValue);
 impl UnsecurifiedIndex {
     /// # Panics
@@ -367,15 +365,12 @@ impl UnsecurifiedIndex {
         self.0.to_be_bytes().to_vec()
     }
 
-    pub fn add_n(&self, n: HDPathValue) -> Self {
+    pub fn add_n(&self, n: HDPathValue) -> Result<Self> {
         let base_index = self.base_index();
-        assert!(
-            (base_index as u64 + n as u64) < (BIP32_HARDENED + BIP32_SECURIFIED_HALF) as u64,
-            "Index would overflow beyond BIP32_SECURIFIED_HALF if incremented with {:?}.",
-            n,
-        );
-
-        Self::new(self.0 + n)
+        if !(base_index as u64 + n as u64) < (BIP32_HARDENED + BIP32_SECURIFIED_HALF) as u64 {
+            return Err(CommonError::EntityIndexWouldOverflowIfAddedTo);
+        }
+        Ok(Self::new(self.0 + n))
     }
 
     pub(crate) fn base_index(&self) -> HDPathValue {
@@ -387,8 +382,8 @@ impl UnsecurifiedIndex {
 #[derive(
     Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, derive_more::Display, derive_more::Debug,
 )]
-#[display("{}^", self.base_index())]
-#[debug("{}^", self.base_index())]
+#[display("{}{}", self.base_index(), KeySpace::Securified.indicator())]
+#[debug("{}{}", self.base_index(), KeySpace::Securified.indicator())]
 pub struct SecurifiedIndex(u32);
 impl SecurifiedIndex {
     /// # Panics
@@ -406,15 +401,13 @@ impl SecurifiedIndex {
         self.0.to_be_bytes().to_vec()
     }
 
-    pub fn add_n(&self, n: HDPathValue) -> Self {
+    pub fn add_n(&self, n: HDPathValue) -> Result<Self> {
         let base_index = self.base_index();
-        assert!(
-            (base_index as u64 + n as u64) < HDPathValue::MAX as u64,
-            "Index would overflow beyond 2^32 if incremented with {:?}.",
-            n,
-        );
+        if !(base_index as u64 + n as u64) < HDPathValue::MAX as u64 {
+            return Err(CommonError::EntityIndexWouldOverflowIfAddedTo);
+        }
 
-        Self::new(self.0 + n)
+        Ok(Self::new(self.0 + n))
     }
 
     pub(crate) fn base_index(&self) -> HDPathValue {
@@ -468,10 +461,10 @@ impl HDPathComponentHardened {
         }
     }
 
-    pub fn add_n(&self, n: HDPathValue) -> Self {
+    pub fn add_n(&self, n: HDPathValue) -> Result<Self> {
         match self {
-            Self::Unsecurified(u) => u.add_n(n).into(),
-            Self::Securified(s) => s.add_n(n).into(),
+            Self::Unsecurified(u) => u.add_n(n).map(Self::from),
+            Self::Securified(s) => s.add_n(n).map(Self::from),
         }
     }
 
@@ -533,7 +526,7 @@ impl Step for HDPathComponent {
     }
 
     fn forward_checked(start: Self, count: usize) -> Option<Self> {
-        start.add_n_checked(count as u32)
+        start.add_n(count as u32).ok()
     }
 
     fn backward_checked(_start: Self, _count: usize) -> Option<Self> {
@@ -601,29 +594,16 @@ impl HDPathComponent {
 
     /// # Panics
     /// Panics if self would overflow within its key space.
-    pub fn add_n_checked(&self, n: HDPathValue) -> Option<Self> {
-        use std::panic;
-        panic::catch_unwind(|| self.add_n(n)).ok()
-    }
-
-    /// # Panics
-    /// Panics if self would overflow within its key space.
-    pub fn add_n(&self, n: HDPathValue) -> Self {
+    pub fn add_n(&self, n: HDPathValue) -> Result<Self> {
         match self {
-            Self::Hardened(h) => h.add_n(n).into(),
-            Self::Unhardened(u) => u.add_n(n).into(),
+            Self::Hardened(h) => h.add_n(n).map(Self::from),
+            Self::Unhardened(u) => u.add_n(n).map(Self::from),
         }
     }
 
     /// # Panics
     /// Panics if self would overflow within its keyspace.
-    pub fn add_assign_one(&mut self) {
-        *self = self.add_one()
-    }
-
-    /// # Panics
-    /// Panics if self would overflow within its keyspace.
-    pub fn add_one(&self) -> Self {
+    pub fn add_one(&self) -> Result<Self> {
         self.add_n(1)
     }
 
@@ -672,7 +652,7 @@ mod tests_hdpathcomp {
     #[test]
     fn add_one_successful() {
         let t = |value: Sut, expected_base_index: HDPathValue| {
-            let actual = value.add_one();
+            let actual = value.add_one().unwrap();
             assert_eq!(actual.base_index(), expected_base_index)
         };
         t(Sut::unsecurified_hardening_base_index(0), 1);
@@ -741,7 +721,16 @@ impl CAP26KeyKind {
 }
 
 #[repr(u8)]
-#[derive(Clone, Copy, PartialEq, Eq, Hash, derive_more::Display, derive_more::Debug)]
+#[derive(
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Hash,
+    derive_more::Display,
+    derive_more::Debug,
+    enum_iterator::Sequence,
+)]
 pub enum NetworkID {
     #[display("Mainnet")]
     #[debug("0")]
@@ -750,11 +739,39 @@ pub enum NetworkID {
     #[display("Stokenet")]
     #[debug("1")]
     Stokenet,
+
+    #[display("Adapanet")]
+    #[debug("10")]
+    Adapanet,
+
+    /// Nebunet (0x0b / 0d11 )
+    ///
+    /// The first Betanet of Babylon
+    #[display("Nebunet")]
+    #[debug("11")]
+    Nebunet,
+
+    /// Kisharnet (0x0c / 0d12)
+    ///
+    /// The first release candidate of Babylon (RCnet v1)
+    #[display("Kisharnet")]
+    #[debug("12")]
+    Kisharnet,
+
+    /// Ansharnet (0x0d / 0d13)
+    ///
+    /// The second release candidate of Babylon (RCnet v2)
+    #[display("Ansharnet")]
+    #[debug("13")]
+    Ansharnet,
 }
 
 impl NetworkID {
     fn discriminant(&self) -> u8 {
         core::intrinsics::discriminant_value(self)
+    }
+    pub fn all() -> IndexSet<Self> {
+        enum_iterator::all::<Self>().collect()
     }
 }
 
@@ -887,7 +904,7 @@ impl HierarchicalDeterministicPublicKey {
 }
 
 #[derive(Clone, PartialEq, Eq, std::hash::Hash, derive_more::Debug)]
-#[debug("{}", self.debug_str())]
+#[debug("{}", self.derivation_entity_index())]
 pub struct HierarchicalDeterministicFactorInstance {
     pub factor_source_id: FactorSourceIDFromHash,
     pub public_key: HierarchicalDeterministicPublicKey,
@@ -1032,7 +1049,7 @@ impl HasSampleValues for Hash {
 pub struct SecurifiedEntityControl {
     pub matrix: MatrixOfFactorInstances,
     /// Virtual Entity Creation (Factor)Instance
-    pub veci: Option<HierarchicalDeterministicFactorInstance>,
+    pub veci: Option<VirtualEntityCreatingInstance>,
     pub access_controller: AccessController,
 }
 impl SecurifiedEntityControl {
@@ -1042,10 +1059,18 @@ impl SecurifiedEntityControl {
     pub fn primary_role_instances(&self) -> FactorInstances {
         self.matrix.primary_role_instances()
     }
+    pub fn veci(&self) -> Option<VirtualEntityCreatingInstance> {
+        self.veci.clone()
+    }
+
+    /// This is wrong... should be Role...
+    pub fn primary_role(&self) -> MatrixOfFactorInstances {
+        self.matrix.clone()
+    }
     pub fn new(
         matrix: MatrixOfFactorInstances,
         access_controller: AccessController,
-        veci: impl Into<Option<HierarchicalDeterministicFactorInstance>>,
+        veci: impl Into<Option<VirtualEntityCreatingInstance>>,
     ) -> Self {
         Self {
             matrix,
@@ -1060,14 +1085,14 @@ impl HasSampleValues for SecurifiedEntityControl {
         Self::new(
             MatrixOfFactorInstances::sample(),
             AccessController::sample(),
-            HierarchicalDeterministicFactorInstance::sample(),
+            VirtualEntityCreatingInstance::sample(),
         )
     }
     fn sample_other() -> Self {
         Self::new(
             MatrixOfFactorInstances::sample_other(),
             AccessController::sample_other(),
-            HierarchicalDeterministicFactorInstance::sample_other(),
+            VirtualEntityCreatingInstance::sample_other(),
         )
     }
 }
@@ -1343,7 +1368,13 @@ pub trait IsEntityAddress: Sized {
     }
 }
 
-pub trait IsEntity: Into<AccountOrPersona> + TryFrom<AccountOrPersona> + Clone {
+pub trait IsNetworkAware {
+    fn network_id(&self) -> NetworkID;
+}
+
+pub trait IsEntity:
+    Into<AccountOrPersona> + TryFrom<AccountOrPersona> + Clone + IsNetworkAware
+{
     type Address: IsEntityAddress
         + HasSampleValues
         + Clone
@@ -1361,14 +1392,23 @@ pub trait IsEntity: Into<AccountOrPersona> + TryFrom<AccountOrPersona> + Clone {
         third_party_deposit: impl Into<Option<ThirdPartyDepositPreference>>,
     ) -> Self;
 
-    fn unsecurified_mainnet(
+    fn as_unsecurified(&self) -> Result<UnsecurifiedEntity> {
+        match self.security_state() {
+            EntitySecurityState::Unsecured(fi) => Ok(UnsecurifiedEntity::new(
+                self.address(),
+                fi,
+                ThirdPartyDepositPreference::default(), // TODO 3rd party
+            )),
+            EntitySecurityState::Securified(_) => Err(CommonError::EntityConversionError),
+        }
+    }
+
+    fn unsecurified_on_network(
         name: impl AsRef<str>,
+        network_id: NetworkID,
         genesis_factor_instance: HierarchicalDeterministicFactorInstance,
     ) -> Self {
-        let address = Self::Address::new(
-            NetworkID::Mainnet,
-            genesis_factor_instance.public_key_hash(),
-        );
+        let address = Self::Address::new(network_id, genesis_factor_instance.public_key_hash());
         Self::new(
             name,
             address,
@@ -1377,7 +1417,14 @@ pub trait IsEntity: Into<AccountOrPersona> + TryFrom<AccountOrPersona> + Clone {
         )
     }
 
-    fn securified_mainnet(
+    fn unsecurified_mainnet(
+        name: impl AsRef<str>,
+        genesis_factor_instance: HierarchicalDeterministicFactorInstance,
+    ) -> Self {
+        Self::unsecurified_on_network(name, NetworkID::Mainnet, genesis_factor_instance)
+    }
+
+    fn securified(
         name: impl AsRef<str>,
         address: Self::Address,
         make_matrix: impl Fn() -> MatrixOfFactorInstances,
@@ -1400,21 +1447,21 @@ pub trait IsEntity: Into<AccountOrPersona> + TryFrom<AccountOrPersona> + Clone {
         )
     }
 
-    fn network_id(&self) -> NetworkID {
-        match self.security_state() {
-            EntitySecurityState::Securified(sec) => {
-                sec.matrix
-                    .all_factors()
-                    .iter()
-                    .last()
-                    .unwrap()
-                    .public_key
-                    .derivation_path
-                    .network_id
-            }
-            EntitySecurityState::Unsecured(fi) => fi.public_key.derivation_path.network_id,
-        }
+    fn securified_mainnet(
+        name: impl AsRef<str>,
+        address: Self::Address,
+        make_matrix: impl Fn() -> MatrixOfFactorInstances,
+    ) -> Self {
+        assert_eq!(address.network_id(), NetworkID::Mainnet);
+        let matrix = make_matrix();
+        assert!(matrix
+            .clone()
+            .all_factors()
+            .into_iter()
+            .all(|f| f.derivation_path().network_id == NetworkID::Mainnet));
+        Self::securified(name, address, || matrix.clone())
     }
+
     fn all_factor_instances(&self) -> HashSet<HierarchicalDeterministicFactorInstance> {
         self.security_state()
             .all_factor_instances()
@@ -1458,30 +1505,29 @@ pub struct AbstractEntity<A: Clone + Into<AddressOfAccountOrPersona> + EntityKin
     pub third_party_deposit: ThirdPartyDepositPreference,
 }
 pub type Account = AbstractEntity<AccountAddress>;
+impl IsNetworkAware for Account {
+    fn network_id(&self) -> NetworkID {
+        self.address.network_id()
+    }
+}
+impl IsNetworkAware for Persona {
+    fn network_id(&self) -> NetworkID {
+        self.address.network_id()
+    }
+}
+
+impl Persona {
+    pub fn as_securified(&self) -> Result<SecurifiedPersona> {
+        SecurifiedPersona::try_from(self.clone())
+    }
+}
 
 impl Account {
     pub fn set_name(&mut self, name: impl AsRef<str>) {
         self.name = name.as_ref().to_owned();
     }
-    pub fn as_securified(&self) -> Result<SecurifiedEntity> {
-        match self.security_state() {
-            EntitySecurityState::Securified(sec) => Ok(SecurifiedEntity::new(
-                self.address(),
-                sec,
-                ThirdPartyDepositPreference::default(), // TODO 3rd party
-            )),
-            EntitySecurityState::Unsecured(_) => Err(CommonError::EntityConversionError),
-        }
-    }
-    pub fn as_unsecurified(&self) -> Result<UnsecurifiedEntity> {
-        match self.security_state() {
-            EntitySecurityState::Unsecured(fi) => Ok(UnsecurifiedEntity::new(
-                self.address(),
-                fi,
-                ThirdPartyDepositPreference::default(), // TODO 3rd party
-            )),
-            EntitySecurityState::Securified(_) => Err(CommonError::EntityConversionError),
-        }
+    pub fn as_securified(&self) -> Result<SecurifiedAccount> {
+        SecurifiedAccount::try_from(self.clone())
     }
 }
 
@@ -1984,6 +2030,11 @@ impl Default for ProfileNetwork {
 }
 
 impl ProfileNetwork {
+    pub fn contains_entity_by_address<E: IsEntity>(&self, entity_address: &E::Address) -> bool {
+        self.get_entities_erased(E::kind())
+            .into_iter()
+            .any(|e| e.address() == entity_address.clone().into())
+    }
     pub fn contains_account(&self, address: impl Into<AccountAddress>) -> bool {
         let address = address.into();
         self.accounts.contains_key(&address)
@@ -2043,7 +2094,8 @@ impl ProfileNetwork {
         let count = self.accounts.len();
         let expected_after_insertion = count + accounts.len();
         for a in accounts.into_iter() {
-            self.accounts.insert(a.entity_address(), a);
+            let already_existed = self.accounts.insert(a.entity_address(), a);
+            assert!(already_existed.is_none());
         }
         assert_eq!(self.accounts.len(), expected_after_insertion);
         Ok(())
@@ -2106,6 +2158,12 @@ impl From<Account> for AccountAddress {
     }
 }
 impl Profile {
+    pub fn contains_entity_by_address<E: IsEntity>(&self, entity_address: &E::Address) -> bool {
+        self.networks
+            .values()
+            .any(|n: &ProfileNetwork| n.contains_entity_by_address::<E>(entity_address))
+    }
+
     /// # Panics if no BDFS was found
     pub fn bdfs(&self) -> HDFactorSource {
         self.factor_sources
@@ -2138,26 +2196,40 @@ impl Profile {
             .unwrap_or_default()
     }
 
-    pub fn get_securified_entities_of_kind_on_network(
+    pub fn get_securified_entities_of_kind_on_network<E: IsSecurifiedEntity>(
         &self,
-        entity_kind: CAP26EntityKind,
         network_id: NetworkID,
-    ) -> IndexSet<SecurifiedEntity> {
+    ) -> IndexSet<E> {
         self.get_entities_of_kind_on_network_in_key_space(
-            entity_kind,
+            E::kind(),
             network_id,
             KeySpace::Securified,
         )
         .into_iter()
-        .map(|e: AccountOrPersona| {
-            let control = match e.security_state() {
-                EntitySecurityState::Securified(control) => control,
-                _ => unreachable!(),
-            };
-            SecurifiedEntity::new(e.address(), control, e.third_party_deposit_settings())
-        })
+        .flat_map(|x| E::try_from(x).ok())
         .collect()
     }
+
+    // pub fn get_securified_entities_of_kind_on_network(
+    //     &self,
+    //     entity_kind: CAP26EntityKind,
+    //     network_id: NetworkID,
+    // ) -> IndexSet<SecurifiedEntity> {
+    //     self.get_entities_of_kind_on_network_in_key_space(
+    //         entity_kind,
+    //         network_id,
+    //         KeySpace::Securified,
+    //     )
+    //     .into_iter()
+    //     .map(|e: AccountOrPersona| {
+    //         let control = match e.security_state() {
+    //             EntitySecurityState::Securified(control) => control,
+    //             _ => unreachable!(),
+    //         };
+    //         SecurifiedEntity::new(e.address(), control, e.third_party_deposit_settings())
+    //     })
+    //     .collect()
+    // }
 
     pub fn get_unsecurified_entities_of_kind_on_network(
         &self,
@@ -2194,8 +2266,8 @@ impl Profile {
     pub fn securified_accounts_on_network(
         &self,
         network_id: NetworkID,
-    ) -> IndexSet<SecurifiedEntity> {
-        self.get_securified_entities_of_kind_on_network(CAP26EntityKind::Account, network_id)
+    ) -> IndexSet<SecurifiedAccount> {
+        self.get_securified_entities_of_kind_on_network(network_id)
     }
 
     pub fn unsecurified_identities_on_network(
@@ -2208,8 +2280,8 @@ impl Profile {
     pub fn securified_identities_on_network(
         &self,
         network_id: NetworkID,
-    ) -> IndexSet<SecurifiedEntity> {
-        self.get_securified_entities_of_kind_on_network(CAP26EntityKind::Identity, network_id)
+    ) -> IndexSet<SecurifiedPersona> {
+        self.get_securified_entities_of_kind_on_network(network_id)
     }
 
     pub fn accounts_on_network(&self, network_id: NetworkID) -> IndexSet<Account> {
@@ -2233,6 +2305,10 @@ impl Profile {
     }
 
     pub fn get_accounts(&self) -> IndexSet<Account> {
+        self.get_entities()
+    }
+
+    pub fn get_personas(&self) -> IndexSet<Persona> {
         self.get_entities()
     }
 
@@ -2290,6 +2366,16 @@ impl Profile {
         } else {
             panic!("hmm what to do");
         }
+    }
+
+    pub fn get_entity<E: IsEntity + std::hash::Hash + Eq>(
+        &self,
+        address: &E::Address,
+    ) -> Result<E> {
+        self.get_entities::<E>()
+            .into_iter()
+            .find(|e| e.entity_address() == *address)
+            .ok_or(CommonError::UnknownEntity)
     }
 
     pub fn get_account(&self, address: &AccountAddress) -> Result<Account> {
@@ -2555,6 +2641,24 @@ pub enum CommonError {
 
     #[error("Invalid u30")]
     Invalid30 { bad_value: u32 },
+
+    #[error("Account not securified")]
+    AccountNotSecurified,
+
+    #[error("Persona not securified")]
+    PersonaNotSecurified,
+
+    #[error("Unsupported Non Preset DerivationPath")]
+    NonStandardDerivationPath,
+
+    #[error("Entity Index would overflow if added to")]
+    EntityIndexWouldOverflowIfAddedTo,
+
+    #[error("Cache Already Contains FactorInstance with path: {derivation_path}")]
+    CacheAlreadyContainsFactorInstance { derivation_path: DerivationPath },
+
+    #[error("Too Few FactorInstances derived")]
+    FactorInstancesProviderDidNotDeriveEnoughFactors,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
