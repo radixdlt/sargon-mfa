@@ -72,8 +72,9 @@ impl DerivationPreset {
     /// Returns the `CAP26KeyKind` of the `DerivationPreset`.
     pub fn key_kind(&self) -> CAP26KeyKind {
         match self {
-            Self::AccountVeci | Self::IdentityVeci => CAP26KeyKind::TransactionSigning,
-            Self::AccountMfa | Self::IdentityMfa => CAP26KeyKind::TransactionSigning,
+            Self::AccountVeci | Self::IdentityVeci | Self::AccountMfa | Self::IdentityMfa => {
+                CAP26KeyKind::TransactionSigning
+            }
         }
     }
 
