@@ -108,8 +108,9 @@ impl NextDerivationEntityIndexProfileAnalyzingAssigner {
 
     /// Returns the Max Derivation Entity Index of Securified Accounts controlled
     /// by `factor_source_id`, or `None` if no securified account controlled by that
-    /// factor source id found, by controlled by we mean having a MatrixOfFactorInstances
-    /// which has that factor in **any role** in its MatrixOfFactorInstances.
+    /// factor source id found. 
+    /// By "controlled by" we mean having a MatrixOfFactorInstances which has that
+    /// factor in **any role** in its MatrixOfFactorInstances.
     fn max_account_mfa(&self, factor_source_id: FactorSourceIDFromHash) -> Option<HDPathComponent> {
         self.securified_accounts_on_network
             .clone()
