@@ -1049,7 +1049,7 @@ impl HasSampleValues for Hash {
 pub struct SecurifiedEntityControl {
     pub matrix: MatrixOfFactorInstances,
     /// Virtual Entity Creation (Factor)Instance
-    pub veci: Option<HierarchicalDeterministicFactorInstance>,
+    pub veci: Option<VirtualEntityCreatingInstance>,
     pub access_controller: AccessController,
 }
 impl SecurifiedEntityControl {
@@ -1059,6 +1059,9 @@ impl SecurifiedEntityControl {
     pub fn primary_role_instances(&self) -> FactorInstances {
         self.matrix.primary_role_instances()
     }
+    pub fn veci(&self) -> Option<VirtualEntityCreatingInstance> {
+        self.veci.clone()
+    }
 
     /// This is wrong... should be Role...
     pub fn primary_role(&self) -> MatrixOfFactorInstances {
@@ -1067,7 +1070,7 @@ impl SecurifiedEntityControl {
     pub fn new(
         matrix: MatrixOfFactorInstances,
         access_controller: AccessController,
-        veci: impl Into<Option<HierarchicalDeterministicFactorInstance>>,
+        veci: impl Into<Option<VirtualEntityCreatingInstance>>,
     ) -> Self {
         Self {
             matrix,
@@ -1082,14 +1085,14 @@ impl HasSampleValues for SecurifiedEntityControl {
         Self::new(
             MatrixOfFactorInstances::sample(),
             AccessController::sample(),
-            HierarchicalDeterministicFactorInstance::sample(),
+            VirtualEntityCreatingInstance::sample(),
         )
     }
     fn sample_other() -> Self {
         Self::new(
             MatrixOfFactorInstances::sample_other(),
             AccessController::sample_other(),
-            HierarchicalDeterministicFactorInstance::sample_other(),
+            VirtualEntityCreatingInstance::sample_other(),
         )
     }
 }
@@ -2091,7 +2094,8 @@ impl ProfileNetwork {
         let count = self.accounts.len();
         let expected_after_insertion = count + accounts.len();
         for a in accounts.into_iter() {
-            self.accounts.insert(a.entity_address(), a);
+            let already_existed = self.accounts.insert(a.entity_address(), a);
+            assert!(already_existed.is_none());
         }
         assert_eq!(self.accounts.len(), expected_after_insertion);
         Ok(())

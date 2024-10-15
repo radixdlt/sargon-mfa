@@ -345,7 +345,7 @@ async fn test_securified_accounts() {
 
     assert_eq!(
         alice_sec.securified_entity_control().veci.unwrap().clone(),
-        alice.as_unsecurified().unwrap().veci().factor_instance()
+        alice.as_unsecurified().unwrap().veci()
     );
     let alice_matrix = alice_sec.securified_entity_control().matrix.clone();
     assert_eq!(alice_matrix.threshold, 2);
@@ -386,7 +386,7 @@ async fn test_securified_accounts() {
 
     assert_eq!(
         bob_sec.securified_entity_control().veci.unwrap().clone(),
-        bob.as_unsecurified().unwrap().veci().factor_instance()
+        bob.as_unsecurified().unwrap().veci()
     );
     let bob_matrix = bob_sec.securified_entity_control().matrix.clone();
     assert_eq!(bob_matrix.threshold, 2);
@@ -1068,7 +1068,7 @@ async fn securified_personas() {
 
     assert_eq!(
         batman_sec.securified_entity_control().veci.unwrap().clone(),
-        batman.as_unsecurified().unwrap().veci().factor_instance()
+        batman.as_unsecurified().unwrap().veci()
     );
     let batman_matrix = batman_sec.securified_entity_control().primary_role();
     assert_eq!(batman_matrix.threshold, 2);
@@ -1113,7 +1113,7 @@ async fn securified_personas() {
             .veci
             .unwrap()
             .clone(),
-        satoshi.as_unsecurified().unwrap().veci().factor_instance()
+        satoshi.as_unsecurified().unwrap().veci()
     );
     let satoshi_matrix = satoshi_sec.securified_entity_control().primary_role();
     assert_eq!(satoshi_matrix.threshold, 2);
@@ -1228,4 +1228,104 @@ async fn securified_personas() {
             .collect_vec(),
         [HDPathComponent::securifying_base_index(1)]
     );
+}
+
+#[actix_rt::test]
+async fn securified_all_accounts_next_veci_does_not_start_at_zero() {
+    let mut os = SargonOS::new();
+    assert_eq!(os.cache_snapshot().total_number_of_factor_instances(), 0);
+
+    let fs_device = HDFactorSource::device();
+    let fs_arculus = HDFactorSource::arculus();
+    let fs_ledger = HDFactorSource::ledger();
+
+    os.add_factor_source(fs_device.clone()).await.unwrap();
+    os.add_factor_source(fs_arculus.clone()).await.unwrap();
+    os.add_factor_source(fs_ledger.clone()).await.unwrap();
+
+    assert_eq!(
+        os.cache_snapshot().total_number_of_factor_instances(),
+        3 * 4 * CACHE_FILLING_QUANTITY
+    );
+
+    assert!(os.profile_snapshot().get_accounts().is_empty());
+    assert_eq!(os.profile_snapshot().factor_sources.len(), 3);
+
+    let network = NetworkID::Mainnet;
+
+    // first create CACHE_FILLING_QUANTITY many "unnamed" accounts
+
+    for i in 0..CACHE_FILLING_QUANTITY {
+        let (_, stats) = os
+            .new_account(fs_device.clone(), network, format!("@{}", i))
+            .await
+            .unwrap();
+        assert!(stats.debug_was_derived.is_empty());
+    }
+
+    let unnamed_accounts = os
+        .profile_snapshot()
+        .get_accounts()
+        .into_iter()
+        .collect_vec();
+
+    let (_, stats) = os
+        .securify_accounts(
+            unnamed_accounts
+                .clone()
+                .into_iter()
+                .map(|a| a.entity_address())
+                .collect(),
+            MatrixOfFactorSources::new([fs_device.clone()], 1, []),
+        )
+        .await
+        .unwrap();
+
+    assert!(
+        !stats.derived_any_new_instance_for_any_factor_source(),
+        "should have used cache"
+    );
+
+    // assert correctness of next index assigner
+    assert_eq!(
+        os.profile_snapshot().accounts_on_network(network).len(),
+        CACHE_FILLING_QUANTITY
+    );
+
+    let next_index_profile_assigner =
+        NextDerivationEntityIndexProfileAnalyzingAssigner::new(network, os.profile_snapshot());
+    let next_index = next_index_profile_assigner
+        .next(
+            fs_device.factor_source_id(),
+            DerivationPreset::AccountVeci.index_agnostic_path_on_network(network),
+        )
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        next_index,
+        HDPathComponent::unsecurified_hardening_base_index(30)
+    );
+
+    let (alice, stats) = os
+        .new_account(fs_device.clone(), network, "Alice")
+        .await
+        .unwrap();
+    assert!(
+        stats.debug_found_in_cache.is_empty(),
+        "Cache should have been empty"
+    );
+    assert!(
+        !stats.debug_was_derived.is_empty(),
+        "should have filled cache"
+    );
+
+    assert_eq!(
+        alice
+            .as_unsecurified()
+            .unwrap()
+            .veci()
+            .factor_instance()
+            .derivation_entity_index(),
+        HDPathComponent::unsecurified_hardening_base_index(30) // <-- IMPORTANT this tests that we do not start at 0', asserts that the next index from profile analyzer
+    )
 }

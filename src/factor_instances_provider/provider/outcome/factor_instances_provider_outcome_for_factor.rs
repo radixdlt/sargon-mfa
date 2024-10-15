@@ -6,7 +6,8 @@ use crate::prelude::*;
 /// `debug_was_cached`.
 /// Furthermore all fields except `to_use_directly` are renamed to `debug_*` to make it clear they are only included for debugging purposes,
 /// in fact, they are all put behind `#[cfg(test)]`
-#[derive(Clone, Debug)]
+#[derive(Clone, derive_more::Debug)]
+#[debug("{}", self.debug_string())]
 pub struct FactorInstancesProviderOutcomeForFactor {
     #[allow(dead_code)]
     hidden: HiddenConstructor,
@@ -47,6 +48,31 @@ pub struct FactorInstancesProviderOutcomeForFactor {
     /// Might overlap with `to_cache` and `to_use_directly`
     #[cfg(test)]
     pub debug_was_derived: FactorInstances,
+}
+#[allow(dead_code)]
+impl FactorInstancesProviderOutcomeForFactor {
+    #[cfg(test)]
+    fn debug_string_for_tests(&self) -> String {
+        format!(
+            "OutcomeForFactor[factor: {}\n\n\t⚡️to_use_directly: {:?}, \n\n\t➡️💾was_cached: {:?}, \n\n\t💾➡️found_in_cache: {:?}\n\n\t🔮was_derived: {:?}\n\n]",
+            self.factor_source_id, self.to_use_directly, self.debug_was_cached, self.debug_found_in_cache, self.debug_was_derived
+        )
+    }
+
+    fn debug_string_no_test(&self) -> String {
+        format!(
+            "OutcomeForFactor[factor: {}, \n\n\t⚡️to_use_directly: {:?}]",
+            self.factor_source_id, self.to_use_directly
+        )
+    }
+
+    fn debug_string(&self) -> String {
+        #[cfg(test)]
+        return self.debug_string_for_tests();
+
+        #[cfg(not(test))]
+        return self.debug_string_no_test();
+    }
 }
 
 impl From<InternalFactorInstancesProviderOutcomeForFactor>

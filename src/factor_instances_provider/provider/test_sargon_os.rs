@@ -257,10 +257,15 @@ impl SargonOS {
                 };
                 let veci = match entity.security_state() {
                     EntitySecurityState::Unsecured(veci) => Some(veci),
-                    EntitySecurityState::Securified(sec) => sec.veci.clone(),
+                    EntitySecurityState::Securified(sec) => {
+                        sec.veci.clone().map(|x| x.factor_instance())
+                    }
                 };
-                let sec =
-                    SecurifiedEntityControl::new(matrix_of_instances, access_controller, veci);
+                let sec = SecurifiedEntityControl::new(
+                    matrix_of_instances,
+                    access_controller,
+                    veci.map(|x| VirtualEntityCreatingInstance::new(x, entity.address())),
+                );
 
                 E::new(
                     entity.name(),

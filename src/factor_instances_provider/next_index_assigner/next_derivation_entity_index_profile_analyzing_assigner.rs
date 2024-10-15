@@ -58,25 +58,41 @@ impl NextDerivationEntityIndexProfileAnalyzingAssigner {
         &self,
         factor_source_id: FactorSourceIDFromHash,
         entities: impl IntoIterator<Item = UnsecurifiedEntity>,
+        securified_entities: impl IntoIterator<Item = SecurifiedEntityControl>,
         entity_kind: CAP26EntityKind,
         key_space: KeySpace,
     ) -> Option<HDPathComponent> {
-        entities
-            .into_iter()
-            .map(|x| x.veci().factor_instance())
-            .filter(|f| f.factor_source_id == factor_source_id)
-            .map(|f| f.derivation_path())
-            .map(|p| {
-                AssertMatches {
-                    network_id: self.network_id,
-                    key_kind: CAP26KeyKind::TransactionSigning,
-                    entity_kind,
-                    key_space,
-                }
-                .matches(&p)
-            })
-            .map(|fi| fi.index)
-            .max()
+        let max_veci = |vecis: IndexSet<VirtualEntityCreatingInstance>| -> Option<HDPathComponent> {
+            vecis
+                .into_iter()
+                .map(|x| x.factor_instance())
+                .filter(|f| f.factor_source_id == factor_source_id)
+                .map(|f| f.derivation_path())
+                .map(|p| {
+                    AssertMatches {
+                        network_id: self.network_id,
+                        key_kind: CAP26KeyKind::TransactionSigning,
+                        entity_kind,
+                        key_space,
+                    }
+                    .matches(&p)
+                })
+                .map(|fi| fi.index)
+                .max()
+        };
+
+        let of_unsecurified = max_veci(entities.into_iter().map(|x| x.veci()).collect());
+
+        // The securified entities might have been originally created - having a veci -
+        // with the same factor source id.
+        let of_securified = max_veci(
+            securified_entities
+                .into_iter()
+                .filter_map(|x| x.veci())
+                .collect(),
+        );
+
+        std::cmp::max(of_unsecurified, of_securified)
     }
 
     /// Returns the Max Derivation Entity Index of Unsecurified Accounts controlled
@@ -89,6 +105,10 @@ impl NextDerivationEntityIndexProfileAnalyzingAssigner {
         self.max_entity_veci(
             factor_source_id,
             self.unsecurified_accounts_on_network.clone(),
+            self.securified_accounts_on_network
+                .clone()
+                .into_iter()
+                .map(|x| x.securified_entity_control()),
             CAP26EntityKind::Account,
             KeySpace::Unsecurified,
         )
@@ -104,6 +124,10 @@ impl NextDerivationEntityIndexProfileAnalyzingAssigner {
         self.max_entity_veci(
             factor_source_id,
             self.unsecurified_identities_on_network.clone(),
+            self.securified_identities_on_network
+                .clone()
+                .into_iter()
+                .map(|x| x.securified_entity_control()),
             CAP26EntityKind::Identity,
             KeySpace::Unsecurified,
         )
