@@ -89,3 +89,34 @@ impl HierarchicalDeterministicFactorInstance {
         self.derivation_path().agnostic()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    type Sut = IndexAgnosticPath;
+
+    #[test]
+    fn try_from_success() {
+        NetworkID::all().into_iter().for_each(|n| {
+            let f = |preset: DerivationPreset| {
+                let sut = preset.index_agnostic_path_on_network(n);
+                let back_again = DerivationPreset::try_from(sut).unwrap();
+                assert_eq!(back_again, preset);
+            };
+
+            DerivationPreset::all().into_iter().for_each(|p| f(p));
+        });
+    }
+
+    #[test]
+    fn try_from_fail() {
+        let path = Sut::new(
+            NetworkID::Stokenet,
+            CAP26EntityKind::Account,
+            CAP26KeyKind::AuthenticationSigning,
+            KeySpace::Unsecurified,
+        );
+        assert!(DerivationPreset::try_from(path).is_err());
+    }
+}

@@ -2,8 +2,6 @@
 
 use std::ops::{Add, AddAssign};
 
-use rand::seq::index::IndexVec;
-
 use crate::{factor_instances_provider::provider::test_sargon_os::SargonOS, prelude::*};
 
 #[actix_rt::test]
