@@ -12,7 +12,7 @@ pub struct NextDerivationEntityIndexWithEphemeralOffsetsForFactorSource {
 }
 
 impl NextDerivationEntityIndexWithEphemeralOffsetsForFactorSource {
-    /// Returns the next free index for the FactorSourceID and IndexAgnosticPath,
+    /// Returns the next free index for the IndexAgnosticPath,
     /// and increases the local ephemeral offset.
     pub fn reserve(&self, agnostic_path: IndexAgnosticPath) -> HDPathValue {
         let mut binding = self.ephemeral_offsets.write().unwrap();
