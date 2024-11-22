@@ -1,0 +1,27 @@
+[package]
+name = "rules-uniffi"
+version = "0.1.0"
+edition = "2021"
+
+
+[dependencies]
+rules = { path = "../rules" }
+
+# uniffi = "0.27.1"
+uniffi = { git = "https://github.com/mozilla/uniffi-rs/", rev = "6f33088e8100a2ea9586c8c3ecf98ab51d5aba62", features = [
+    "cli",
+] }
+
+thiserror = { workspace = true }
+
+[dev-dependencies]
+# uniffi = "0.27.1"
+uniffi = { git = "https://github.com/mozilla/uniffi-rs/", rev = "6f33088e8100a2ea9586c8c3ecf98ab51d5aba62", features = [
+    "bindgen-tests",
+] }
+
+[build-dependencies]
+# uniffi = "0.27.1"
+uniffi = { git = "https://github.com/mozilla/uniffi-rs/", rev = "6f33088e8100a2ea9586c8c3ecf98ab51d5aba62", features = [
+    "build",
+] }
