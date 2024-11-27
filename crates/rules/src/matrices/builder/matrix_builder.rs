@@ -165,9 +165,7 @@ impl MatrixBuilder {
     ) -> MatrixBuilderMutateResult {
         self.primary_role
             .add_factor_source_to_list(factor_source_id, FactorListKind::Threshold)
-            .into_matrix_err(RoleKind::Primary)?;
-
-        self.validate_combination()
+            .into_matrix_err(RoleKind::Primary)
     }
 
     /// Adds the factor source to the primary role override list.
@@ -177,52 +175,32 @@ impl MatrixBuilder {
     ) -> MatrixBuilderMutateResult {
         self.primary_role
             .add_factor_source_to_list(factor_source_id, FactorListKind::Override)
-            .into_matrix_err(RoleKind::Primary)?;
-
-        self.validate_combination()
+            .into_matrix_err(RoleKind::Primary)
     }
 
-    /// Adds the factor source to the recovery role override list if not already present.
-    ///
-    /// Even if `Err(MatrixBuilderValidation::CombinationViolation(MatrixRolesInCombinationViolation::NotYetValid(MatrixRolesInCombinationNotYetValid::SingleFactorUsedInPrimaryMustNotBeUsedInAnyOtherRole))` is thrown, the factor is still added to the recovery role.
-    ///
-    /// However, if `Err(MatrixBuilderValidation::Basic(_))` or `Err(MatrixBuilderValidation::ForeverInvalid(_))` is thrown
-    /// then the factor is not added to the recovery role.
     pub fn add_factor_source_to_recovery_override(
         &mut self,
         factor_source_id: FactorSourceID,
     ) -> MatrixBuilderMutateResult {
         self.recovery_role
             .add_factor_source_to_list(factor_source_id, FactorListKind::Override)
-            .into_matrix_err(RoleKind::Recovery)?;
-
-        self.validate_combination()
+            .into_matrix_err(RoleKind::Recovery)
     }
 
-    /// Adds the factor source to the confirmation role override list if not already present.
-    ///    
-    /// Even if `Err(MatrixBuilderValidation::CombinationViolation(MatrixRolesInCombinationViolation::NotYetValid(MatrixRolesInCombinationNotYetValid::SingleFactorUsedInPrimaryMustNotBeUsedInAnyOtherRole))` is thrown, the factor is still added to the recovery role.
-    ///
-    /// However, if `Err(MatrixBuilderValidation::Basic(_))` or `Err(MatrixBuilderValidation::ForeverInvalid(_))` is thrown
-    /// then the factor is not added to the recovery role.
     pub fn add_factor_source_to_confirmation_override(
         &mut self,
         factor_source_id: FactorSourceID,
     ) -> MatrixBuilderMutateResult {
         self.confirmation_role
             .add_factor_source_to_list(factor_source_id, FactorListKind::Override)
-            .into_matrix_err(RoleKind::Confirmation)?;
-
-        self.validate_combination()
+            .into_matrix_err(RoleKind::Confirmation)
     }
 
     /// Sets the threshold on the primary role builder.
     pub fn set_threshold(&mut self, threshold: u8) -> MatrixBuilderMutateResult {
         self.primary_role
             .set_threshold(threshold)
-            .into_matrix_err(RoleKind::Primary)?;
-
-        self.validate_combination()
+            .into_matrix_err(RoleKind::Primary)
     }
 
     pub fn set_number_of_days_until_auto_confirm(
@@ -231,7 +209,7 @@ impl MatrixBuilder {
     ) -> MatrixBuilderMutateResult {
         self.number_of_days_until_auto_confirm = number_of_days;
 
-        self.validate_combination()
+        self.validate_number_of_days_until_auto_confirm()
     }
 
     /// Removes `factor_source_id` from all three roles, if not found in any an error
@@ -272,7 +250,7 @@ impl MatrixBuilder {
                 ),
             ))
         } else {
-            self.validate_combination()
+            Ok(())
         }
     }
 }

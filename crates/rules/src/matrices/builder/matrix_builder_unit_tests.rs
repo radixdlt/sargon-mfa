@@ -182,17 +182,20 @@ fn single_factor_in_primary_threshold_cannot_be_in_recovery() {
     let mut sut = make();
     let fs = FactorSourceID::sample_ledger();
     sut.add_factor_source_to_primary_threshold(fs).unwrap();
+    sut.add_factor_source_to_confirmation_override(FactorSourceID::sample_arculus_other())
+        .unwrap();
     sut.set_threshold(1).unwrap();
 
-    let res = sut.add_factor_source_to_recovery_override(fs);
+    // ACT
+    sut.add_factor_source_to_recovery_override(fs).unwrap();
+    let res = sut.validate();
     assert_eq!(res, Err(MatrixBuilderValidation::CombinationViolation(
             MatrixRolesInCombinationViolation::NotYetValid(MatrixRolesInCombinationNotYetValid::SingleFactorUsedInPrimaryMustNotBeUsedInAnyOtherRole)
         )));
 
     sut.add_factor_source_to_primary_threshold(FactorSourceID::sample_arculus())
         .unwrap();
-    sut.add_factor_source_to_confirmation_override(FactorSourceID::sample_arculus_other())
-        .unwrap();
+
     let built = sut.build().unwrap();
     pretty_assertions::assert_eq!(
         built.primary(),
@@ -220,10 +223,18 @@ fn single_factor_in_primary_threshold_cannot_be_in_recovery() {
 
 #[test]
 fn single_factor_in_primary_override_cannot_be_in_recovery() {
+    // ARRANGE
     let mut sut = make();
+    sut.add_factor_source_to_confirmation_override(FactorSourceID::sample_arculus())
+        .unwrap();
+
+    // ACT
     let fs = FactorSourceID::sample_ledger();
     sut.add_factor_source_to_primary_override(fs).unwrap();
-    let res = sut.add_factor_source_to_recovery_override(fs);
+    sut.add_factor_source_to_recovery_override(fs).unwrap();
+
+    // ASSERT
+    let res = sut.validate();
     assert_eq!(res, Err(MatrixBuilderValidation::CombinationViolation(
             MatrixRolesInCombinationViolation::NotYetValid(MatrixRolesInCombinationNotYetValid::SingleFactorUsedInPrimaryMustNotBeUsedInAnyOtherRole)
         )));
@@ -231,10 +242,19 @@ fn single_factor_in_primary_override_cannot_be_in_recovery() {
 
 #[test]
 fn single_factor_in_primary_threshold_cannot_be_in_confirmation() {
+    // ARRANGE
     let mut sut = make();
+    sut.add_factor_source_to_recovery_override(FactorSourceID::sample_arculus())
+        .unwrap();
+    _ = sut.set_threshold(1);
+
+    // ACT
     let fs = FactorSourceID::sample_ledger();
     sut.add_factor_source_to_primary_threshold(fs).unwrap();
-    let res = sut.add_factor_source_to_confirmation_override(fs);
+    sut.add_factor_source_to_confirmation_override(fs).unwrap();
+
+    // ASSERT
+    let res = sut.validate();
     assert_eq!(res, Err(MatrixBuilderValidation::CombinationViolation(
             MatrixRolesInCombinationViolation::NotYetValid(MatrixRolesInCombinationNotYetValid::SingleFactorUsedInPrimaryMustNotBeUsedInAnyOtherRole)
         )));
@@ -242,10 +262,18 @@ fn single_factor_in_primary_threshold_cannot_be_in_confirmation() {
 
 #[test]
 fn single_factor_in_primary_override_cannot_be_in_confirmation() {
+    // ARRANGE
     let mut sut = make();
+    sut.add_factor_source_to_recovery_override(FactorSourceID::sample_arculus())
+        .unwrap();
+
+    // ACT
     let fs = FactorSourceID::sample_ledger();
     sut.add_factor_source_to_primary_override(fs).unwrap();
-    let res = sut.add_factor_source_to_confirmation_override(fs);
+    sut.add_factor_source_to_confirmation_override(fs).unwrap();
+
+    // ASSERT
+    let res = sut.validate();
     assert_eq!(res, Err(MatrixBuilderValidation::CombinationViolation(
             MatrixRolesInCombinationViolation::NotYetValid(MatrixRolesInCombinationNotYetValid::SingleFactorUsedInPrimaryMustNotBeUsedInAnyOtherRole)
         )));
@@ -253,10 +281,18 @@ fn single_factor_in_primary_override_cannot_be_in_confirmation() {
 
 #[test]
 fn add_factor_to_recovery_then_same_to_confirmation_is_err() {
+    // ARRANGE
     let mut sut = make();
+    sut.add_factor_source_to_primary_override(FactorSourceID::sample_arculus())
+        .unwrap();
+
+    // ACT
     let fs = FactorSourceID::sample_ledger();
     sut.add_factor_source_to_confirmation_override(fs).unwrap();
-    let res = sut.add_factor_source_to_recovery_override(fs);
+    sut.add_factor_source_to_recovery_override(fs).unwrap();
+
+    // ASSERT
+    let res = sut.validate();
     assert_eq!(
         res,
         Err(MatrixBuilderValidation::CombinationViolation(
@@ -268,11 +304,19 @@ fn add_factor_to_recovery_then_same_to_confirmation_is_err() {
 }
 
 #[test]
-fn add_factor_to_confirmation_then_same_to_override_is_err() {
+fn add_factor_to_confirmation_then_same_to_override_when_validated_is_err() {
+    // ARRANGE
     let mut sut = make();
     let fs = FactorSourceID::sample_ledger();
+    sut.add_factor_source_to_primary_override(FactorSourceID::sample_arculus())
+        .unwrap();
+
+    // ACT
     sut.add_factor_source_to_recovery_override(fs).unwrap();
-    let res = sut.add_factor_source_to_confirmation_override(fs);
+    sut.add_factor_source_to_confirmation_override(fs).unwrap();
+
+    // ASSERT
+    let res = sut.validate();
     assert_eq!(
         res,
         Err(MatrixBuilderValidation::CombinationViolation(
@@ -285,10 +329,19 @@ fn add_factor_to_confirmation_then_same_to_override_is_err() {
 
 #[test]
 fn add_factor_to_confirmation_then_same_to_primary_threshold_is_not_yet_valid() {
+    // ARRANGE
     let mut sut = make();
+    sut.add_factor_source_to_confirmation_override(FactorSourceID::sample_arculus())
+        .unwrap();
+    _ = sut.set_threshold(1);
+
+    // ACT
     let fs = FactorSourceID::sample_ledger();
     sut.add_factor_source_to_recovery_override(fs).unwrap();
-    let res = sut.add_factor_source_to_primary_threshold(fs);
+    sut.add_factor_source_to_primary_threshold(fs).unwrap();
+
+    // ASSERT
+    let res = sut.validate();
     assert_eq!(res, Err(MatrixBuilderValidation::CombinationViolation(
             MatrixRolesInCombinationViolation::NotYetValid(MatrixRolesInCombinationNotYetValid::SingleFactorUsedInPrimaryMustNotBeUsedInAnyOtherRole)
         )));
