@@ -1,10 +1,20 @@
-mod rules;
+mod matrices;
+mod move_to_sargon;
+mod roles;
 
 pub mod prelude {
+    pub(crate) use sargon::{
+        FactorSourceID, FactorSourceIDFromHash, FactorSourceKind, Identifiable, IndexSet, RoleKind,
+    };
 
-    pub(crate) use crate::rules::*;
+    #[allow(unused_imports)]
+    pub use crate::matrices::*;
+    pub use crate::move_to_sargon::*;
+    pub use crate::roles::*;
 
-    pub(crate) use thiserror::Error as ThisError;
+    pub(crate) use serde::{Deserialize, Serialize};
+    pub(crate) use std::collections::HashSet;
+    pub(crate) use std::marker::PhantomData;
 }
 
-pub use prelude::*;
+pub use crate::prelude::*;

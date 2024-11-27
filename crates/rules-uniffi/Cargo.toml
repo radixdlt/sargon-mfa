@@ -2,17 +2,22 @@
 name = "rules-uniffi"
 version = "0.1.0"
 edition = "2021"
+build = "build.rs"
 
+[lib]
+crate-type = ["staticlib", "cdylib", "lib"]
 
 [dependencies]
+sargon = { workspace = true }
 rules = { path = "../rules" }
+thiserror = { workspace = true }
+serde = { version = "1.0.215", features = ["derive"] }
+pretty_assertions = "1.4.1"
 
 # uniffi = "0.27.1"
 uniffi = { git = "https://github.com/mozilla/uniffi-rs/", rev = "6f33088e8100a2ea9586c8c3ecf98ab51d5aba62", features = [
     "cli",
 ] }
-
-thiserror = { workspace = true }
 
 [dev-dependencies]
 # uniffi = "0.27.1"
