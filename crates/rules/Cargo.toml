@@ -8,3 +8,5 @@ thiserror = { workspace = true }
 sargon = { workspace = true}
 serde = { version = "1.0.215", features = ["derive"] }
 pretty_assertions = "1.4.1"
+serde_json = { version = "1.0.133", features = ["preserve_order"] }
+assert-json-diff = "2.0.2"
