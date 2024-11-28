@@ -1,10 +1,9 @@
 use crate::prelude::*;
 
-pub type AbstractMatrixBuilt<F> = AbstractMatrixBuilderOrBuilt<F, (), ()>;
-pub type MatrixWithFactorSourceIds = AbstractMatrixBuilt<FactorSourceID>;
+pub type MatrixOfFactorSourceIds = AbstractMatrixBuilt<FactorSourceID>;
 
 #[cfg(test)]
-impl MatrixWithFactorSourceIds {
+impl MatrixOfFactorSourceIds {
     pub(crate) fn with_roles_and_days(
         primary: RoleWithFactorSourceIds,
         recovery: RoleWithFactorSourceIds,
@@ -37,7 +36,7 @@ impl MatrixWithFactorSourceIds {
     }
 }
 
-impl MatrixWithFactorSourceIds {
+impl MatrixOfFactorSourceIds {
     pub fn primary(&self) -> &RoleWithFactorSourceIds {
         &self.primary_role
     }
@@ -51,7 +50,7 @@ impl MatrixWithFactorSourceIds {
     }
 }
 
-impl MatrixWithFactorSourceIds {
+impl MatrixOfFactorSourceIds {
     pub fn sample_config_12() -> Self {
         let mut builder = MatrixBuilder::new();
         // Primary
@@ -108,7 +107,7 @@ impl MatrixWithFactorSourceIds {
     }
 }
 
-impl HasSampleValues for MatrixWithFactorSourceIds {
+impl HasSampleValues for MatrixOfFactorSourceIds {
     fn sample() -> Self {
         Self::sample_config_11()
     }
@@ -122,7 +121,7 @@ impl HasSampleValues for MatrixWithFactorSourceIds {
 mod tests {
     use super::*;
     #[allow(clippy::upper_case_acronyms)]
-    type SUT = MatrixWithFactorSourceIds;
+    type SUT = MatrixOfFactorSourceIds;
 
     #[test]
     fn equality() {

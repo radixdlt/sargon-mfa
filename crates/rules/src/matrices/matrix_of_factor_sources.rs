@@ -1,10 +1,10 @@
 use crate::prelude::*;
 
-pub type MatrixWithFactorSources = AbstractMatrixBuilt<FactorSource>;
+pub type MatrixOfFactorSources = AbstractMatrixBuilt<FactorSource>;
 
-impl MatrixWithFactorSources {
+impl MatrixOfFactorSources {
     pub fn new(
-        matrix_of_factor_source_ids: MatrixWithFactorSourceIds,
+        matrix_of_factor_source_ids: MatrixOfFactorSourceIds,
         factor_sources: &FactorSources,
     ) -> Result<Self, CommonError> {
         let primary_role =
@@ -36,15 +36,15 @@ impl MatrixWithFactorSources {
     }
 }
 
-impl HasSampleValues for MatrixWithFactorSources {
+impl HasSampleValues for MatrixOfFactorSources {
     fn sample() -> Self {
-        let ids = MatrixWithFactorSourceIds::sample();
+        let ids = MatrixOfFactorSourceIds::sample();
         let factor_sources = FactorSources::sample_values_all();
         Self::new(ids, &factor_sources).unwrap()
     }
 
     fn sample_other() -> Self {
-        let ids = MatrixWithFactorSourceIds::sample_other();
+        let ids = MatrixOfFactorSourceIds::sample_other();
         let factor_sources = FactorSources::sample_values_all();
         Self::new(ids, &factor_sources).unwrap()
     }
@@ -55,7 +55,7 @@ mod tests {
     use super::*;
 
     #[allow(clippy::upper_case_acronyms)]
-    type SUT = MatrixWithFactorSources;
+    type SUT = MatrixOfFactorSources;
 
     #[test]
     fn equality() {

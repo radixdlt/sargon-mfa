@@ -114,7 +114,7 @@ fn set_number_of_days_42() {
     let built = sut.build().unwrap();
     pretty_assertions::assert_eq!(
         built,
-        MatrixWithFactorSourceIds::with_roles_and_days(
+        MatrixOfFactorSourceIds::with_roles_and_days(
             RoleWithFactorSourceIds::primary_with_factors(
                 1,
                 [FactorSourceID::sample_device(),],
@@ -155,7 +155,7 @@ fn set_number_of_days_if_not_set_uses_default() {
     let built = sut.build().unwrap();
     pretty_assertions::assert_eq!(
         built,
-        MatrixWithFactorSourceIds::with_roles_and_days(
+        MatrixOfFactorSourceIds::with_roles_and_days(
             RoleWithFactorSourceIds::primary_with_factors(
                 1,
                 [FactorSourceID::sample_device(),],
@@ -1263,7 +1263,7 @@ mod shield_configs {
             let built = sut.build().unwrap();
             pretty_assertions::assert_eq!(
                 built,
-                MatrixWithFactorSourceIds::with_roles(
+                MatrixOfFactorSourceIds::with_roles(
                     RoleWithFactorSourceIds::primary_with_factors(
                         2,
                         [
@@ -1313,7 +1313,7 @@ mod shield_configs {
             let built = sut.build().unwrap();
             pretty_assertions::assert_eq!(
                 built,
-                MatrixWithFactorSourceIds::with_roles(
+                MatrixOfFactorSourceIds::with_roles(
                     RoleWithFactorSourceIds::primary_with_factors(
                         2,
                         [
@@ -1363,7 +1363,7 @@ mod shield_configs {
             let built = sut.build().unwrap();
             pretty_assertions::assert_eq!(
                 built,
-                MatrixWithFactorSourceIds::with_roles(
+                MatrixOfFactorSourceIds::with_roles(
                     RoleWithFactorSourceIds::primary_with_factors(
                         2,
                         [
@@ -1405,7 +1405,7 @@ mod shield_configs {
             let built = sut.build().unwrap();
             pretty_assertions::assert_eq!(
                 built,
-                MatrixWithFactorSourceIds::with_roles(
+                MatrixOfFactorSourceIds::with_roles(
                     RoleWithFactorSourceIds::primary_with_factors(
                         1,
                         [FactorSourceID::sample_device(),],
@@ -1443,7 +1443,7 @@ mod shield_configs {
             let built = sut.build().unwrap();
             pretty_assertions::assert_eq!(
                 built,
-                MatrixWithFactorSourceIds::with_roles(
+                MatrixOfFactorSourceIds::with_roles(
                     RoleWithFactorSourceIds::primary_with_factors(
                         1,
                         [FactorSourceID::sample_ledger(),],
@@ -1485,7 +1485,7 @@ mod shield_configs {
             let built = sut.build().unwrap();
             pretty_assertions::assert_eq!(
                 built,
-                MatrixWithFactorSourceIds::with_roles(
+                MatrixOfFactorSourceIds::with_roles(
                     RoleWithFactorSourceIds::primary_with_factors(
                         2,
                         [
@@ -1531,7 +1531,7 @@ mod shield_configs {
             let built = sut.build().unwrap();
             pretty_assertions::assert_eq!(
                 built,
-                MatrixWithFactorSourceIds::with_roles(
+                MatrixOfFactorSourceIds::with_roles(
                     RoleWithFactorSourceIds::primary_with_factors(
                         2,
                         [
@@ -1573,7 +1573,7 @@ mod shield_configs {
             let built = sut.build().unwrap();
             pretty_assertions::assert_eq!(
                 built,
-                MatrixWithFactorSourceIds::with_roles(
+                MatrixOfFactorSourceIds::with_roles(
                     RoleWithFactorSourceIds::primary_with_factors(
                         0,
                         [],
@@ -1611,7 +1611,7 @@ mod shield_configs {
             let built = sut.build().unwrap();
             pretty_assertions::assert_eq!(
                 built,
-                MatrixWithFactorSourceIds::with_roles(
+                MatrixOfFactorSourceIds::with_roles(
                     RoleWithFactorSourceIds::primary_with_factors(
                         0,
                         [],
@@ -1655,7 +1655,7 @@ mod shield_configs {
             let built = sut.build().unwrap();
             pretty_assertions::assert_eq!(
                 built,
-                MatrixWithFactorSourceIds::with_roles(
+                MatrixOfFactorSourceIds::with_roles(
                     RoleWithFactorSourceIds::primary_with_factors(
                         2,
                         [
@@ -1706,7 +1706,7 @@ mod shield_configs {
             let built = sut.build().unwrap();
             pretty_assertions::assert_eq!(
                 built,
-                MatrixWithFactorSourceIds::with_roles(
+                MatrixOfFactorSourceIds::with_roles(
                     RoleWithFactorSourceIds::primary_with_factors(
                         2,
                         [

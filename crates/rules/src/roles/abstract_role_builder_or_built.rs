@@ -18,22 +18,47 @@ pub struct AbstractRoleBuilderOrBuilt<F, T> {
 pub(crate) type AbstractBuiltRoleWithFactor<F> = AbstractRoleBuilderOrBuilt<F, ()>;
 pub(crate) type RoleBuilder = AbstractRoleBuilderOrBuilt<FactorSourceID, RoleWithFactorSourceIds>;
 
-impl<F, T> AbstractRoleBuilderOrBuilt<F, T> {
+impl<F: IsMaybeKeySpaceAware, T> AbstractRoleBuilderOrBuilt<F, T> {
     pub(crate) fn with_factors(
         role: RoleKind,
         threshold: u8,
         threshold_factors: impl IntoIterator<Item = F>,
         override_factors: impl IntoIterator<Item = F>,
     ) -> Self {
+        let assert_is_securified = |factors: &Vec<F>| -> Result<(), CommonError> {
+            let trait_objects: Vec<&dyn IsMaybeKeySpaceAware> = factors
+                .iter()
+                .map(|x| x as &dyn IsMaybeKeySpaceAware)
+                .collect();
+            if trait_objects
+                .iter()
+                .filter_map(|x| x.maybe_key_space())
+                .any(|x| x != KeySpace::Securified)
+            {
+                return Err(crate::CommonError::IndexUnsecurifiedExpectedSecurified);
+            }
+            Ok(())
+        };
+
+        let threshold_factors = threshold_factors.into_iter().collect();
+        let override_factors = override_factors.into_iter().collect();
+
+        assert_is_securified(&threshold_factors)
+            .expect("Should not have allowed building of invalid Role");
+        assert_is_securified(&override_factors)
+            .expect("Should not have allowed building of invalid Role");
+
         Self {
             built: PhantomData,
             role,
             threshold,
-            threshold_factors: threshold_factors.into_iter().collect(),
-            override_factors: override_factors.into_iter().collect(),
+            threshold_factors,
+            override_factors,
         }
     }
+}
 
+impl<F, T> AbstractRoleBuilderOrBuilt<F, T> {
     pub fn all_factors(&self) -> Vec<&F> {
         self.threshold_factors
             .iter()

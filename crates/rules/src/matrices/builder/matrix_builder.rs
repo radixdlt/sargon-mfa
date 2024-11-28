@@ -3,13 +3,10 @@
 use crate::prelude::*;
 
 pub type MatrixBuilderMutateResult = Result<(), MatrixBuilderValidation>;
-pub type MatrixBuilderBuildResult = Result<MatrixWithFactorSourceIds, MatrixBuilderValidation>;
+pub type MatrixBuilderBuildResult = Result<MatrixOfFactorSourceIds, MatrixBuilderValidation>;
 
-pub type MatrixBuilder = AbstractMatrixBuilderOrBuilt<
-    FactorSourceID,
-    MatrixWithFactorSourceIds,
-    RoleWithFactorSourceIds,
->;
+pub type MatrixBuilder =
+    AbstractMatrixBuilderOrBuilt<FactorSourceID, MatrixOfFactorSourceIds, RoleWithFactorSourceIds>;
 
 // ==================
 // ===== PUBLIC =====
@@ -41,7 +38,7 @@ impl MatrixBuilder {
             .build()
             .into_matrix_err(RoleKind::Confirmation)?;
 
-        let built = MatrixWithFactorSourceIds {
+        let built = MatrixOfFactorSourceIds {
             built: PhantomData,
             primary_role: primary,
             recovery_role: recovery,

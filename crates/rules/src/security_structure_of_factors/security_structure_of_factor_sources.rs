@@ -5,12 +5,12 @@ pub type SecurityStructureOfFactorSources = AbstractSecurityStructure<FactorSour
 impl HasSampleValues for SecurityStructureOfFactorSources {
     fn sample() -> Self {
         let metadata = sargon::SecurityStructureMetadata::sample();
-        Self::with_metadata(metadata, MatrixWithFactorSources::sample())
+        Self::with_metadata(metadata, MatrixOfFactorSources::sample())
     }
 
     fn sample_other() -> Self {
         let metadata = sargon::SecurityStructureMetadata::sample_other();
-        Self::with_metadata(metadata, MatrixWithFactorSources::sample_other())
+        Self::with_metadata(metadata, MatrixOfFactorSources::sample_other())
     }
 }
 

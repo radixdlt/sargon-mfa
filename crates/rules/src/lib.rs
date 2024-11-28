@@ -5,10 +5,14 @@ mod security_structure_of_factors;
 
 pub mod prelude {
     pub(crate) use sargon::{
-        CommonError, DisplayName, FactorInstance, FactorSource, FactorSourceID,
-        FactorSourceIDFromHash, FactorSourceKind, FactorSources, HasSampleValues, Identifiable,
-        IndexSet, RoleKind,
+        BaseIsFactorSource, CommonError, DisplayName, FactorInstance, FactorInstances,
+        FactorSource, FactorSourceID, FactorSourceIDFromHash, FactorSourceKind, FactorSources,
+        HasSampleValues, HierarchicalDeterministicFactorInstance, Identifiable, IndexMap, IndexSet,
+        IsMaybeKeySpaceAware, KeySpace, RoleKind,
     };
+
+    #[cfg(test)]
+    pub(crate) use sargon::JustKV;
 
     #[allow(unused_imports)]
     pub use crate::matrices::*;
