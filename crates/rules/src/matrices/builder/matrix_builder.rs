@@ -5,8 +5,14 @@ use crate::prelude::*;
 pub type MatrixBuilderMutateResult = Result<(), MatrixBuilderValidation>;
 pub type MatrixBuilderBuildResult = Result<MatrixOfFactorSourceIds, MatrixBuilderValidation>;
 
-pub type MatrixBuilder =
-    AbstractMatrixBuilderOrBuilt<FactorSourceID, MatrixOfFactorSourceIds, RoleWithFactorSourceIds>;
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct Built;
+
+pub type MatrixBuilder = AbstractMatrixBuilderOrBuilt<
+    FactorSourceID,
+    MatrixOfFactorSourceIds,
+    Built, // this is HACKY
+>;
 
 // ==================
 // ===== PUBLIC =====
@@ -15,9 +21,9 @@ impl MatrixBuilder {
     pub fn new() -> Self {
         Self {
             built: PhantomData,
-            primary_role: RoleBuilder::primary(),
-            recovery_role: RoleBuilder::recovery(),
-            confirmation_role: RoleBuilder::confirmation(),
+            primary_role: PrimaryRoleBuilder::new(),
+            recovery_role: RecoveryRoleBuilder::new(),
+            confirmation_role: ConfirmationRoleBuilder::new(),
             number_of_days_until_auto_confirm: Self::DEFAULT_NUMBER_OF_DAYS_UNTIL_AUTO_CONFIRM,
         }
     }

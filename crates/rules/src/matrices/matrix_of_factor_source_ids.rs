@@ -5,9 +5,9 @@ pub type MatrixOfFactorSourceIds = AbstractMatrixBuilt<FactorSourceID>;
 #[cfg(test)]
 impl MatrixOfFactorSourceIds {
     pub(crate) fn with_roles_and_days(
-        primary: RoleWithFactorSourceIds,
-        recovery: RoleWithFactorSourceIds,
-        confirmation: RoleWithFactorSourceIds,
+        primary: PrimaryRoleWithFactorSourceIds,
+        recovery: RecoveryRoleWithFactorSourceIds,
+        confirmation: ConfirmationRoleWithFactorSourceIds,
         number_of_days_until_auto_confirm: u16,
     ) -> Self {
         assert_eq!(primary.role(), sargon::RoleKind::Primary);
@@ -23,9 +23,9 @@ impl MatrixOfFactorSourceIds {
     }
 
     pub(crate) fn with_roles(
-        primary: RoleWithFactorSourceIds,
-        recovery: RoleWithFactorSourceIds,
-        confirmation: RoleWithFactorSourceIds,
+        primary: PrimaryRoleWithFactorSourceIds,
+        recovery: RecoveryRoleWithFactorSourceIds,
+        confirmation: ConfirmationRoleWithFactorSourceIds,
     ) -> Self {
         Self::with_roles_and_days(
             primary,
@@ -37,15 +37,15 @@ impl MatrixOfFactorSourceIds {
 }
 
 impl MatrixOfFactorSourceIds {
-    pub fn primary(&self) -> &RoleWithFactorSourceIds {
+    pub fn primary(&self) -> &PrimaryRoleWithFactorSourceIds {
         &self.primary_role
     }
 
-    pub fn recovery(&self) -> &RoleWithFactorSourceIds {
+    pub fn recovery(&self) -> &RecoveryRoleWithFactorSourceIds {
         &self.recovery_role
     }
 
-    pub fn confirmation(&self) -> &RoleWithFactorSourceIds {
+    pub fn confirmation(&self) -> &ConfirmationRoleWithFactorSourceIds {
         &self.confirmation_role
     }
 }
@@ -142,7 +142,6 @@ mod tests {
             r#"
             {
               "primary_role": {
-                "role": "primary",
                 "threshold": 2,
                 "threshold_factors": [
                   {
@@ -163,7 +162,6 @@ mod tests {
                 "override_factors": []
               },
               "recovery_role": {
-                "role": "recovery",
                 "threshold": 0,
                 "threshold_factors": [],
                 "override_factors": [
@@ -184,7 +182,6 @@ mod tests {
                 ]
               },
               "confirmation_role": {
-                "role": "confirmation",
                 "threshold": 0,
                 "threshold_factors": [],
                 "override_factors": [
@@ -211,7 +208,6 @@ mod tests {
             r#"
             {
               "primary_role": {
-                "role": "primary",
                 "threshold": 2,
                 "threshold_factors": [
                   {
@@ -232,7 +228,6 @@ mod tests {
                 "override_factors": []
               },
               "recovery_role": {
-                "role": "recovery",
                 "threshold": 0,
                 "threshold_factors": [],
                 "override_factors": [
@@ -253,7 +248,6 @@ mod tests {
                 ]
               },
               "confirmation_role": {
-                "role": "confirmation",
                 "threshold": 0,
                 "threshold_factors": [],
                 "override_factors": [

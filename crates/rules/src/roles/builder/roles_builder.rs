@@ -1,44 +1,33 @@
 use crate::prelude::*;
 
-impl RoleBuilder {
-    pub fn primary() -> Self {
-        Self::new(RoleKind::Primary)
-    }
-
-    pub fn recovery() -> Self {
-        Self::new(RoleKind::Recovery)
-    }
-
-    pub fn confirmation() -> Self {
-        Self::new(RoleKind::Confirmation)
-    }
-}
+pub type PrimaryRoleBuilder = RoleBuilder<{ ROLE_PRIMARY }>;
+pub type RecoveryRoleBuilder = RoleBuilder<{ ROLE_RECOVERY }>;
+pub type ConfirmationRoleBuilder = RoleBuilder<{ ROLE_CONFIRMATION }>;
 
 #[cfg(test)]
-impl RoleWithFactorSourceIds {
+impl PrimaryRoleWithFactorSourceIds {
     pub(crate) fn primary_with_factors(
         threshold: u8,
         threshold_factors: impl IntoIterator<Item = FactorSourceID>,
         override_factors: impl IntoIterator<Item = FactorSourceID>,
     ) -> Self {
-        Self::with_factors(
-            RoleKind::Primary,
-            threshold,
-            threshold_factors,
-            override_factors,
-        )
+        Self::with_factors(threshold, threshold_factors, override_factors)
     }
+}
 
+impl RecoveryRoleWithFactorSourceIds {
     pub(crate) fn recovery_with_factors(
         override_factors: impl IntoIterator<Item = FactorSourceID>,
     ) -> Self {
-        Self::with_factors(RoleKind::Recovery, 0, vec![], override_factors)
+        Self::with_factors(0, vec![], override_factors)
     }
+}
 
+impl ConfirmationRoleWithFactorSourceIds {
     pub(crate) fn confirmation_with_factors(
         override_factors: impl IntoIterator<Item = FactorSourceID>,
     ) -> Self {
-        Self::with_factors(RoleKind::Confirmation, 0, vec![], override_factors)
+        Self::with_factors(0, vec![], override_factors)
     }
 }
 
@@ -210,19 +199,20 @@ impl FactorSourceInRoleBuilderValidationStatus {
     }
 }
 
-pub type RoleBuilderMutateResult = Result<(), RoleBuilderValidation>;
-pub type RoleBuilderBuildResult = Result<RoleWithFactorSourceIds, RoleBuilderValidation>;
-
 use BasicViolation::*;
 use ForeverInvalidReason::*;
 use NotYetValidReason::*;
 use RoleKind::*;
 
-impl RoleBuilder {
-    pub(crate) fn build(self) -> RoleBuilderBuildResult {
+pub type RoleBuilderMutateResult = Result<(), RoleBuilderValidation>;
+
+impl<const R: u8> RoleBuilder<R> {
+    pub type RoleBuilderBuildResult = Result<RoleWithFactorSourceIds<R>, RoleBuilderValidation>;
+
+    pub(crate) fn build(self) -> Self::RoleBuilderBuildResult {
         self.validate().map(|_| {
             RoleWithFactorSourceIds::with_factors(
-                self.role(),
+                // self.role(),
                 self.get_threshold(),
                 self.get_threshold_factors().clone(),
                 self.get_override_factors().clone(),
@@ -292,7 +282,7 @@ impl RoleBuilder {
     /// Validates `self` by "replaying" the addition of each factor source in `self` to a
     /// "simulation" (clone). If the simulation is valid, then `self` is valid.
     pub(crate) fn validate(&self) -> RoleBuilderMutateResult {
-        let mut simulation = Self::new(self.role());
+        let mut simulation = Self::new();
 
         // Validate override factors
         for override_factor in self.get_override_factors() {
@@ -548,7 +538,7 @@ impl RoleBuilder {
 // =======================
 // ======== RULES ========
 // =======================
-impl RoleBuilder {
+impl<const R: u8> RoleBuilder<R> {
     fn validation_for_addition_of_password_to_primary(
         &self,
         factor_list_kind: FactorListKind,

@@ -54,20 +54,17 @@ impl MatrixOfFactorInstances {
         let instances = &consuming_instances.clone();
 
         let primary_role =
-            RoleWithFactorInstances::fulfilling_role_of_factor_sources_with_factor_instances(
-                RoleKind::Primary,
+            PrimaryRoleWithFactorInstances::fulfilling_role_of_factor_sources_with_factor_instances(
                 instances,
                 &matrix_of_factor_sources,
             )?;
         let recovery_role =
-            RoleWithFactorInstances::fulfilling_role_of_factor_sources_with_factor_instances(
-                RoleKind::Recovery,
+            RecoveryRoleWithFactorInstances::fulfilling_role_of_factor_sources_with_factor_instances(
                 instances,
                 &matrix_of_factor_sources,
             )?;
         let confirmation_role =
-            RoleWithFactorInstances::fulfilling_role_of_factor_sources_with_factor_instances(
-                RoleKind::Confirmation,
+            ConfirmationRoleWithFactorInstances::fulfilling_role_of_factor_sources_with_factor_instances(
                 instances,
                 &matrix_of_factor_sources,
             )?;
@@ -154,7 +151,6 @@ mod tests {
             r#"
             {
               "primary_role": {
-                "role": "primary",
                 "threshold": 1,
                 "threshold_factors": [
                   {
@@ -212,7 +208,6 @@ mod tests {
                 ]
               },
               "recovery_role": {
-                "role": "recovery",
                 "threshold": 0,
                 "threshold_factors": [],
                 "override_factors": [
@@ -244,7 +239,6 @@ mod tests {
                 ]
               },
               "confirmation_role": {
-                "role": "confirmation",
                 "threshold": 0,
                 "threshold_factors": [],
                 "override_factors": [

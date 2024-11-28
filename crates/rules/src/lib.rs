@@ -1,3 +1,6 @@
+#![allow(incomplete_features)]
+#![feature(inherent_associated_types)]
+
 mod matrices;
 mod move_to_sargon;
 mod roles;

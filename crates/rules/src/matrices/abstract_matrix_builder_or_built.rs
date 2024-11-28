@@ -6,9 +6,9 @@ pub struct AbstractMatrixBuilderOrBuilt<F, T, U> {
     #[doc(hidden)]
     pub(crate) built: PhantomData<T>,
 
-    pub(crate) primary_role: AbstractRoleBuilderOrBuilt<F, U>,
-    pub(crate) recovery_role: AbstractRoleBuilderOrBuilt<F, U>,
-    pub(crate) confirmation_role: AbstractRoleBuilderOrBuilt<F, U>,
+    pub(crate) primary_role: AbstractRoleBuilderOrBuilt<{ ROLE_PRIMARY }, F, U>,
+    pub(crate) recovery_role: AbstractRoleBuilderOrBuilt<{ ROLE_RECOVERY }, F, U>,
+    pub(crate) confirmation_role: AbstractRoleBuilderOrBuilt<{ ROLE_CONFIRMATION }, F, U>,
 
     pub(crate) number_of_days_until_auto_confirm: u16,
 }
