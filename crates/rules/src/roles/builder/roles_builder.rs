@@ -15,6 +15,7 @@ impl PrimaryRoleWithFactorSourceIds {
     }
 }
 
+#[cfg(test)]
 impl RecoveryRoleWithFactorSourceIds {
     pub(crate) fn recovery_with_factors(
         override_factors: impl IntoIterator<Item = FactorSourceID>,
@@ -23,6 +24,7 @@ impl RecoveryRoleWithFactorSourceIds {
     }
 }
 
+#[cfg(test)]
 impl ConfirmationRoleWithFactorSourceIds {
     pub(crate) fn confirmation_with_factors(
         override_factors: impl IntoIterator<Item = FactorSourceID>,

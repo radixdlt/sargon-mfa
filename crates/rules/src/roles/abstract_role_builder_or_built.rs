@@ -80,19 +80,18 @@ impl<const R: u8, F, T> AbstractRoleBuilderOrBuilt<R, F, T> {
         self.threshold
     }
 }
-pub(crate) const ROLE_UNSPECIFIED: u8 = 0;
 pub(crate) const ROLE_PRIMARY: u8 = 1;
 pub(crate) const ROLE_RECOVERY: u8 = 2;
 pub(crate) const ROLE_CONFIRMATION: u8 = 3;
 
 pub(crate) trait RoleFromDiscriminator {
-    fn from_u8(disciminator: u8) -> Option<Self>
+    fn from_u8(discriminator: u8) -> Option<Self>
     where
         Self: Sized;
 }
 impl RoleFromDiscriminator for RoleKind {
-    fn from_u8(disciminator: u8) -> Option<Self> {
-        match disciminator {
+    fn from_u8(discriminator: u8) -> Option<Self> {
+        match discriminator {
             ROLE_PRIMARY => Some(RoleKind::Primary),
             ROLE_RECOVERY => Some(RoleKind::Recovery),
             ROLE_CONFIRMATION => Some(RoleKind::Confirmation),
