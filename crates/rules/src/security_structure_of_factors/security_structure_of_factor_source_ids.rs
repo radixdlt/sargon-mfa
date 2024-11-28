@@ -46,7 +46,6 @@ mod tests {
               },
               "matrix_of_factors": {
                 "primary_role": {
-                  "role": "primary",
                   "threshold": 2,
                   "threshold_factors": [
                     {
@@ -67,7 +66,6 @@ mod tests {
                   "override_factors": []
                 },
                 "recovery_role": {
-                  "role": "recovery",
                   "threshold": 0,
                   "threshold_factors": [],
                   "override_factors": [
@@ -88,7 +86,6 @@ mod tests {
                   ]
                 },
                 "confirmation_role": {
-                  "role": "confirmation",
                   "threshold": 0,
                   "threshold_factors": [],
                   "override_factors": [
@@ -123,7 +120,6 @@ mod tests {
               },
               "matrix_of_factors": {
                 "primary_role": {
-                  "role": "primary",
                   "threshold": 2,
                   "threshold_factors": [
                     {
@@ -144,7 +140,6 @@ mod tests {
                   "override_factors": []
                 },
                 "recovery_role": {
-                  "role": "recovery",
                   "threshold": 0,
                   "threshold_factors": [],
                   "override_factors": [
@@ -165,7 +160,6 @@ mod tests {
                   ]
                 },
                 "confirmation_role": {
-                  "role": "confirmation",
                   "threshold": 0,
                   "threshold_factors": [],
                   "override_factors": [
