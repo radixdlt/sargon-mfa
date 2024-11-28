@@ -2,6 +2,9 @@ use crate::prelude::*;
 
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error, uniffi::Error)]
 pub enum CommonError {
+    #[error("Sargon")]
+    Sargon(String),
+
     #[error("AlreadyBuilt")]
     AlreadyBuilt,
 

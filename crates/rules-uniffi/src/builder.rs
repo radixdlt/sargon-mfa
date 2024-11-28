@@ -16,8 +16,7 @@ pub struct SecurityShieldBuilder {
 #[derive(Debug, PartialEq, Eq, Hash, uniffi::Object)]
 #[uniffi::export(Debug, Eq, Hash)]
 pub struct SecurityStructureOfFactorSourceIds {
-    wrapped_matrix: MatrixWithFactorSourceIds,
-    name: String,
+    pub wrapped: rules::SecurityStructureOfFactorSourceIds,
 }
 
 impl SecurityShieldBuilder {
@@ -226,11 +225,14 @@ impl SecurityShieldBuilder {
             .build()
             .map_err(|e| CommonError::BuildError(format!("{:?}", e)))?;
 
-        let shield = SecurityStructureOfFactorSourceIds {
-            wrapped_matrix,
-            name,
-        };
+        let display_name =
+            sargon::DisplayName::new(name).map_err(|e| CommonError::Sargon(format!("{:?}", e)))?;
+        let wrapped_shield =
+            rules::SecurityStructureOfFactorSourceIds::new(display_name, wrapped_matrix);
 
+        let shield = SecurityStructureOfFactorSourceIds {
+            wrapped: wrapped_shield,
+        };
         Ok(shield)
     }
 }
@@ -264,15 +266,27 @@ mod tests {
 
         let shield = sut.build("test".to_owned()).unwrap();
         assert_eq!(
-            shield.wrapped_matrix.primary().get_override_factors(),
+            shield
+                .wrapped
+                .matrix_of_factors
+                .primary()
+                .get_override_factors(),
             &vec![FactorSourceID::sample_arculus().inner]
         );
         assert_eq!(
-            shield.wrapped_matrix.recovery().get_override_factors(),
+            shield
+                .wrapped
+                .matrix_of_factors
+                .recovery()
+                .get_override_factors(),
             &vec![FactorSourceID::sample_ledger().inner]
         );
         assert_eq!(
-            shield.wrapped_matrix.confirmation().get_override_factors(),
+            shield
+                .wrapped
+                .matrix_of_factors
+                .confirmation()
+                .get_override_factors(),
             &vec![FactorSourceID::sample_device().inner]
         );
     }
