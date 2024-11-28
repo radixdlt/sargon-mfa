@@ -63,6 +63,22 @@ mod tests {
     }
 
     #[test]
+    fn get_all_factors() {
+        let sut = SUT::sample_primary();
+        let factors = sut.all_factors();
+        assert_eq!(
+            factors.len(),
+            sut.get_override_factors().len() + sut.get_threshold_factors().len()
+        );
+    }
+
+    #[test]
+    fn get_threshold() {
+        let sut = SUT::sample_primary();
+        assert_eq!(sut.get_threshold(), 2);
+    }
+
+    #[test]
     fn assert_json_sample_primary() {
         let sut = SUT::sample_primary();
         assert_eq_after_json_roundtrip(

@@ -788,7 +788,7 @@ mod confirmation_in_isolation {
 
             // Assert
             let built = sut.build().unwrap();
-            assert!(built.threshold_factors().is_empty());
+            assert!(built.get_threshold_factors().is_empty());
             assert_eq!(
                 built,
                 RoleWithFactorSourceIds::confirmation_with_factors([sample(), sample_other()])
@@ -1063,12 +1063,12 @@ mod primary_in_isolation {
             let fs = sample();
             sut.add_factor_source_to_list(fs, list()).unwrap();
             sut.set_threshold(1).unwrap();
-            assert_eq!(sut.threshold(), 1);
+            assert_eq!(sut.get_threshold(), 1);
             assert_eq!(
                 sut.remove_factor_source(&fs),
                 Err(Validation::NotYetValid(RoleMustHaveAtLeastOneFactor))
             );
-            assert_eq!(sut.threshold(), 0);
+            assert_eq!(sut.get_threshold(), 0);
         }
 
         #[test]
@@ -1081,10 +1081,10 @@ mod primary_in_isolation {
             sut.add_factor_source_to_list(FactorSourceID::sample_arculus_other(), list())
                 .unwrap();
             sut.set_threshold(3).unwrap();
-            assert_eq!(sut.threshold(), 3);
+            assert_eq!(sut.get_threshold(), 3);
             sut.remove_factor_source(&fs0).unwrap();
             sut.remove_factor_source(&fs1).unwrap();
-            assert_eq!(sut.threshold(), 1);
+            assert_eq!(sut.get_threshold(), 1);
         }
 
         #[test]
@@ -1097,18 +1097,21 @@ mod primary_in_isolation {
             sut.add_factor_source_to_list(fs, FactorListKind::Override)
                 .unwrap();
             sut.set_threshold(2).unwrap();
-            assert_eq!(sut.threshold(), 2);
+            assert_eq!(sut.get_threshold(), 2);
             sut.remove_factor_source(&fs).unwrap();
-            assert_eq!(sut.threshold(), 2);
+            assert_eq!(sut.get_threshold(), 2);
 
             let built = sut.build().unwrap();
-            assert_eq!(built.threshold(), 2);
+            assert_eq!(built.get_threshold(), 2);
 
             assert_eq!(built.role(), RoleKind::Primary);
 
-            assert_eq!(built.threshold_factors(), &vec![sample(), sample_other()]);
+            assert_eq!(
+                built.get_threshold_factors(),
+                &vec![sample(), sample_other()]
+            );
 
-            assert_eq!(built.override_factors(), &Vec::new());
+            assert_eq!(built.get_override_factors(), &Vec::new());
         }
 
         #[test]

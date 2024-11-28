@@ -262,13 +262,13 @@ impl MatrixBuilder {
     fn validate_if_primary_has_single_it_must_not_be_used_by_any_other_role(
         &self,
     ) -> MatrixBuilderMutateResult {
-        let primary_has_single_factor = self.primary_role.factors().len() == 1;
+        let primary_has_single_factor = self.primary_role.all_factors().len() == 1;
         if primary_has_single_factor {
-            let primary_factors = self.primary_role.factors();
+            let primary_factors = self.primary_role.all_factors();
             let primary_factor = primary_factors.first().unwrap();
-            let recovery_set = HashSet::<_>::from_iter(self.recovery_role.override_factors());
+            let recovery_set = HashSet::<_>::from_iter(self.recovery_role.get_override_factors());
             let confirmation_set =
-                HashSet::<_>::from_iter(self.confirmation_role.override_factors());
+                HashSet::<_>::from_iter(self.confirmation_role.get_override_factors());
             if recovery_set.contains(primary_factor) || confirmation_set.contains(primary_factor) {
                 return Err(MatrixBuilderValidation::CombinationViolation(
                     MatrixRolesInCombinationViolation::NotYetValid(MatrixRolesInCombinationNotYetValid::SingleFactorUsedInPrimaryMustNotBeUsedInAnyOtherRole),
@@ -281,8 +281,9 @@ impl MatrixBuilder {
     fn validate_no_factor_may_be_used_in_both_recovery_and_confirmation(
         &self,
     ) -> MatrixBuilderMutateResult {
-        let recovery_set = HashSet::<_>::from_iter(self.recovery_role.override_factors());
-        let confirmation_set = HashSet::<_>::from_iter(self.confirmation_role.override_factors());
+        let recovery_set = HashSet::<_>::from_iter(self.recovery_role.get_override_factors());
+        let confirmation_set =
+            HashSet::<_>::from_iter(self.confirmation_role.get_override_factors());
         let intersection = recovery_set
             .intersection(&confirmation_set)
             .collect::<HashSet<_>>();

@@ -223,9 +223,9 @@ impl RoleBuilder {
         self.validate().map(|_| {
             RoleWithFactorSourceIds::with_factors(
                 self.role(),
-                self.threshold(),
-                self.threshold_factors().clone(),
-                self.override_factors().clone(),
+                self.get_threshold(),
+                self.get_threshold_factors().clone(),
+                self.get_override_factors().clone(),
             )
         })
     }
@@ -245,18 +245,18 @@ impl RoleBuilder {
     }
 
     fn override_contains_factor_source(&self, factor_source_id: &FactorSourceID) -> bool {
-        self.override_factors().contains(factor_source_id)
+        self.get_override_factors().contains(factor_source_id)
     }
 
     fn threshold_contains_factor_source(&self, factor_source_id: &FactorSourceID) -> bool {
-        self.threshold_factors().contains(factor_source_id)
+        self.get_threshold_factors().contains(factor_source_id)
     }
 
     fn override_contains_factor_source_of_kind(
         &self,
         factor_source_kind: FactorSourceKind,
     ) -> bool {
-        self.override_factors()
+        self.get_override_factors()
             .iter()
             .any(|f| f.get_factor_source_kind() == factor_source_kind)
     }
@@ -265,7 +265,7 @@ impl RoleBuilder {
         &self,
         factor_source_kind: FactorSourceKind,
     ) -> bool {
-        self.threshold_factors()
+        self.get_threshold_factors()
             .iter()
             .any(|f| f.get_factor_source_kind() == factor_source_kind)
     }
@@ -295,7 +295,7 @@ impl RoleBuilder {
         let mut simulation = Self::new(self.role());
 
         // Validate override factors
-        for override_factor in self.override_factors() {
+        for override_factor in self.get_override_factors() {
             let validation =
                 simulation.add_factor_source_to_list(*override_factor, FactorListKind::Override);
             match validation.as_ref() {
@@ -307,7 +307,7 @@ impl RoleBuilder {
         }
 
         // Validate threshold factors
-        for threshold_factor in self.threshold_factors() {
+        for threshold_factor in self.get_threshold_factors() {
             let validation =
                 simulation.add_factor_source_to_list(*threshold_factor, FactorListKind::Threshold);
             match validation.as_ref() {
@@ -320,17 +320,17 @@ impl RoleBuilder {
 
         // Validate threshold count
         if self.role() == RoleKind::Primary {
-            if self.threshold_factors().len() < self.threshold() as usize {
+            if self.get_threshold_factors().len() < self.get_threshold() as usize {
                 return RoleBuilderMutateResult::not_yet_valid(
                     NotYetValidReason::ThresholdHigherThanThresholdFactorsLen,
                 );
             }
-            if self.threshold() == 0 && !self.threshold_factors().is_empty() {
+            if self.get_threshold() == 0 && !self.get_threshold_factors().is_empty() {
                 return RoleBuilderMutateResult::not_yet_valid(
                     NotYetValidReason::PrimaryRoleWithThresholdCannotBeZeroWithFactors,
                 );
             }
-        } else if self.threshold() != 0 {
+        } else if self.get_threshold() != 0 {
             match self.role() {
                 Primary => unreachable!("Primary role should have been handled earlier"),
                 Recovery => {
@@ -342,7 +342,7 @@ impl RoleBuilder {
             }
         }
 
-        if self.factors().is_empty() {
+        if self.all_factors().is_empty() {
             return RoleBuilderMutateResult::not_yet_valid(RoleMustHaveAtLeastOneFactor);
         }
 
@@ -464,8 +464,8 @@ impl RoleBuilder {
         }
         if self.threshold_contains_factor_source(factor_source_id) {
             remove(self.mut_threshold_factors());
-            let threshold_factors_len = self.threshold_factors().len() as u8;
-            if self.threshold() > threshold_factors_len {
+            let threshold_factors_len = self.get_threshold_factors().len() as u8;
+            if self.get_threshold() > threshold_factors_len {
                 self.set_threshold(threshold_factors_len)?;
             }
         }
@@ -568,7 +568,7 @@ impl RoleBuilder {
                         PrimaryRoleWithPasswordInThresholdListMustHaveAnotherFactor,
                     );
                 }
-                if self.threshold() < 2 {
+                if self.get_threshold() < 2 {
                     return RoleBuilderMutateResult::not_yet_valid(
                         PrimaryRoleWithPasswordInThresholdListMustThresholdGreaterThanOne,
                     );
@@ -596,8 +596,8 @@ impl RoleBuilder {
                 .collect()
         };
         match factor_list_kind {
-            FactorListKind::Override => filter(self.override_factors()),
-            FactorListKind::Threshold => filter(self.threshold_factors()),
+            FactorListKind::Override => filter(self.get_override_factors()),
+            FactorListKind::Threshold => filter(self.get_threshold_factors()),
         }
     }
 }

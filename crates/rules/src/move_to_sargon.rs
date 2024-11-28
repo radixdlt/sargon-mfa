@@ -7,6 +7,10 @@ pub enum FactorListKind {
     Override,
 }
 
+pub trait HasFactorInstances {
+    fn unique_factor_instances(&self) -> IndexSet<FactorInstance>;
+}
+
 /// TODO move to Sargon!!!!
 pub trait HasFactorSourceKindObjectSafe {
     fn get_factor_source_kind(&self) -> FactorSourceKind;

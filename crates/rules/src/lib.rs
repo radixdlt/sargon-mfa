@@ -4,7 +4,8 @@ mod roles;
 
 pub mod prelude {
     pub(crate) use sargon::{
-        FactorSourceID, FactorSourceIDFromHash, FactorSourceKind, Identifiable, IndexSet, RoleKind,
+        FactorInstance, FactorSource, FactorSourceID, FactorSourceIDFromHash, FactorSourceKind,
+        Identifiable, IndexSet, RoleKind,
     };
 
     #[allow(unused_imports)]

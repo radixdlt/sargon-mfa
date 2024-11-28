@@ -33,6 +33,25 @@ impl<F, T> AbstractRoleBuilderOrBuilt<F, T> {
             override_factors: override_factors.into_iter().collect(),
         }
     }
+
+    pub fn all_factors(&self) -> Vec<&F> {
+        self.threshold_factors
+            .iter()
+            .chain(self.override_factors.iter())
+            .collect()
+    }
+
+    pub fn get_threshold_factors(&self) -> &Vec<F> {
+        &self.threshold_factors
+    }
+
+    pub fn get_override_factors(&self) -> &Vec<F> {
+        &self.override_factors
+    }
+
+    pub fn get_threshold(&self) -> u8 {
+        self.threshold
+    }
 }
 
 impl RoleBuilder {
@@ -50,31 +69,12 @@ impl RoleBuilder {
         self.role
     }
 
-    pub(crate) fn threshold(&self) -> u8 {
-        self.threshold
-    }
-
     pub(crate) fn mut_threshold_factors(&mut self) -> &mut Vec<FactorSourceID> {
         &mut self.threshold_factors
     }
 
     pub(crate) fn mut_override_factors(&mut self) -> &mut Vec<FactorSourceID> {
         &mut self.override_factors
-    }
-
-    pub(crate) fn threshold_factors(&self) -> &Vec<FactorSourceID> {
-        &self.threshold_factors
-    }
-
-    pub(crate) fn override_factors(&self) -> &Vec<FactorSourceID> {
-        &self.override_factors
-    }
-
-    pub(crate) fn factors(&self) -> Vec<&FactorSourceID> {
-        self.threshold_factors
-            .iter()
-            .chain(self.override_factors.iter())
-            .collect()
     }
 
     pub(crate) fn unchecked_add_factor_source_to_list(

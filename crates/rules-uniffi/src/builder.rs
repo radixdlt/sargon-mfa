@@ -264,15 +264,15 @@ mod tests {
 
         let shield = sut.build("test".to_owned()).unwrap();
         assert_eq!(
-            shield.wrapped_matrix.primary().override_factors(),
+            shield.wrapped_matrix.primary().get_override_factors(),
             &vec![FactorSourceID::sample_arculus().inner]
         );
         assert_eq!(
-            shield.wrapped_matrix.recovery().override_factors(),
+            shield.wrapped_matrix.recovery().get_override_factors(),
             &vec![FactorSourceID::sample_ledger().inner]
         );
         assert_eq!(
-            shield.wrapped_matrix.confirmation().override_factors(),
+            shield.wrapped_matrix.confirmation().get_override_factors(),
             &vec![FactorSourceID::sample_device().inner]
         );
     }
