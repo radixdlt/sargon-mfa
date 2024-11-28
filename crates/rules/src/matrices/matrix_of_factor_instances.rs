@@ -145,4 +145,164 @@ mod tests {
             Err(CommonError::MissingFactorMappingInstancesIntoRole)
         ));
     }
+
+    #[test]
+    fn assert_json_sample() {
+        let sut = SUT::sample();
+        assert_eq_after_json_roundtrip(
+            &sut,
+            r#"
+            {
+              "primary_role": {
+                "role": "primary",
+                "threshold": 1,
+                "threshold_factors": [
+                  {
+                    "factorSourceID": {
+                      "discriminator": "fromHash",
+                      "fromHash": {
+                        "kind": "device",
+                        "body": "f1a93d324dd0f2bff89963ab81ed6e0c2ee7e18c0827dc1d3576b2d9f26bbd0a"
+                      }
+                    },
+                    "badge": {
+                      "discriminator": "virtualSource",
+                      "virtualSource": {
+                        "discriminator": "hierarchicalDeterministicPublicKey",
+                        "hierarchicalDeterministicPublicKey": {
+                          "publicKey": {
+                            "curve": "curve25519",
+                            "compressedData": "427969814e15d74c3ff4d9971465cb709d210c8a7627af9466bdaa67bd0929b7"
+                          },
+                          "derivationPath": {
+                            "scheme": "cap26",
+                            "path": "m/44H/1022H/1H/525H/1460H/0S"
+                          }
+                        }
+                      }
+                    }
+                  }
+                ],
+                "override_factors": [
+                  {
+                    "factorSourceID": {
+                      "discriminator": "fromHash",
+                      "fromHash": {
+                        "kind": "device",
+                        "body": "5255999c65076ce9ced5a1881f1a621bba1ce3f1f68a61df462d96822a5190cd"
+                      }
+                    },
+                    "badge": {
+                      "discriminator": "virtualSource",
+                      "virtualSource": {
+                        "discriminator": "hierarchicalDeterministicPublicKey",
+                        "hierarchicalDeterministicPublicKey": {
+                          "publicKey": {
+                            "curve": "curve25519",
+                            "compressedData": "e0293d4979bc303ea4fe361a62baf9c060c7d90267972b05c61eead9ef3eed3e"
+                          },
+                          "derivationPath": {
+                            "scheme": "cap26",
+                            "path": "m/44H/1022H/1H/525H/1460H/0S"
+                          }
+                        }
+                      }
+                    }
+                  }
+                ]
+              },
+              "recovery_role": {
+                "role": "recovery",
+                "threshold": 0,
+                "threshold_factors": [],
+                "override_factors": [
+                  {
+                    "factorSourceID": {
+                      "discriminator": "fromHash",
+                      "fromHash": {
+                        "kind": "device",
+                        "body": "5255999c65076ce9ced5a1881f1a621bba1ce3f1f68a61df462d96822a5190cd"
+                      }
+                    },
+                    "badge": {
+                      "discriminator": "virtualSource",
+                      "virtualSource": {
+                        "discriminator": "hierarchicalDeterministicPublicKey",
+                        "hierarchicalDeterministicPublicKey": {
+                          "publicKey": {
+                            "curve": "curve25519",
+                            "compressedData": "23fa85f95c79684d2768f46ec4379b5e031757b727f76cfd01a50bd4cf8afcff"
+                          },
+                          "derivationPath": {
+                            "scheme": "cap26",
+                            "path": "m/44H/1022H/1H/525H/1460H/237S"
+                          }
+                        }
+                      }
+                    }
+                  }
+                ]
+              },
+              "confirmation_role": {
+                "role": "confirmation",
+                "threshold": 0,
+                "threshold_factors": [],
+                "override_factors": [
+                  {
+                    "factorSourceID": {
+                      "discriminator": "fromHash",
+                      "fromHash": {
+                        "kind": "device",
+                        "body": "f1a93d324dd0f2bff89963ab81ed6e0c2ee7e18c0827dc1d3576b2d9f26bbd0a"
+                      }
+                    },
+                    "badge": {
+                      "discriminator": "virtualSource",
+                      "virtualSource": {
+                        "discriminator": "hierarchicalDeterministicPublicKey",
+                        "hierarchicalDeterministicPublicKey": {
+                          "publicKey": {
+                            "curve": "curve25519",
+                            "compressedData": "10ccd9b906660d49b3fe89651baa1284fc7b19ad2c3d423a7828ec350c0e5fe0"
+                          },
+                          "derivationPath": {
+                            "scheme": "cap26",
+                            "path": "m/44H/1022H/1H/525H/1460H/1S"
+                          }
+                        }
+                      }
+                    }
+                  },
+                  {
+                    "factorSourceID": {
+                      "discriminator": "fromHash",
+                      "fromHash": {
+                        "kind": "device",
+                        "body": "5255999c65076ce9ced5a1881f1a621bba1ce3f1f68a61df462d96822a5190cd"
+                      }
+                    },
+                    "badge": {
+                      "discriminator": "virtualSource",
+                      "virtualSource": {
+                        "discriminator": "hierarchicalDeterministicPublicKey",
+                        "hierarchicalDeterministicPublicKey": {
+                          "publicKey": {
+                            "curve": "curve25519",
+                            "compressedData": "6a92b3338dc74a50e8b3fff896a7e0f43c42742544af52de20353675d8bc7907"
+                          },
+                          "derivationPath": {
+                            "scheme": "cap26",
+                            "path": "m/44H/1022H/1H/525H/1460H/2S"
+                          }
+                        }
+                      }
+                    }
+                  }
+                ]
+              },
+              "number_of_days_until_auto_confirm": 30
+            }
+            "#,
+        );
+    }
 }

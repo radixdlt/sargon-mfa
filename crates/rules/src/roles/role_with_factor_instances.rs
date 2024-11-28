@@ -183,4 +183,72 @@ mod tests {
                 []
             );
     }
+
+    #[test]
+    fn assert_json_sample() {
+        let sut = SUT::sample();
+        assert_eq_after_json_roundtrip(
+            &sut,
+            r#"
+            {
+              "role": "primary",
+              "threshold": 1,
+              "threshold_factors": [
+                {
+                  "factorSourceID": {
+                    "discriminator": "fromHash",
+                    "fromHash": {
+                      "kind": "device",
+                      "body": "f1a93d324dd0f2bff89963ab81ed6e0c2ee7e18c0827dc1d3576b2d9f26bbd0a"
+                    }
+                  },
+                  "badge": {
+                    "discriminator": "virtualSource",
+                    "virtualSource": {
+                      "discriminator": "hierarchicalDeterministicPublicKey",
+                      "hierarchicalDeterministicPublicKey": {
+                        "publicKey": {
+                          "curve": "curve25519",
+                          "compressedData": "427969814e15d74c3ff4d9971465cb709d210c8a7627af9466bdaa67bd0929b7"
+                        },
+                        "derivationPath": {
+                          "scheme": "cap26",
+                          "path": "m/44H/1022H/1H/525H/1460H/0S"
+                        }
+                      }
+                    }
+                  }
+                }
+              ],
+              "override_factors": [
+                {
+                  "factorSourceID": {
+                    "discriminator": "fromHash",
+                    "fromHash": {
+                      "kind": "device",
+                      "body": "5255999c65076ce9ced5a1881f1a621bba1ce3f1f68a61df462d96822a5190cd"
+                    }
+                  },
+                  "badge": {
+                    "discriminator": "virtualSource",
+                    "virtualSource": {
+                      "discriminator": "hierarchicalDeterministicPublicKey",
+                      "hierarchicalDeterministicPublicKey": {
+                        "publicKey": {
+                          "curve": "curve25519",
+                          "compressedData": "e0293d4979bc303ea4fe361a62baf9c060c7d90267972b05c61eead9ef3eed3e"
+                        },
+                        "derivationPath": {
+                          "scheme": "cap26",
+                          "path": "m/44H/1022H/1H/525H/1460H/0S"
+                        }
+                      }
+                    }
+                  }
+                }
+              ]
+            }
+            "#,
+        );
+    }
 }
