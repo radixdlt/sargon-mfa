@@ -1,5 +1,3 @@
-use sargon::HasSampleValues;
-
 use crate::prelude::*;
 
 pub type MatrixWithFactorSourceIds = AbstractMatrixBuilderOrBuilt<FactorSourceID, (), ()>;
