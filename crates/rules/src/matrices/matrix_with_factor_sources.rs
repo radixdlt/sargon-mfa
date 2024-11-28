@@ -1,6 +1,6 @@
 use crate::prelude::*;
 
-pub type MatrixWithFactorSources = AbstractMatrixBuilderOrBuilt<FactorSource, (), ()>;
+pub type MatrixWithFactorSources = AbstractMatrixBuilt<FactorSource>;
 
 impl MatrixWithFactorSources {
     pub fn new(
