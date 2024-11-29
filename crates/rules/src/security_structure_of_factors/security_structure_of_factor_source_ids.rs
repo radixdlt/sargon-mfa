@@ -37,17 +37,17 @@ mod tests {
         assert_eq_after_json_roundtrip(
             &sut,
             r#"
-            {
+                        {
               "metadata": {
                 "id": "ffffffff-ffff-ffff-ffff-ffffffffffff",
                 "displayName": "Spending Account",
                 "createdOn": "2023-09-11T16:05:56.000Z",
                 "lastUpdatedOn": "2023-09-11T16:05:56.000Z"
               },
-              "matrix_of_factors": {
-                "primary_role": {
+              "matrixOfFactors": {
+                "primaryRole": {
                   "threshold": 2,
-                  "threshold_factors": [
+                  "thresholdFactors": [
                     {
                       "discriminator": "fromHash",
                       "fromHash": {
@@ -63,12 +63,12 @@ mod tests {
                       }
                     }
                   ],
-                  "override_factors": []
+                  "overrideFactors": []
                 },
-                "recovery_role": {
+                "recoveryRole": {
                   "threshold": 0,
-                  "threshold_factors": [],
-                  "override_factors": [
+                  "thresholdFactors": [],
+                  "overrideFactors": [
                     {
                       "discriminator": "fromHash",
                       "fromHash": {
@@ -85,10 +85,10 @@ mod tests {
                     }
                   ]
                 },
-                "confirmation_role": {
+                "confirmationRole": {
                   "threshold": 0,
-                  "threshold_factors": [],
-                  "override_factors": [
+                  "thresholdFactors": [],
+                  "overrideFactors": [
                     {
                       "discriminator": "fromHash",
                       "fromHash": {
@@ -98,7 +98,7 @@ mod tests {
                     }
                   ]
                 },
-                "number_of_days_until_auto_confirm": 14
+                "numberOfDaysUntilAutoConfirm": 14
               }
             }
             "#,
@@ -118,11 +118,11 @@ mod tests {
                 "createdOn": "2023-12-24T17:13:56.123Z",
                 "lastUpdatedOn": "2023-12-24T17:13:56.123Z"
               },
-              "matrix_of_factors": {
-                "primary_role": {
+              "matrixOfFactors": {
+                "primaryRole": {
                   "threshold": 0,
-                  "threshold_factors": [],
-                  "override_factors": [
+                  "thresholdFactors": [],
+                  "overrideFactors": [
                     {
                       "discriminator": "fromHash",
                       "fromHash": {
@@ -132,10 +132,10 @@ mod tests {
                     }
                   ]
                 },
-                "recovery_role": {
+                "recoveryRole": {
                   "threshold": 0,
-                  "threshold_factors": [],
-                  "override_factors": [
+                  "thresholdFactors": [],
+                  "overrideFactors": [
                     {
                       "discriminator": "fromHash",
                       "fromHash": {
@@ -145,10 +145,10 @@ mod tests {
                     }
                   ]
                 },
-                "confirmation_role": {
+                "confirmationRole": {
                   "threshold": 0,
-                  "threshold_factors": [],
-                  "override_factors": [
+                  "thresholdFactors": [],
+                  "overrideFactors": [
                     {
                       "discriminator": "fromHash",
                       "fromHash": {
@@ -158,10 +158,10 @@ mod tests {
                     }
                   ]
                 },
-                "number_of_days_until_auto_confirm": 14
+                "numberOfDaysUntilAutoConfirm": 14
               }
             }
-            "#,
+          "#,
         );
     }
 }

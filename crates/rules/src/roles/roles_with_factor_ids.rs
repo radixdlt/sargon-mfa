@@ -128,7 +128,7 @@ mod primary_tests {
             r#"
             {
               "threshold": 2,
-              "threshold_factors": [
+              "thresholdFactors": [
                 {
                   "discriminator": "fromHash",
                   "fromHash": {
@@ -144,7 +144,7 @@ mod primary_tests {
                   }
                 }
               ],
-              "override_factors": []
+              "overrideFactors": []
             }
             "#,
         );
@@ -188,8 +188,8 @@ mod recovery_tests {
             r#"
             {
               "threshold": 0,
-              "threshold_factors": [],
-              "override_factors": [
+              "thresholdFactors": [],
+              "overrideFactors": [
                 {
                   "discriminator": "fromHash",
                   "fromHash": {
@@ -248,8 +248,8 @@ mod confirmation_tests {
             r#"
            {
               "threshold": 0,
-              "threshold_factors": [],
-              "override_factors": [
+              "thresholdFactors": [],
+              "overrideFactors": [
                 {
                   "discriminator": "fromHash",
                   "fromHash": {

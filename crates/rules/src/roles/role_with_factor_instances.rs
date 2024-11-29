@@ -151,9 +151,9 @@ mod primary_tests {
         assert_eq_after_json_roundtrip(
             &sut,
             r#"
-            {
+                        {
               "threshold": 2,
-              "threshold_factors": [
+              "thresholdFactors": [
                 {
                   "factorSourceID": {
                     "discriminator": "fromHash",
@@ -205,7 +205,7 @@ mod primary_tests {
                   }
                 }
               ],
-              "override_factors": []
+              "overrideFactors": []
             }
             "#,
         );

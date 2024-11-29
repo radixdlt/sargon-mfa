@@ -1,6 +1,7 @@
 use crate::prelude::*;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct AbstractMatrixBuilderOrBuilt<F, T, U> {
     #[serde(skip)]
     #[doc(hidden)]
@@ -17,6 +18,20 @@ impl<F, T, U> AbstractMatrixBuilderOrBuilt<F, T, U> {
 }
 
 pub type AbstractMatrixBuilt<F> = AbstractMatrixBuilderOrBuilt<F, (), ()>;
+
+impl<F> AbstractMatrixBuilt<F> {
+    pub fn primary(&self) -> &AbstractBuiltRoleWithFactor<{ ROLE_PRIMARY }, F> {
+        &self.primary_role
+    }
+
+    pub fn recovery(&self) -> &AbstractBuiltRoleWithFactor<{ ROLE_RECOVERY }, F> {
+        &self.recovery_role
+    }
+
+    pub fn confirmation(&self) -> &AbstractBuiltRoleWithFactor<{ ROLE_CONFIRMATION }, F> {
+        &self.confirmation_role
+    }
+}
 
 impl<F: std::cmp::Eq + std::hash::Hash> AbstractMatrixBuilt<F> {
     pub fn all_factors(&self) -> HashSet<&F> {

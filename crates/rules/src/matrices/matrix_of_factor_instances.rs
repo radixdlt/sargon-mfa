@@ -156,9 +156,9 @@ mod tests {
             &sut,
             r#"
             {
-              "primary_role": {
+              "primaryRole": {
                 "threshold": 2,
-                "threshold_factors": [
+                "thresholdFactors": [
                   {
                     "factorSourceID": {
                       "discriminator": "fromHash",
@@ -210,12 +210,12 @@ mod tests {
                     }
                   }
                 ],
-                "override_factors": []
+                "overrideFactors": []
               },
-              "recovery_role": {
+              "recoveryRole": {
                 "threshold": 0,
-                "threshold_factors": [],
-                "override_factors": [
+                "thresholdFactors": [],
+                "overrideFactors": [
                   {
                     "factorSourceID": {
                       "discriminator": "fromHash",
@@ -268,10 +268,10 @@ mod tests {
                   }
                 ]
               },
-              "confirmation_role": {
+              "confirmationRole": {
                 "threshold": 0,
-                "threshold_factors": [],
-                "override_factors": [
+                "thresholdFactors": [],
+                "overrideFactors": [
                   {
                     "factorSourceID": {
                       "discriminator": "fromHash",
@@ -299,7 +299,7 @@ mod tests {
                   }
                 ]
               },
-              "number_of_days_until_auto_confirm": 14
+              "numberOfDaysUntilAutoConfirm": 14
             }
             "#,
         );

@@ -10,10 +10,13 @@ pub mod prelude {
     pub(crate) use sargon::{
         BIP39Passphrase, BaseIsFactorSource, CommonError, DerivationPreset, DisplayName,
         FactorInstance, FactorInstances, FactorSource, FactorSourceID, FactorSourceIDFromHash,
-        FactorSourceKind, FactorSources, HasSampleValues, HierarchicalDeterministicFactorInstance,
-        Identifiable, IndexMap, IndexSet, IsMaybeKeySpaceAware, KeySpace, Mnemonic,
-        MnemonicWithPassphrase, RoleKind,
+        FactorSourceKind, FactorSources, HasRoleKindObjectSafe, HasSampleValues,
+        HierarchicalDeterministicFactorInstance, Identifiable, IndexMap, IndexSet,
+        IsMaybeKeySpaceAware, IsSecurityStateAware, KeySpace, Mnemonic, MnemonicWithPassphrase,
+        RoleKind,
     };
+
+    pub(crate) use itertools::*;
 
     #[cfg(test)]
     pub(crate) use sargon::JustKV;

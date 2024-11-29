@@ -37,20 +37,6 @@ impl MatrixOfFactorSourceIds {
 }
 
 impl MatrixOfFactorSourceIds {
-    pub fn primary(&self) -> &PrimaryRoleWithFactorSourceIds {
-        &self.primary_role
-    }
-
-    pub fn recovery(&self) -> &RecoveryRoleWithFactorSourceIds {
-        &self.recovery_role
-    }
-
-    pub fn confirmation(&self) -> &ConfirmationRoleWithFactorSourceIds {
-        &self.confirmation_role
-    }
-}
-
-impl MatrixOfFactorSourceIds {
     pub fn sample_config_12() -> Self {
         let mut builder = MatrixBuilder::new();
         // Primary
@@ -169,10 +155,10 @@ mod tests {
         assert_eq_after_json_roundtrip(
             &sut,
             r#"
-            {
-              "primary_role": {
+                        {
+              "primaryRole": {
                 "threshold": 2,
-                "threshold_factors": [
+                "thresholdFactors": [
                   {
                     "discriminator": "fromHash",
                     "fromHash": {
@@ -188,12 +174,12 @@ mod tests {
                     }
                   }
                 ],
-                "override_factors": []
+                "overrideFactors": []
               },
-              "recovery_role": {
+              "recoveryRole": {
                 "threshold": 0,
-                "threshold_factors": [],
-                "override_factors": [
+                "thresholdFactors": [],
+                "overrideFactors": [
                   {
                     "discriminator": "fromHash",
                     "fromHash": {
@@ -210,10 +196,10 @@ mod tests {
                   }
                 ]
               },
-              "confirmation_role": {
+              "confirmationRole": {
                 "threshold": 0,
-                "threshold_factors": [],
-                "override_factors": [
+                "thresholdFactors": [],
+                "overrideFactors": [
                   {
                     "discriminator": "fromHash",
                     "fromHash": {
@@ -223,7 +209,7 @@ mod tests {
                   }
                 ]
               },
-              "number_of_days_until_auto_confirm": 14
+              "numberOfDaysUntilAutoConfirm": 14
             }
             "#,
         );
@@ -235,11 +221,11 @@ mod tests {
         assert_eq_after_json_roundtrip(
             &sut,
             r#"
-            {
-              "primary_role": {
+                        {
+              "primaryRole": {
                 "threshold": 0,
-                "threshold_factors": [],
-                "override_factors": [
+                "thresholdFactors": [],
+                "overrideFactors": [
                   {
                     "discriminator": "fromHash",
                     "fromHash": {
@@ -249,10 +235,10 @@ mod tests {
                   }
                 ]
               },
-              "recovery_role": {
+              "recoveryRole": {
                 "threshold": 0,
-                "threshold_factors": [],
-                "override_factors": [
+                "thresholdFactors": [],
+                "overrideFactors": [
                   {
                     "discriminator": "fromHash",
                     "fromHash": {
@@ -262,10 +248,10 @@ mod tests {
                   }
                 ]
               },
-              "confirmation_role": {
+              "confirmationRole": {
                 "threshold": 0,
-                "threshold_factors": [],
-                "override_factors": [
+                "thresholdFactors": [],
+                "overrideFactors": [
                   {
                     "discriminator": "fromHash",
                     "fromHash": {
@@ -275,7 +261,7 @@ mod tests {
                   }
                 ]
               },
-              "number_of_days_until_auto_confirm": 14
+              "numberOfDaysUntilAutoConfirm": 14
             }
             "#,
         );

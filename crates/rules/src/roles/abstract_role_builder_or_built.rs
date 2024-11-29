@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 use crate::prelude::*;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct AbstractRoleBuilderOrBuilt<const R: u8, F, T> {
     #[serde(skip)]
     #[doc(hidden)]
