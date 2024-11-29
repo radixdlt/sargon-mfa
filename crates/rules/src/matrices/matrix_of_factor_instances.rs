@@ -122,6 +122,10 @@ mod tests {
     #[test]
     fn inequality() {
         assert_ne!(SUT::sample(), SUT::sample_other());
+        assert_ne!(
+            SUT::sample().unique_factor_instances(),
+            SUT::sample_other().unique_factor_instances()
+        );
     }
 
     #[test]

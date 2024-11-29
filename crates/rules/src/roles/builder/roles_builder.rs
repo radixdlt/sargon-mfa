@@ -535,6 +535,7 @@ impl<const R: u8> RoleBuilder<R> {
         Ok(())
     }
 
+    #[cfg(not(tarpaulin_include))] // false negative
     fn validation_for_addition_of_factor_source_of_kind_to_list_for_primary(
         &self,
         factor_source_kind: FactorSourceKind,
@@ -568,6 +569,7 @@ impl<const R: u8> RoleBuilder<R> {
         Ok(())
     }
 
+    #[cfg(not(tarpaulin_include))] // false negative
     fn validation_for_addition_of_factor_source_of_kind_to_override_for_confirmation(
         &self,
         factor_source_kind: FactorSourceKind,
@@ -586,6 +588,7 @@ impl<const R: u8> RoleBuilder<R> {
         }
     }
 
+    #[cfg(not(tarpaulin_include))] // false negative
     fn validation_for_addition_of_factor_source_of_kind_to_override_for_recovery(
         &self,
         factor_source_kind: FactorSourceKind,

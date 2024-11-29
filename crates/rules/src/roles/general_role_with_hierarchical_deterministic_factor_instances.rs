@@ -176,13 +176,28 @@ mod test {
     }
 
     #[test]
+    fn test_single_threshold() {
+        pretty_assertions::assert_eq!(
+            SUT::single_threshold(RoleKind::Primary,  HierarchicalDeterministicFactorInstance::sample_mainnet_account_device_factor_fs_1_securified_at_index(0)),
+            SUT::with_factors_and_role(
+                RoleKind::Primary,
+                [
+                    HierarchicalDeterministicFactorInstance::sample_mainnet_account_device_factor_fs_1_securified_at_index(0)
+                    ],
+                1,
+                []
+            ).unwrap()
+        )
+    }
+
+    #[test]
     fn test_get_role() {
         let test = |role: RoleKind| {
             let sut = SUT::single_override(
                 role,
                 HierarchicalDeterministicFactorInstance::sample_mainnet_account_device_factor_fs_0_securified_at_index(0)
             );
-            assert_eq!(sut.role, role);
+            assert_eq!(sut.get_role_kind(), role);
         };
         test(RoleKind::Primary);
         test(RoleKind::Confirmation);
@@ -199,7 +214,7 @@ mod test {
                 RoleKind::Recovery,
                 [],
                 0,
-                r.override_factors()
+                r.get_override_factors()
                     .clone()
                     .into_iter()
                     .map(|f: FactorInstance| {
@@ -222,7 +237,7 @@ mod test {
                 RoleKind::Confirmation,
                 [],
                 0,
-                r.override_factors()
+                r.get_override_factors()
                     .clone()
                     .into_iter()
                     .map(|f: FactorInstance| {

@@ -4,19 +4,15 @@ pub type MatrixOfFactorSources = AbstractMatrixBuilt<FactorSource>;
 
 impl MatrixOfFactorSources {
     pub fn new(
-        matrix_of_factor_source_ids: MatrixOfFactorSourceIds,
+        matrix: MatrixOfFactorSourceIds,
         factor_sources: &FactorSources,
     ) -> Result<Self, CommonError> {
-        let primary_role =
-            RoleWithFactorSources::new(matrix_of_factor_source_ids.primary_role, factor_sources)?;
+        let primary_role = RoleWithFactorSources::new(matrix.primary_role, factor_sources)?;
 
-        let recovery_role =
-            RoleWithFactorSources::new(matrix_of_factor_source_ids.recovery_role, factor_sources)?;
+        let recovery_role = RoleWithFactorSources::new(matrix.recovery_role, factor_sources)?;
 
-        let confirmation_role = RoleWithFactorSources::new(
-            matrix_of_factor_source_ids.confirmation_role,
-            factor_sources,
-        )?;
+        let confirmation_role =
+            RoleWithFactorSources::new(matrix.confirmation_role, factor_sources)?;
 
         if primary_role.role() != RoleKind::Primary
             || recovery_role.role() != RoleKind::Recovery
@@ -30,8 +26,7 @@ impl MatrixOfFactorSources {
             primary_role,
             recovery_role,
             confirmation_role,
-            number_of_days_until_auto_confirm: matrix_of_factor_source_ids
-                .number_of_days_until_auto_confirm,
+            number_of_days_until_auto_confirm: matrix.number_of_days_until_auto_confirm,
         })
     }
 }

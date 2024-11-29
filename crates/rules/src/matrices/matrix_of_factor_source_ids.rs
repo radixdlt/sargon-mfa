@@ -141,6 +141,7 @@ mod tests {
     #[test]
     fn inequality() {
         assert_ne!(SUT::sample(), SUT::sample_other());
+        assert_ne!(SUT::sample(), SUT::sample_config_12());
         assert_ne!(SUT::sample().primary(), SUT::sample_other().primary());
         assert_ne!(SUT::sample().recovery(), SUT::sample_other().recovery());
         assert_ne!(

@@ -134,17 +134,3 @@ impl<const R: u8> RoleBuilder<R> {
         self.threshold = threshold;
     }
 }
-
-impl<const R: u8, F> AbstractBuiltRoleWithFactor<R, F> {
-    pub fn threshold(&self) -> u8 {
-        self.threshold
-    }
-
-    pub fn threshold_factors(&self) -> &Vec<F> {
-        &self.threshold_factors
-    }
-
-    pub fn override_factors(&self) -> &Vec<F> {
-        &self.override_factors
-    }
-}

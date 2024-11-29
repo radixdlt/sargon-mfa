@@ -6,7 +6,7 @@ pub(crate) type RoleWithFactorInstances<const R: u8> =
 impl<const R: u8> RoleWithFactorSources<R> {
     fn from<const F: u8>(other: &RoleWithFactorSources<F>) -> Self {
         Self::with_factors(
-            other.threshold(),
+            other.get_threshold(),
             other.get_threshold_factors().clone(),
             other.get_override_factors().clone(),
         )
