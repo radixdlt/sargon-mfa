@@ -120,26 +120,6 @@ mod tests {
               },
               "matrix_of_factors": {
                 "primary_role": {
-                  "threshold": 2,
-                  "threshold_factors": [
-                    {
-                      "discriminator": "fromHash",
-                      "fromHash": {
-                        "kind": "ledgerHQHardwareWallet",
-                        "body": "ab59987eedd181fe98e512c1ba0f5ff059f11b5c7c56f15614dcc9fe03fec58b"
-                      }
-                    },
-                    {
-                      "discriminator": "fromHash",
-                      "fromHash": {
-                        "kind": "passphrase",
-                        "body": "181ab662e19fac3ad9f08d5c673b286d4a5ed9cd3762356dc9831dc42427c1b9"
-                      }
-                    }
-                  ],
-                  "override_factors": []
-                },
-                "recovery_role": {
                   "threshold": 0,
                   "threshold_factors": [],
                   "override_factors": [
@@ -149,7 +129,13 @@ mod tests {
                         "kind": "device",
                         "body": "f1a93d324dd0f2bff89963ab81ed6e0c2ee7e18c0827dc1d3576b2d9f26bbd0a"
                       }
-                    },
+                    }
+                  ]
+                },
+                "recovery_role": {
+                  "threshold": 0,
+                  "threshold_factors": [],
+                  "override_factors": [
                     {
                       "discriminator": "fromHash",
                       "fromHash": {
@@ -166,8 +152,8 @@ mod tests {
                     {
                       "discriminator": "fromHash",
                       "fromHash": {
-                        "kind": "passphrase",
-                        "body": "181ab662e19fac3ad9f08d5c673b286d4a5ed9cd3762356dc9831dc42427c1b9"
+                        "kind": "ledgerHQHardwareWallet",
+                        "body": "52ef052a0642a94279b296d6b3b17dedc035a7ae37b76c1d60f11f2725100077"
                       }
                     }
                   ]

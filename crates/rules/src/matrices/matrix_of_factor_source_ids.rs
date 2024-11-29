@@ -77,6 +77,29 @@ impl MatrixOfFactorSourceIds {
         builder.build().unwrap()
     }
 
+    pub fn sample_config_24() -> Self {
+        let mut builder = MatrixBuilder::new();
+
+        // Primary
+        // TODO: Ask Matt about this, does he mean Threshold(1) or Override?
+        builder
+            .add_factor_source_to_primary_override(FactorSourceID::sample_device())
+            .unwrap();
+
+        // Recovery
+        builder
+            .add_factor_source_to_recovery_override(FactorSourceID::sample_ledger())
+            .unwrap();
+
+        // Confirmation
+        builder
+            .add_factor_source_to_confirmation_override(FactorSourceID::sample_ledger_other())
+            .unwrap();
+
+        // Build
+        builder.build().unwrap()
+    }
+
     pub fn sample_config_11() -> Self {
         let mut builder = MatrixBuilder::new();
 
@@ -113,7 +136,7 @@ impl HasSampleValues for MatrixOfFactorSourceIds {
     }
 
     fn sample_other() -> Self {
-        Self::sample_config_12()
+        Self::sample_config_24()
     }
 }
 
@@ -132,6 +155,12 @@ mod tests {
     #[test]
     fn inequality() {
         assert_ne!(SUT::sample(), SUT::sample_other());
+        assert_ne!(SUT::sample().primary(), SUT::sample_other().primary());
+        assert_ne!(SUT::sample().recovery(), SUT::sample_other().recovery());
+        assert_ne!(
+            SUT::sample().confirmation(),
+            SUT::sample_other().confirmation()
+        );
     }
 
     #[test]
@@ -208,26 +237,6 @@ mod tests {
             r#"
             {
               "primary_role": {
-                "threshold": 2,
-                "threshold_factors": [
-                  {
-                    "discriminator": "fromHash",
-                    "fromHash": {
-                      "kind": "ledgerHQHardwareWallet",
-                      "body": "ab59987eedd181fe98e512c1ba0f5ff059f11b5c7c56f15614dcc9fe03fec58b"
-                    }
-                  },
-                  {
-                    "discriminator": "fromHash",
-                    "fromHash": {
-                      "kind": "passphrase",
-                      "body": "181ab662e19fac3ad9f08d5c673b286d4a5ed9cd3762356dc9831dc42427c1b9"
-                    }
-                  }
-                ],
-                "override_factors": []
-              },
-              "recovery_role": {
                 "threshold": 0,
                 "threshold_factors": [],
                 "override_factors": [
@@ -237,7 +246,13 @@ mod tests {
                       "kind": "device",
                       "body": "f1a93d324dd0f2bff89963ab81ed6e0c2ee7e18c0827dc1d3576b2d9f26bbd0a"
                     }
-                  },
+                  }
+                ]
+              },
+              "recovery_role": {
+                "threshold": 0,
+                "threshold_factors": [],
+                "override_factors": [
                   {
                     "discriminator": "fromHash",
                     "fromHash": {
@@ -254,8 +269,8 @@ mod tests {
                   {
                     "discriminator": "fromHash",
                     "fromHash": {
-                      "kind": "passphrase",
-                      "body": "181ab662e19fac3ad9f08d5c673b286d4a5ed9cd3762356dc9831dc42427c1b9"
+                      "kind": "ledgerHQHardwareWallet",
+                      "body": "52ef052a0642a94279b296d6b3b17dedc035a7ae37b76c1d60f11f2725100077"
                     }
                   }
                 ]

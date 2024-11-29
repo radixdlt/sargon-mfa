@@ -85,94 +85,47 @@ pub(crate) type RecoveryRoleWithFactorInstances = RoleWithFactorInstances<{ ROLE
 pub(crate) type ConfirmationRoleWithFactorInstances =
     RoleWithFactorInstances<{ ROLE_CONFIRMATION }>;
 
-impl PrimaryRoleWithFactorInstances {
-    // TODO: MFA Rules change this, this might not be compatible with the rules!
-    pub fn sample_primary() -> Self {
-        Self::with_factors(
-            // RoleKind::Primary,
-             1, [
-        HierarchicalDeterministicFactorInstance::sample_mainnet_account_device_factor_fs_0_securified_at_index(0).into()
-       ], [
-        HierarchicalDeterministicFactorInstance::sample_mainnet_account_device_factor_fs_10_securified_at_index(0).into()
-       ])
-    }
-
-    // TODO: MFA Rules change this, this might not be compatible with the rules!
-    pub fn sample_primary_other() -> Self {
-        Self::with_factors(
-            // RoleKind::Primary,
-            1,
-            [HierarchicalDeterministicFactorInstance::sample_mainnet_account_device_factor_fs_0_securified_at_index(10).into(),],
-            [HierarchicalDeterministicFactorInstance::sample_mainnet_account_device_factor_fs_10_securified_at_index(60).into()],
-        )
-    }
-}
-
-impl RecoveryRoleWithFactorInstances {
-    // TODO: MFA Rules change this, this might not be compatible with the rules!
-    pub fn sample_recovery() -> Self {
-        Self::with_factors(
-            // RoleKind::Recovery,
-            0,[], [HierarchicalDeterministicFactorInstance::sample_mainnet_account_device_factor_fs_10_securified_at_index(237).into()]
-        )
-    }
-
-    // TODO: MFA Rules change this, this might not be compatible with the rules!
-    pub fn sample_recovery_other() -> Self {
-        Self::with_factors(
-            // RoleKind::Recovery,
-            0,[], [HierarchicalDeterministicFactorInstance::sample_mainnet_account_device_factor_fs_10_securified_at_index(42).into()]
-        )
-    }
-}
-
-impl ConfirmationRoleWithFactorInstances {
-    // TODO: MFA Rules change this, this might not be compatible with the rules!
-    pub fn sample_confirmation() -> Self {
-        Self::with_factors(
-            // RoleKind::Confirmation,
-            0,[], [HierarchicalDeterministicFactorInstance::sample_mainnet_account_device_factor_fs_0_securified_at_index(1).into(), HierarchicalDeterministicFactorInstance::sample_mainnet_account_device_factor_fs_10_securified_at_index(2).into()]
-        )
-    }
-
-    // TODO: MFA Rules change this, this might not be compatible with the rules!
-    pub fn sample_confirmation_other() -> Self {
-        Self::with_factors(
-            // RoleKind::Confirmation,
-            0,[], [HierarchicalDeterministicFactorInstance::sample_mainnet_account_device_factor_fs_0_securified_at_index(10).into(), HierarchicalDeterministicFactorInstance::sample_mainnet_account_device_factor_fs_10_securified_at_index(20).into()]
-        )
-    }
-}
-/*
-
 impl HasSampleValues for PrimaryRoleWithFactorInstances {
     fn sample() -> Self {
-        Self::sample_primary()
+        MatrixOfFactorInstances::sample().primary_role
     }
 
     fn sample_other() -> Self {
-        Self::sample_primary_other()
+        MatrixOfFactorInstances::sample_other().primary_role
+    }
+}
+
+impl HasSampleValues for ConfirmationRoleWithFactorInstances {
+    fn sample() -> Self {
+        MatrixOfFactorInstances::sample().confirmation_role
+    }
+
+    fn sample_other() -> Self {
+        MatrixOfFactorInstances::sample_other().confirmation_role
+    }
+}
+
+impl HasSampleValues for RecoveryRoleWithFactorInstances {
+    fn sample() -> Self {
+        MatrixOfFactorInstances::sample().recovery_role
+    }
+
+    fn sample_other() -> Self {
+        MatrixOfFactorInstances::sample_other().recovery_role
     }
 }
 
 #[cfg(test)]
-mod tests {
+mod primary_tests {
     use super::*;
 
     #[allow(clippy::upper_case_acronyms)]
-    type SUT = RoleWithFactorInstances;
+    type SUT = PrimaryRoleWithFactorInstances;
 
     #[test]
     fn equality() {
-        assert_eq!(SUT::sample_primary(), SUT::sample_primary());
-        assert_eq!(SUT::sample_primary_other(), SUT::sample_primary_other());
-        assert_eq!(SUT::sample_recovery(), SUT::sample_recovery());
-        assert_eq!(SUT::sample_recovery_other(), SUT::sample_recovery_other());
-        assert_eq!(SUT::sample_confirmation(), SUT::sample_confirmation());
-        assert_eq!(
-            SUT::sample_confirmation_other(),
-            SUT::sample_confirmation_other()
-        );
+        assert_eq!(SUT::sample(), SUT::sample());
+        assert_eq!(SUT::sample_other(), SUT::sample_other());
     }
 
     #[test]
@@ -181,30 +134,9 @@ mod tests {
     }
 
     #[test]
-    fn hash() {
-        let hash = HashSet::<SUT>::from_iter([
-            SUT::sample_primary(),
-            SUT::sample_primary_other(),
-            SUT::sample_recovery(),
-            SUT::sample_recovery_other(),
-            SUT::sample_confirmation(),
-            SUT::sample_confirmation_other(),
-            // Duplicates should be removed
-            SUT::sample_primary(),
-            SUT::sample_primary_other(),
-            SUT::sample_recovery(),
-            SUT::sample_recovery_other(),
-            SUT::sample_confirmation(),
-            SUT::sample_confirmation_other(),
-        ]);
-        assert_eq!(hash.len(), 6);
-    }
-
-    #[test]
     #[should_panic]
     fn primary_role_non_securified_threshold_instances_is_err() {
         let _ = SUT::with_factors(
-                RoleKind::Primary,
                 1,
                 [
                     HierarchicalDeterministicFactorInstance::sample_mainnet_account_device_factor_fs_10_unsecurified_at_index(0).into()
@@ -220,8 +152,7 @@ mod tests {
             &sut,
             r#"
             {
-              "role": "primary",
-              "threshold": 1,
+              "threshold": 2,
               "threshold_factors": [
                 {
                   "factorSourceID": {
@@ -247,15 +178,13 @@ mod tests {
                       }
                     }
                   }
-                }
-              ],
-              "override_factors": [
+                },
                 {
                   "factorSourceID": {
                     "discriminator": "fromHash",
                     "fromHash": {
-                      "kind": "device",
-                      "body": "5255999c65076ce9ced5a1881f1a621bba1ce3f1f68a61df462d96822a5190cd"
+                      "kind": "ledgerHQHardwareWallet",
+                      "body": "ab59987eedd181fe98e512c1ba0f5ff059f11b5c7c56f15614dcc9fe03fec58b"
                     }
                   },
                   "badge": {
@@ -265,7 +194,7 @@ mod tests {
                       "hierarchicalDeterministicPublicKey": {
                         "publicKey": {
                           "curve": "curve25519",
-                          "compressedData": "e0293d4979bc303ea4fe361a62baf9c060c7d90267972b05c61eead9ef3eed3e"
+                          "compressedData": "92cd6838cd4e7b0523ed93d498e093f71139ffd5d632578189b39a26005be56b"
                         },
                         "derivationPath": {
                           "scheme": "cap26",
@@ -275,10 +204,48 @@ mod tests {
                     }
                   }
                 }
-              ]
+              ],
+              "override_factors": []
             }
             "#,
         );
     }
 }
-*/
+
+#[cfg(test)]
+mod confirmation_tests {
+    use super::*;
+
+    #[allow(clippy::upper_case_acronyms)]
+    type SUT = ConfirmationRoleWithFactorInstances;
+
+    #[test]
+    fn equality() {
+        assert_eq!(SUT::sample(), SUT::sample());
+        assert_eq!(SUT::sample_other(), SUT::sample_other());
+    }
+
+    #[test]
+    fn inequality() {
+        assert_ne!(SUT::sample(), SUT::sample_other());
+    }
+}
+
+#[cfg(test)]
+mod recovery_tests {
+    use super::*;
+
+    #[allow(clippy::upper_case_acronyms)]
+    type SUT = RecoveryRoleWithFactorInstances;
+
+    #[test]
+    fn equality() {
+        assert_eq!(SUT::sample(), SUT::sample());
+        assert_eq!(SUT::sample_other(), SUT::sample_other());
+    }
+
+    #[test]
+    fn inequality() {
+        assert_ne!(SUT::sample(), SUT::sample_other());
+    }
+}
