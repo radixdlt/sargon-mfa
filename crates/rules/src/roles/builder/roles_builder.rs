@@ -208,6 +208,125 @@ use RoleKind::*;
 
 pub type RoleBuilderMutateResult = Result<(), RoleBuilderValidation>;
 
+pub enum Assert<const CHECK: bool> {}
+pub trait IsTrue {}
+impl IsTrue for Assert<true> {}
+
+impl<const R: u8> RoleBuilder<R>
+where
+    Assert<{ R == ROLE_PRIMARY }>: IsTrue,
+{
+    /// If Ok => self is mutated
+    /// If Err(NotYetValid) => self is mutated
+    /// If Err(ForeverInvalid) => self is not mutated
+    pub(crate) fn add_factor_source_to_threshold(
+        &mut self,
+        factor_source_id: FactorSourceID,
+    ) -> RoleBuilderMutateResult {
+        self._add_factor_source_to_list(factor_source_id, FactorListKind::Threshold)
+    }
+
+    /// If we would add a factor of kind `factor_source_kind` to the list of kind `factor_list_kind`
+    /// what would be the validation status?
+    pub(crate) fn validation_for_addition_of_factor_source_of_kind_to_threshold(
+        &self,
+        factor_source_kind: FactorSourceKind,
+    ) -> RoleBuilderMutateResult {
+        self._validation_for_addition_of_factor_source_of_kind_to_list(
+            factor_source_kind,
+            FactorListKind::Threshold,
+        )
+    }
+
+    #[cfg(test)]
+    pub(crate) fn validation_for_addition_of_factor_source_of_kind_to_list(
+        &self,
+        factor_source_kind: FactorSourceKind,
+        list: FactorListKind,
+    ) -> RoleBuilderMutateResult {
+        self._validation_for_addition_of_factor_source_of_kind_to_list(factor_source_kind, list)
+    }
+}
+
+impl<const R: u8> RoleBuilder<R>
+where
+    Assert<{ R > ROLE_PRIMARY }>: IsTrue,
+{
+    /// If Ok => self is mutated
+    /// If Err(NotYetValid) => self is mutated
+    /// If Err(ForeverInvalid) => self is not mutated
+    pub(crate) fn add_factor_source(
+        &mut self,
+        factor_source_id: FactorSourceID,
+    ) -> RoleBuilderMutateResult {
+        self.add_factor_source_to_override(factor_source_id)
+    }
+}
+
+impl<const R: u8> RoleBuilder<R> {
+    /// If Ok => self is mutated
+    /// If Err(NotYetValid) => self is mutated
+    /// If Err(ForeverInvalid) => self is not mutated
+    pub(crate) fn add_factor_source_to_override(
+        &mut self,
+        factor_source_id: FactorSourceID,
+    ) -> RoleBuilderMutateResult {
+        self._add_factor_source_to_list(factor_source_id, FactorListKind::Override)
+    }
+
+    /// If Ok => self is mutated
+    /// If Err(NotYetValid) => self is mutated
+    /// If Err(ForeverInvalid) => self is not mutated
+    fn _add_factor_source_to_list(
+        &mut self,
+        factor_source_id: FactorSourceID,
+        factor_list_kind: FactorListKind,
+    ) -> RoleBuilderMutateResult {
+        let validation = self
+            .validation_for_addition_of_factor_source_to_list(&factor_source_id, factor_list_kind);
+        match validation.as_ref() {
+            Ok(()) | Err(Validation::NotYetValid(_)) => {
+                self.unchecked_add_factor_source_to_list(factor_source_id, factor_list_kind);
+            }
+            Err(Validation::ForeverInvalid(_)) | Err(Validation::BasicViolation(_)) => {}
+        }
+        validation
+    }
+
+    /// If we would add a factor of kind `factor_source_kind` to the list of kind `factor_list_kind`
+    /// what would be the validation status?
+    pub(crate) fn validation_for_addition_of_factor_source_of_kind_to_override(
+        &self,
+        factor_source_kind: FactorSourceKind,
+    ) -> RoleBuilderMutateResult {
+        self._validation_for_addition_of_factor_source_of_kind_to_list(
+            factor_source_kind,
+            FactorListKind::Override,
+        )
+    }
+
+    /// If we would add a factor of kind `factor_source_kind` to the list of kind `factor_list_kind`
+    /// what would be the validation status?
+    fn _validation_for_addition_of_factor_source_of_kind_to_list(
+        &self,
+        factor_source_kind: FactorSourceKind,
+        factor_list_kind: FactorListKind,
+    ) -> RoleBuilderMutateResult {
+        match self.role() {
+            RoleKind::Primary => self.validation_for_addition_of_factor_source_of_kind_to_list_for_primary(factor_source_kind, factor_list_kind),
+            RoleKind::Recovery | RoleKind::Confirmation => match factor_list_kind {
+                FactorListKind::Threshold => {
+                    RoleBuilderMutateResult::forever_invalid(ForeverInvalidReason::threshold_list_not_supported_for_role(self.role()))
+                }
+                FactorListKind::Override => self
+                    .validation_for_addition_of_factor_source_of_kind_to_override_for_non_primary_role(
+                        factor_source_kind,
+                    ),
+            },
+        }
+    }
+}
+
 impl<const R: u8> RoleBuilder<R> {
     pub type RoleBuilderBuildResult = Result<RoleWithFactorSourceIds<R>, RoleBuilderValidation>;
 
@@ -261,25 +380,6 @@ impl<const R: u8> RoleBuilder<R> {
             .any(|f| f.get_factor_source_kind() == factor_source_kind)
     }
 
-    /// If Ok => self is mutated
-    /// If Err(NotYetValid) => self is mutated
-    /// If Err(ForeverInvalid) => self is not mutated
-    pub(crate) fn add_factor_source_to_list(
-        &mut self,
-        factor_source_id: FactorSourceID,
-        factor_list_kind: FactorListKind,
-    ) -> RoleBuilderMutateResult {
-        let validation = self
-            .validation_for_addition_of_factor_source_to_list(&factor_source_id, factor_list_kind);
-        match validation.as_ref() {
-            Ok(()) | Err(Validation::NotYetValid(_)) => {
-                self.unchecked_add_factor_source_to_list(factor_source_id, factor_list_kind);
-            }
-            Err(Validation::ForeverInvalid(_)) | Err(Validation::BasicViolation(_)) => {}
-        }
-        validation
-    }
-
     /// Validates `self` by "replaying" the addition of each factor source in `self` to a
     /// "simulation" (clone). If the simulation is valid, then `self` is valid.
     pub(crate) fn validate(&self) -> RoleBuilderMutateResult {
@@ -288,7 +388,7 @@ impl<const R: u8> RoleBuilder<R> {
         // Validate override factors
         for override_factor in self.get_override_factors() {
             let validation =
-                simulation.add_factor_source_to_list(*override_factor, FactorListKind::Override);
+                simulation._add_factor_source_to_list(*override_factor, FactorListKind::Override);
             match validation.as_ref() {
                 Ok(()) | Err(Validation::NotYetValid(_)) => continue,
                 Err(Validation::ForeverInvalid(_)) | Err(Validation::BasicViolation(_)) => {
@@ -300,7 +400,7 @@ impl<const R: u8> RoleBuilder<R> {
         // Validate threshold factors
         for threshold_factor in self.get_threshold_factors() {
             let validation =
-                simulation.add_factor_source_to_list(*threshold_factor, FactorListKind::Threshold);
+                simulation._add_factor_source_to_list(*threshold_factor, FactorListKind::Threshold);
             match validation.as_ref() {
                 Ok(()) | Err(Validation::NotYetValid(_)) => continue,
                 Err(Validation::ForeverInvalid(_)) | Err(Validation::BasicViolation(_)) => {
@@ -338,27 +438,6 @@ impl<const R: u8> RoleBuilder<R> {
         }
 
         Ok(())
-    }
-
-    /// If we would add a factor of kind `factor_source_kind` to the list of kind `factor_list_kind`
-    /// what would be the validation status?
-    pub(crate) fn validation_for_addition_of_factor_source_of_kind_to_list(
-        &self,
-        factor_source_kind: FactorSourceKind,
-        factor_list_kind: FactorListKind,
-    ) -> RoleBuilderMutateResult {
-        match self.role() {
-            RoleKind::Primary => self.validation_for_addition_of_factor_source_of_kind_to_list_for_primary(factor_source_kind, factor_list_kind),
-            RoleKind::Recovery | RoleKind::Confirmation => match factor_list_kind {
-                FactorListKind::Threshold => {
-                    RoleBuilderMutateResult::forever_invalid(ForeverInvalidReason::threshold_list_not_supported_for_role(self.role()))
-                }
-                FactorListKind::Override => self
-                    .validation_for_addition_of_factor_source_of_kind_to_override_for_non_primary_role(
-                        factor_source_kind,
-                    ),
-            },
-        }
     }
 
     fn validation_for_addition_of_factor_source_of_kind_to_override_for_non_primary_role(
@@ -413,7 +492,7 @@ impl<const R: u8> RoleBuilder<R> {
             return RoleBuilderMutateResult::forever_invalid(FactorSourceAlreadyPresent);
         }
         let factor_source_kind = factor_source_id.get_factor_source_kind();
-        self.validation_for_addition_of_factor_source_of_kind_to_list(
+        self._validation_for_addition_of_factor_source_of_kind_to_list(
             factor_source_kind,
             factor_list_kind,
         )
@@ -590,5 +669,127 @@ impl<const R: u8> RoleBuilder<R> {
             FactorListKind::Override => filter(self.get_override_factors()),
             FactorListKind::Threshold => filter(self.get_threshold_factors()),
         }
+    }
+}
+
+#[cfg(test)]
+pub(crate) fn test_duplicates_not_allowed<const R: u8>(
+    sut: RoleBuilder<R>,
+    list: FactorListKind,
+    factor_source_id: FactorSourceID,
+) {
+    // Arrange
+    let mut sut = sut;
+
+    sut._add_factor_source_to_list(factor_source_id, list)
+        .unwrap();
+
+    // Act
+    let res = sut._add_factor_source_to_list(
+        factor_source_id, // oh no, duplicate!
+        list,
+    );
+
+    // Assert
+    assert!(matches!(
+        res,
+        RoleBuilderMutateResult::Err(Validation::ForeverInvalid(
+            ForeverInvalidReason::FactorSourceAlreadyPresent
+        ))
+    ));
+}
+
+#[cfg(test)]
+mod tests {
+
+    use super::*;
+
+    #[test]
+    fn primary_duplicates_not_allowed() {
+        test_duplicates_not_allowed(
+            PrimaryRoleBuilder::new(),
+            FactorListKind::Override,
+            FactorSourceID::sample_arculus(),
+        );
+        test_duplicates_not_allowed(
+            PrimaryRoleBuilder::new(),
+            FactorListKind::Threshold,
+            FactorSourceID::sample_arculus(),
+        );
+    }
+
+    #[test]
+    fn recovery_duplicates_not_allowed() {
+        test_duplicates_not_allowed(
+            RecoveryRoleBuilder::new(),
+            FactorListKind::Override,
+            FactorSourceID::sample_arculus(),
+        );
+    }
+
+    #[test]
+    fn confirmation_duplicates_not_allowed() {
+        test_duplicates_not_allowed(
+            ConfirmationRoleBuilder::new(),
+            FactorListKind::Override,
+            FactorSourceID::sample_arculus(),
+        );
+    }
+
+    #[test]
+    fn recovery_cannot_add_factors_to_threshold() {
+        let mut sut = RecoveryRoleBuilder::new();
+        let res = sut
+            ._add_factor_source_to_list(FactorSourceID::sample_ledger(), FactorListKind::Threshold);
+        assert_eq!(
+            res,
+            Err(Validation::ForeverInvalid(
+                ForeverInvalidReason::RecoveryRoleThresholdFactorsNotSupported
+            ))
+        );
+    }
+
+    #[test]
+    fn confirmation_cannot_add_factors_to_threshold() {
+        let mut sut = ConfirmationRoleBuilder::new();
+        let res = sut
+            ._add_factor_source_to_list(FactorSourceID::sample_ledger(), FactorListKind::Threshold);
+        assert_eq!(
+            res,
+            Err(Validation::ForeverInvalid(
+                ForeverInvalidReason::ConfirmationRoleThresholdFactorsNotSupported
+            ))
+        );
+    }
+
+    #[test]
+    fn recovery_validation_for_addition_of_factor_source_of_kind_to_list_is_err_for_threshold() {
+        let sut = RecoveryRoleBuilder::new();
+        let res = sut._validation_for_addition_of_factor_source_of_kind_to_list(
+            FactorSourceKind::Device,
+            FactorListKind::Threshold,
+        );
+        assert_eq!(
+            res,
+            RoleBuilderMutateResult::forever_invalid(
+                ForeverInvalidReason::threshold_list_not_supported_for_role(RoleKind::Recovery)
+            )
+        );
+    }
+
+    #[test]
+    fn confirmation_validation_for_addition_of_factor_source_of_kind_to_list_is_err_for_threshold()
+    {
+        let sut = ConfirmationRoleBuilder::new();
+        let res = sut._validation_for_addition_of_factor_source_of_kind_to_list(
+            FactorSourceKind::Device,
+            FactorListKind::Threshold,
+        );
+        assert_eq!(
+            res,
+            RoleBuilderMutateResult::forever_invalid(
+                ForeverInvalidReason::threshold_list_not_supported_for_role(RoleKind::Confirmation)
+            )
+        );
     }
 }

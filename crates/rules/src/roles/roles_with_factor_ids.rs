@@ -11,11 +11,11 @@ impl PrimaryRoleWithFactorSourceIds {
     pub fn sample_primary() -> Self {
         let mut builder = RoleBuilder::new();
         builder
-            .add_factor_source_to_list(FactorSourceID::sample_device(), FactorListKind::Threshold)
+            .add_factor_source_to_threshold(FactorSourceID::sample_device())
             .unwrap();
 
         builder
-            .add_factor_source_to_list(FactorSourceID::sample_ledger(), FactorListKind::Threshold)
+            .add_factor_source_to_threshold(FactorSourceID::sample_ledger())
             .unwrap();
         builder.set_threshold(2).unwrap();
         builder.build().unwrap()
@@ -30,11 +30,11 @@ impl HasSampleValues for PrimaryRoleWithFactorSourceIds {
     fn sample_other() -> Self {
         let mut builder = RoleBuilder::new();
         builder
-            .add_factor_source_to_list(FactorSourceID::sample_device(), FactorListKind::Threshold)
+            .add_factor_source_to_threshold(FactorSourceID::sample_device())
             .unwrap();
 
         builder
-            .add_factor_source_to_list(FactorSourceID::sample_ledger(), FactorListKind::Threshold)
+            .add_factor_source_to_threshold(FactorSourceID::sample_ledger())
             .unwrap();
         builder.set_threshold(1).unwrap();
         builder.build().unwrap()
@@ -46,7 +46,7 @@ impl HasSampleValues for ConfirmationRoleWithFactorSourceIds {
     fn sample() -> Self {
         let mut builder = RoleBuilder::new();
         builder
-            .add_factor_source_to_list(FactorSourceID::sample_password(), FactorListKind::Override)
+            .add_factor_source(FactorSourceID::sample_password())
             .unwrap();
         builder.build().unwrap()
     }
@@ -55,7 +55,7 @@ impl HasSampleValues for ConfirmationRoleWithFactorSourceIds {
     fn sample_other() -> Self {
         let mut builder = RoleBuilder::new();
         builder
-            .add_factor_source_to_list(FactorSourceID::sample_device(), FactorListKind::Override)
+            .add_factor_source(FactorSourceID::sample_device())
             .unwrap();
         builder.build().unwrap()
     }
@@ -65,11 +65,11 @@ impl HasSampleValues for RecoveryRoleWithFactorSourceIds {
     fn sample() -> Self {
         let mut builder = RoleBuilder::new();
         builder
-            .add_factor_source_to_list(FactorSourceID::sample_device(), FactorListKind::Override)
+            .add_factor_source(FactorSourceID::sample_device())
             .unwrap();
 
         builder
-            .add_factor_source_to_list(FactorSourceID::sample_ledger(), FactorListKind::Override)
+            .add_factor_source(FactorSourceID::sample_ledger())
             .unwrap();
         builder.build().unwrap()
     }
@@ -78,10 +78,7 @@ impl HasSampleValues for RecoveryRoleWithFactorSourceIds {
     fn sample_other() -> Self {
         let mut builder = RoleBuilder::new();
         builder
-            .add_factor_source_to_list(
-                FactorSourceID::sample_ledger_other(),
-                FactorListKind::Override,
-            )
+            .add_factor_source(FactorSourceID::sample_ledger_other())
             .unwrap();
 
         builder.build().unwrap()
