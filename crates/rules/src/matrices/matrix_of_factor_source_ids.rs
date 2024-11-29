@@ -614,10 +614,11 @@ mod tests {
     #[test]
     fn assert_json_sample() {
         let sut = SUT::sample();
+
         assert_eq_after_json_roundtrip(
             &sut,
             r#"
-                        {
+            {
               "primaryRole": {
                 "threshold": 2,
                 "thresholdFactors": [
@@ -665,7 +666,7 @@ mod tests {
                   {
                     "discriminator": "fromHash",
                     "fromHash": {
-                      "kind": "passphrase",
+                      "kind": "password",
                       "body": "181ab662e19fac3ad9f08d5c673b286d4a5ed9cd3762356dc9831dc42427c1b9"
                     }
                   }

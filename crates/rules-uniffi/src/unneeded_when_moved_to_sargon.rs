@@ -7,7 +7,7 @@ use rules::SampleValues;
 pub enum FactorSourceKind {
     Device,
     LedgerHQHardwareWallet,
-    Passphrase,
+    Password,
     OffDeviceMnemonic,
     TrustedContact,
     SecurityQuestions,
@@ -20,7 +20,7 @@ impl From<FactorSourceKind> for sargon::FactorSourceKind {
             FactorSourceKind::LedgerHQHardwareWallet => {
                 sargon::FactorSourceKind::LedgerHQHardwareWallet
             }
-            FactorSourceKind::Passphrase => sargon::FactorSourceKind::Passphrase,
+            FactorSourceKind::Password => sargon::FactorSourceKind::Password,
             FactorSourceKind::OffDeviceMnemonic => sargon::FactorSourceKind::OffDeviceMnemonic,
             FactorSourceKind::TrustedContact => sargon::FactorSourceKind::TrustedContact,
             FactorSourceKind::SecurityQuestions => sargon::FactorSourceKind::SecurityQuestions,

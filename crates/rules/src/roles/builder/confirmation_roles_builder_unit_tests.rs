@@ -47,7 +47,7 @@ fn validation_for_addition_of_factor_source_of_kind_to_list() {
     ok(LedgerHQHardwareWallet);
     ok(ArculusCard);
     ok(SecurityQuestions);
-    ok(Passphrase);
+    ok(Password);
     ok(OffDeviceMnemonic);
     not_ok(TrustedContact);
 }

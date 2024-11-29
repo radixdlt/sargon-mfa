@@ -61,13 +61,12 @@ impl SampleValues for FactorSourceID {
         FactorSourceIDFromHash::sample_arculus_other().into()
     }
 
-    /// Matt calls `passphrase` "password"
     fn sample_password() -> Self {
-        FactorSourceIDFromHash::sample_passphrase().into()
+        FactorSourceIDFromHash::sample_password().into()
     }
-    /// Matt calls `passphrase` "password"
+
     fn sample_password_other() -> Self {
-        FactorSourceIDFromHash::sample_passphrase_other().into()
+        FactorSourceIDFromHash::sample_password_other().into()
     }
 
     /// Matt calls `off_device_mnemonic` "passphrase"
@@ -289,9 +288,9 @@ pub trait MnemonicWithPassphraseSamples: Sized {
 
     fn sample_security_questions_other() -> Self;
 
-    fn sample_passphrase() -> Self;
+    fn sample_password() -> Self;
 
-    fn sample_passphrase_other() -> Self;
+    fn sample_password_other() -> Self;
 
     fn all_samples() -> Vec<Self> {
         vec![
@@ -307,8 +306,8 @@ pub trait MnemonicWithPassphraseSamples: Sized {
             Self::sample_arculus_other(),
             Self::sample_security_questions(),
             Self::sample_security_questions_other(),
-            Self::sample_passphrase(),
-            Self::sample_passphrase_other(),
+            Self::sample_password(),
+            Self::sample_password_other(),
         ]
     }
 
@@ -397,12 +396,12 @@ pub(crate) static MNEMONIC_BY_ID_MAP: Lazy<
             MnemonicWithPassphrase::sample_arculus_other(),
         ),
         (
-            FactorSourceIDFromHash::sample_passphrase(),
-            MnemonicWithPassphrase::sample_passphrase(),
+            FactorSourceIDFromHash::sample_password(),
+            MnemonicWithPassphrase::sample_password(),
         ),
         (
-            FactorSourceIDFromHash::sample_passphrase_other(),
-            MnemonicWithPassphrase::sample_passphrase_other(),
+            FactorSourceIDFromHash::sample_off_device(),
+            MnemonicWithPassphrase::sample_off_device_other(),
         ),
         (
             FactorSourceIDFromHash::sample_off_device(),
@@ -515,14 +514,14 @@ impl MnemonicWithPassphraseSamples for MnemonicWithPassphrase {
         )
     }
 
-    fn sample_passphrase() -> Self {
-        Self::with_passphrase(Mnemonic::sample_passphrase(), BIP39Passphrase::default())
+    fn sample_password() -> Self {
+        Self::with_passphrase(Mnemonic::sample_password(), BIP39Passphrase::default())
     }
 
-    fn sample_passphrase_other() -> Self {
+    fn sample_password_other() -> Self {
         Self::with_passphrase(
-            Mnemonic::sample_security_questions_other(),
-            BIP39Passphrase::new("Pass phrase"),
+            Mnemonic::sample_password_other(),
+            BIP39Passphrase::default(),
         )
     }
 }

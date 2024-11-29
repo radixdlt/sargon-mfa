@@ -467,7 +467,7 @@ mod password {
                 sut.add_factor_source_to_threshold(FactorSourceID::sample_ledger())
                     .unwrap();
             });
-            ok_with(Passphrase, |sut| {
+            ok_with(Password, |sut| {
                 sut.add_factor_source_to_threshold(FactorSourceID::sample_device())
                     .unwrap();
                 _ = sut.set_threshold(2);
@@ -550,7 +550,7 @@ mod password {
                     .unwrap();
             });
 
-            not_ok(Passphrase);
+            not_ok(Password);
 
             not_ok(SecurityQuestions);
             not_ok(TrustedContact);

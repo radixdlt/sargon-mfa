@@ -8,7 +8,7 @@ mod security_structure_of_factors;
 
 pub mod prelude {
     pub(crate) use sargon::{
-        BIP39Passphrase, BaseIsFactorSource, CommonError, DerivationPreset, DisplayName,
+        BIP39Passphrase, BaseBaseIsFactorSource, CommonError, DerivationPreset, DisplayName,
         FactorInstance, FactorInstances, FactorSource, FactorSourceID, FactorSourceIDFromHash,
         FactorSourceKind, FactorSources, HasRoleKindObjectSafe, HasSampleValues,
         HierarchicalDeterministicFactorInstance, Identifiable, IndexMap, IndexSet,

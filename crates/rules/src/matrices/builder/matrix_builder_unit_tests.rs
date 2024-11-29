@@ -793,7 +793,7 @@ mod validation_of_addition_of_kind {
             test(FactorSourceKind::LedgerHQHardwareWallet, true);
             test(FactorSourceKind::ArculusCard, true);
             test(FactorSourceKind::SecurityQuestions, false);
-            test(FactorSourceKind::Passphrase, false);
+            test(FactorSourceKind::Password, false);
             test(FactorSourceKind::OffDeviceMnemonic, true);
             test(FactorSourceKind::TrustedContact, true);
         }
@@ -813,7 +813,7 @@ mod validation_of_addition_of_kind {
             test(FactorSourceKind::LedgerHQHardwareWallet, true);
             test(FactorSourceKind::ArculusCard, true);
             test(FactorSourceKind::SecurityQuestions, false);
-            test(FactorSourceKind::Passphrase, false);
+            test(FactorSourceKind::Password, false);
             test(FactorSourceKind::OffDeviceMnemonic, true);
             test(FactorSourceKind::TrustedContact, true);
         }
@@ -835,7 +835,7 @@ mod validation_of_addition_of_kind {
             test(FactorSourceKind::LedgerHQHardwareWallet, true);
             test(FactorSourceKind::ArculusCard, true);
             test(FactorSourceKind::SecurityQuestions, true);
-            test(FactorSourceKind::Passphrase, true);
+            test(FactorSourceKind::Password, true);
             test(FactorSourceKind::OffDeviceMnemonic, true);
             test(FactorSourceKind::TrustedContact, false);
         }
@@ -856,7 +856,7 @@ mod validation_of_addition_of_kind {
             test(FactorSourceKind::LedgerHQHardwareWallet, true);
             test(FactorSourceKind::ArculusCard, true);
             test(FactorSourceKind::SecurityQuestions, true);
-            test(FactorSourceKind::Passphrase, true);
+            test(FactorSourceKind::Password, true);
             test(FactorSourceKind::OffDeviceMnemonic, true);
             test(FactorSourceKind::TrustedContact, false);
         }
@@ -1088,7 +1088,7 @@ mod validation_of_addition_of_kind {
 
             // ASSERT
             let res = sut.validation_for_addition_of_factor_source_of_kind_to_primary_threshold(
-                FactorSourceKind::Passphrase,
+                FactorSourceKind::Password,
             );
             assert!(res.is_err());
         }
@@ -1103,7 +1103,7 @@ mod validation_of_addition_of_kind {
 
             // ASSERT
             let res = sut.validation_for_addition_of_factor_source_of_kind_to_primary_threshold(
-                FactorSourceKind::Passphrase,
+                FactorSourceKind::Password,
             );
             assert!(res.is_ok());
         }

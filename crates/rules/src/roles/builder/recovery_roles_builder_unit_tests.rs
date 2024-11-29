@@ -48,7 +48,7 @@ fn validation_for_addition_of_factor_source_of_kind_to_list() {
     ok(TrustedContact);
     ok(OffDeviceMnemonic);
 
-    not_ok(Passphrase);
+    not_ok(Password);
     not_ok(SecurityQuestions);
 }
 

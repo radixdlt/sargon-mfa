@@ -542,7 +542,7 @@ impl<const R: u8> RoleBuilder<R> {
         factor_list_kind: FactorListKind,
     ) -> RoleBuilderMutateResult {
         match factor_source_kind {
-            FactorSourceKind::Passphrase => {
+            FactorSourceKind::Password => {
                 return self.validation_for_addition_of_password_to_primary(factor_list_kind)
             }
             FactorSourceKind::SecurityQuestions => {
@@ -579,7 +579,7 @@ impl<const R: u8> RoleBuilder<R> {
             FactorSourceKind::Device
             | FactorSourceKind::LedgerHQHardwareWallet
             | FactorSourceKind::ArculusCard
-            | FactorSourceKind::Passphrase
+            | FactorSourceKind::Password
             | FactorSourceKind::OffDeviceMnemonic
             | FactorSourceKind::SecurityQuestions => Ok(()),
             FactorSourceKind::TrustedContact => {
@@ -603,7 +603,7 @@ impl<const R: u8> RoleBuilder<R> {
             FactorSourceKind::SecurityQuestions => {
                 RoleBuilderMutateResult::forever_invalid(RecoveryRoleSecurityQuestionsNotSupported)
             }
-            FactorSourceKind::Passphrase => {
+            FactorSourceKind::Password => {
                 RoleBuilderMutateResult::forever_invalid(RecoveryRolePasswordNotSupported)
             }
         }
@@ -619,7 +619,7 @@ impl<const R: u8> RoleBuilder<R> {
         factor_list_kind: FactorListKind,
     ) -> RoleBuilderMutateResult {
         assert_eq!(self.role(), RoleKind::Primary);
-        let factor_source_kind = FactorSourceKind::Passphrase;
+        let factor_source_kind = FactorSourceKind::Password;
         match factor_list_kind {
             Threshold => {
                 let is_alone = self
