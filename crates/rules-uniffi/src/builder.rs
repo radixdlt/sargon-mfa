@@ -250,36 +250,44 @@ mod tests {
         let sut = SUT::new();
 
         // Primary
-        let sim_prim = sut
-            .validation_for_addition_of_factor_source_to_primary_override_for_each(vec![
+        let sim_prim =
+            sut.validation_for_addition_of_factor_source_to_primary_override_for_each(vec![
                 FactorSourceID::sample_arculus(),
-            ])
-            .unwrap();
-
-
-            let sim_kind_prim = sut
-            .validation_for_addition_of_factor_source_to_primary_override_for_each(vec![
-                FactorSourceID::sample_arculus(),
-            ])
-            .unwrap();
+            ]);
 
         let sim_prim_threshold = sut
             .validation_for_addition_of_factor_source_to_primary_threshold_for_each(vec![
                 FactorSourceID::sample_arculus(),
-            ])
-            .unwrap();
+            ]);
 
+        let sim_kind_prim = sut
+            .validation_for_addition_of_factor_source_of_kind_to_primary_override(
+                FactorSourceKind::Device,
+            );
+
+        let sim_kind_prim_threshold = sut
+            .validation_for_addition_of_factor_source_of_kind_to_primary_threshold(
+                FactorSourceKind::Device,
+            );
+
+        sut.add_factor_source_to_primary_threshold(FactorSourceID::sample_device())
+            .unwrap();
+        _ = sut.set_threshold(1);
         sut.add_factor_source_to_primary_override(FactorSourceID::sample_arculus())
             .unwrap();
         sut.add_factor_source_to_primary_override(FactorSourceID::sample_arculus_other())
             .unwrap();
 
         // Recovery
-        let sim_rec = sut
-            .validation_for_addition_of_factor_source_to_recovery_override_for_each(vec![
+        let sim_rec =
+            sut.validation_for_addition_of_factor_source_to_recovery_override_for_each(vec![
                 FactorSourceID::sample_ledger(),
-            ])
-            .unwrap();
+            ]);
+
+        let sim_kind_rec = sut
+            .validation_for_addition_of_factor_source_of_kind_to_recovery_override(
+                FactorSourceKind::ArculusCard,
+            );
 
         sut.add_factor_source_to_recovery_override(FactorSourceID::sample_ledger())
             .unwrap();
@@ -290,8 +298,13 @@ mod tests {
         let sim_conf = sut
             .validation_for_addition_of_factor_source_to_confirmation_override_for_each(vec![
                 FactorSourceID::sample_device(),
-            ])
-            .unwrap();
+            ]);
+
+        let sim_kind_conf = sut
+            .validation_for_addition_of_factor_source_of_kind_to_confirmation_override(
+                FactorSourceKind::ArculusCard,
+            );
+
         sut.add_factor_source_to_confirmation_override(FactorSourceID::sample_device())
             .unwrap();
 
@@ -300,7 +313,6 @@ mod tests {
             sut.validation_for_addition_of_factor_source_to_primary_override_for_each(vec![
                 FactorSourceID::sample_arculus(),
             ])
-            .unwrap()
         );
 
         assert_ne!(
@@ -308,7 +320,6 @@ mod tests {
             sut.validation_for_addition_of_factor_source_to_primary_threshold_for_each(vec![
                 FactorSourceID::sample_arculus()
             ])
-            .unwrap()
         );
 
         assert_ne!(
@@ -316,7 +327,6 @@ mod tests {
             sut.validation_for_addition_of_factor_source_to_recovery_override_for_each(vec![
                 FactorSourceID::sample_ledger(),
             ])
-            .unwrap()
         );
 
         assert_ne!(
@@ -324,7 +334,34 @@ mod tests {
             sut.validation_for_addition_of_factor_source_to_confirmation_override_for_each(vec![
                 FactorSourceID::sample_device(),
             ])
-            .unwrap()
+        );
+
+        assert_ne!(
+            sim_kind_prim,
+            sut.validation_for_addition_of_factor_source_of_kind_to_primary_override(
+                FactorSourceKind::Device,
+            )
+        );
+
+        assert_ne!(
+            sim_kind_prim_threshold,
+            sut.validation_for_addition_of_factor_source_of_kind_to_primary_threshold(
+                FactorSourceKind::Device,
+            )
+        );
+
+        assert_eq!(
+            sim_kind_rec,
+            sut.validation_for_addition_of_factor_source_of_kind_to_recovery_override(
+                FactorSourceKind::ArculusCard,
+            )
+        );
+
+        assert_eq!(
+            sim_kind_conf,
+            sut.validation_for_addition_of_factor_source_of_kind_to_confirmation_override(
+                FactorSourceKind::ArculusCard,
+            )
         );
 
         sut.remove_factor(FactorSourceID::sample_arculus_other())
