@@ -387,6 +387,39 @@ mod tests {
     }
 
     #[test]
+    fn hash() {
+        assert_eq!(
+            HashSet::<SUT>::from_iter([
+                SUT::sample_config_11(),
+                SUT::sample_config_12(),
+                SUT::sample_config_13(),
+                SUT::sample_config_14(),
+                SUT::sample_config_15(),
+                SUT::sample_config_21(),
+                SUT::sample_config_22(),
+                SUT::sample_config_23(),
+                SUT::sample_config_24(),
+                SUT::sample_config_30(),
+                SUT::sample_config_40(),
+                // Duplicates should be removed
+                SUT::sample_config_11(),
+                SUT::sample_config_12(),
+                SUT::sample_config_13(),
+                SUT::sample_config_14(),
+                SUT::sample_config_15(),
+                SUT::sample_config_21(),
+                SUT::sample_config_22(),
+                SUT::sample_config_23(),
+                SUT::sample_config_24(),
+                SUT::sample_config_30(),
+                SUT::sample_config_40(),
+            ])
+            .len(),
+            11
+        );
+    }
+
+    #[test]
     fn assert_json_sample() {
         let sut = SUT::sample();
         assert_eq_after_json_roundtrip(
