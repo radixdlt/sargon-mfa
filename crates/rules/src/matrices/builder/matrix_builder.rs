@@ -5,8 +5,14 @@ use crate::prelude::*;
 pub type MatrixBuilderMutateResult = Result<(), MatrixBuilderValidation>;
 pub type MatrixBuilderBuildResult = Result<MatrixOfFactorSourceIds, MatrixBuilderValidation>;
 
-pub type MatrixBuilder =
-    AbstractMatrixBuilderOrBuilt<FactorSourceID, MatrixOfFactorSourceIds, RoleWithFactorSourceIds>;
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct Built;
+
+pub type MatrixBuilder = AbstractMatrixBuilderOrBuilt<
+    FactorSourceID,
+    MatrixOfFactorSourceIds,
+    Built, // this is HACKY
+>;
 
 // ==================
 // ===== PUBLIC =====
@@ -15,9 +21,9 @@ impl MatrixBuilder {
     pub fn new() -> Self {
         Self {
             built: PhantomData,
-            primary_role: RoleBuilder::primary(),
-            recovery_role: RoleBuilder::recovery(),
-            confirmation_role: RoleBuilder::confirmation(),
+            primary_role: PrimaryRoleBuilder::new(),
+            recovery_role: RecoveryRoleBuilder::new(),
+            confirmation_role: ConfirmationRoleBuilder::new(),
             number_of_days_until_auto_confirm: Self::DEFAULT_NUMBER_OF_DAYS_UNTIL_AUTO_CONFIRM,
         }
     }
@@ -53,10 +59,7 @@ impl MatrixBuilder {
         factor_source_kind: FactorSourceKind,
     ) -> RoleBuilderMutateResult {
         self.primary_role
-            .validation_for_addition_of_factor_source_of_kind_to_list(
-                factor_source_kind,
-                FactorListKind::Threshold,
-            )
+            .validation_for_addition_of_factor_source_of_kind_to_threshold(factor_source_kind)
     }
 
     pub fn validation_for_addition_of_factor_source_of_kind_to_primary_override(
@@ -64,10 +67,7 @@ impl MatrixBuilder {
         factor_source_kind: FactorSourceKind,
     ) -> RoleBuilderMutateResult {
         self.primary_role
-            .validation_for_addition_of_factor_source_of_kind_to_list(
-                factor_source_kind,
-                FactorListKind::Override,
-            )
+            .validation_for_addition_of_factor_source_of_kind_to_override(factor_source_kind)
     }
 
     pub fn validation_for_addition_of_factor_source_to_primary_threshold_for_each(
@@ -97,10 +97,7 @@ impl MatrixBuilder {
         factor_source_kind: FactorSourceKind,
     ) -> RoleBuilderMutateResult {
         self.recovery_role
-            .validation_for_addition_of_factor_source_of_kind_to_list(
-                factor_source_kind,
-                FactorListKind::Override,
-            )
+            .validation_for_addition_of_factor_source_of_kind_to_override(factor_source_kind)
     }
 
     pub fn validation_for_addition_of_factor_source_to_recovery_override_for_each(
@@ -119,10 +116,7 @@ impl MatrixBuilder {
         factor_source_kind: FactorSourceKind,
     ) -> RoleBuilderMutateResult {
         self.confirmation_role
-            .validation_for_addition_of_factor_source_of_kind_to_list(
-                factor_source_kind,
-                FactorListKind::Override,
-            )
+            .validation_for_addition_of_factor_source_of_kind_to_override(factor_source_kind)
     }
 
     pub fn validation_for_addition_of_factor_source_to_confirmation_override_for_each(
@@ -161,7 +155,7 @@ impl MatrixBuilder {
         factor_source_id: FactorSourceID,
     ) -> MatrixBuilderMutateResult {
         self.primary_role
-            .add_factor_source_to_list(factor_source_id, FactorListKind::Threshold)
+            .add_factor_source_to_threshold(factor_source_id)
             .into_matrix_err(RoleKind::Primary)
     }
 
@@ -171,7 +165,7 @@ impl MatrixBuilder {
         factor_source_id: FactorSourceID,
     ) -> MatrixBuilderMutateResult {
         self.primary_role
-            .add_factor_source_to_list(factor_source_id, FactorListKind::Override)
+            .add_factor_source_to_override(factor_source_id)
             .into_matrix_err(RoleKind::Primary)
     }
 
@@ -180,7 +174,7 @@ impl MatrixBuilder {
         factor_source_id: FactorSourceID,
     ) -> MatrixBuilderMutateResult {
         self.recovery_role
-            .add_factor_source_to_list(factor_source_id, FactorListKind::Override)
+            .add_factor_source_to_override(factor_source_id)
             .into_matrix_err(RoleKind::Recovery)
     }
 
@@ -189,7 +183,7 @@ impl MatrixBuilder {
         factor_source_id: FactorSourceID,
     ) -> MatrixBuilderMutateResult {
         self.confirmation_role
-            .add_factor_source_to_list(factor_source_id, FactorListKind::Override)
+            .add_factor_source_to_override(factor_source_id)
             .into_matrix_err(RoleKind::Confirmation)
     }
 

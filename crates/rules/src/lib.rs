@@ -1,3 +1,6 @@
+#![allow(incomplete_features)]
+#![feature(generic_const_exprs)]
+
 mod matrices;
 mod move_to_sargon;
 mod roles;
@@ -5,11 +8,15 @@ mod security_structure_of_factors;
 
 pub mod prelude {
     pub(crate) use sargon::{
-        BaseIsFactorSource, CommonError, DisplayName, FactorInstance, FactorInstances,
-        FactorSource, FactorSourceID, FactorSourceIDFromHash, FactorSourceKind, FactorSources,
-        HasSampleValues, HierarchicalDeterministicFactorInstance, Identifiable, IndexMap, IndexSet,
-        IsMaybeKeySpaceAware, KeySpace, RoleKind,
+        BIP39Passphrase, BaseIsFactorSource, CommonError, DerivationPreset, DisplayName,
+        FactorInstance, FactorInstances, FactorSource, FactorSourceID, FactorSourceIDFromHash,
+        FactorSourceKind, FactorSources, HasRoleKindObjectSafe, HasSampleValues,
+        HierarchicalDeterministicFactorInstance, Identifiable, IndexMap, IndexSet,
+        IsMaybeKeySpaceAware, IsSecurityStateAware, KeySpace, Mnemonic, MnemonicWithPassphrase,
+        RoleKind,
     };
+
+    pub(crate) use itertools::*;
 
     #[cfg(test)]
     pub(crate) use sargon::JustKV;

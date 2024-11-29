@@ -1,6 +1,7 @@
 use crate::prelude::*;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct AbstractSecurityStructure<F> {
     /// Metadata of this Security Structure, such as globally unique and
     /// stable identifier, creation date and user chosen label (name).

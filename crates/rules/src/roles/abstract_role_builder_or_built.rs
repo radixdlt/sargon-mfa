@@ -5,22 +5,26 @@ use serde::{Deserialize, Serialize};
 use crate::prelude::*;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub struct AbstractRoleBuilderOrBuilt<F, T> {
+#[serde(rename_all = "camelCase")]
+pub struct AbstractRoleBuilderOrBuilt<const R: u8, F, T> {
     #[serde(skip)]
     #[doc(hidden)]
     built: PhantomData<T>,
-    role: RoleKind,
+
     threshold: u8,
     threshold_factors: Vec<F>,
     override_factors: Vec<F>,
 }
 
-pub(crate) type AbstractBuiltRoleWithFactor<F> = AbstractRoleBuilderOrBuilt<F, ()>;
-pub(crate) type RoleBuilder = AbstractRoleBuilderOrBuilt<FactorSourceID, RoleWithFactorSourceIds>;
+pub(crate) type AbstractBuiltRoleWithFactor<const R: u8, F> = AbstractRoleBuilderOrBuilt<R, F, ()>;
+pub(crate) type RoleBuilder<const R: u8> = AbstractRoleBuilderOrBuilt<R, FactorSourceID, Built>;
 
-impl<F: IsMaybeKeySpaceAware, T> AbstractRoleBuilderOrBuilt<F, T> {
+impl<const R: u8, F: IsMaybeKeySpaceAware, T> AbstractRoleBuilderOrBuilt<R, F, T> {
+    pub fn role(&self) -> RoleKind {
+        RoleKind::from_u8(R).expect("RoleKind should be valid")
+    }
+
     pub(crate) fn with_factors(
-        role: RoleKind,
         threshold: u8,
         threshold_factors: impl IntoIterator<Item = F>,
         override_factors: impl IntoIterator<Item = F>,
@@ -50,7 +54,6 @@ impl<F: IsMaybeKeySpaceAware, T> AbstractRoleBuilderOrBuilt<F, T> {
 
         Self {
             built: PhantomData,
-            role,
             threshold,
             threshold_factors,
             override_factors,
@@ -58,7 +61,7 @@ impl<F: IsMaybeKeySpaceAware, T> AbstractRoleBuilderOrBuilt<F, T> {
     }
 }
 
-impl<F, T> AbstractRoleBuilderOrBuilt<F, T> {
+impl<const R: u8, F, T> AbstractRoleBuilderOrBuilt<R, F, T> {
     pub fn all_factors(&self) -> Vec<&F> {
         self.threshold_factors
             .iter()
@@ -78,20 +81,34 @@ impl<F, T> AbstractRoleBuilderOrBuilt<F, T> {
         self.threshold
     }
 }
+pub(crate) const ROLE_PRIMARY: u8 = 1;
+pub(crate) const ROLE_RECOVERY: u8 = 2;
+pub(crate) const ROLE_CONFIRMATION: u8 = 3;
 
-impl RoleBuilder {
-    pub(crate) fn new(role: RoleKind) -> Self {
+pub(crate) trait RoleFromDiscriminator {
+    fn from_u8(discriminator: u8) -> Option<Self>
+    where
+        Self: Sized;
+}
+impl RoleFromDiscriminator for RoleKind {
+    fn from_u8(discriminator: u8) -> Option<Self> {
+        match discriminator {
+            ROLE_PRIMARY => Some(RoleKind::Primary),
+            ROLE_RECOVERY => Some(RoleKind::Recovery),
+            ROLE_CONFIRMATION => Some(RoleKind::Confirmation),
+            _ => None,
+        }
+    }
+}
+
+impl<const R: u8> RoleBuilder<R> {
+    pub(crate) fn new() -> Self {
         Self {
             built: PhantomData,
-            role,
             threshold: 0,
             threshold_factors: Vec::new(),
             override_factors: Vec::new(),
         }
-    }
-
-    pub(crate) fn role(&self) -> RoleKind {
-        self.role
     }
 
     pub(crate) fn mut_threshold_factors(&mut self) -> &mut Vec<FactorSourceID> {
@@ -115,23 +132,5 @@ impl RoleBuilder {
 
     pub(crate) fn unchecked_set_threshold(&mut self, threshold: u8) {
         self.threshold = threshold;
-    }
-}
-
-impl<F> AbstractBuiltRoleWithFactor<F> {
-    pub fn role(&self) -> RoleKind {
-        self.role
-    }
-
-    pub fn threshold(&self) -> u8 {
-        self.threshold
-    }
-
-    pub fn threshold_factors(&self) -> &Vec<F> {
-        &self.threshold_factors
-    }
-
-    pub fn override_factors(&self) -> &Vec<F> {
-        &self.override_factors
     }
 }

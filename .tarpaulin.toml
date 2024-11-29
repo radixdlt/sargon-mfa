@@ -2,6 +2,7 @@
 exclude-files = [
     "crates/rules-uniffi/src/unneeded_when_moved_to_sargon.rs",
     "crates/rules-uniffi/src/error_conversion.rs",
+    "crates/rules/src/move_to_sargon.rs",
 ]
 verbose = false
 force-clean = true

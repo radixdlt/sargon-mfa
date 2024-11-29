@@ -12,25 +12,30 @@ impl HasFactorInstances for MatrixOfFactorInstances {
     }
 }
 
+impl MatrixOfFactorInstances {
+    fn from_matrix_of_sources(matrix_of_sources: MatrixOfFactorSources) -> Self {
+        let mut consuming_instances = MnemonicWithPassphrase::derive_instances_for_factor_sources(
+            sargon::NetworkID::Mainnet,
+            1,
+            [DerivationPreset::AccountMfa],
+            matrix_of_sources.all_factors().into_iter().cloned(),
+        );
+
+        Self::fulfilling_matrix_of_factor_sources_with_instances(
+            &mut consuming_instances,
+            matrix_of_sources.clone(),
+        )
+        .unwrap()
+    }
+}
+
 impl HasSampleValues for MatrixOfFactorInstances {
     fn sample() -> Self {
-        Self {
-            built: PhantomData,
-            primary_role: RoleWithFactorInstances::sample_primary(),
-            recovery_role: RoleWithFactorInstances::sample_recovery(),
-            confirmation_role: RoleWithFactorInstances::sample_confirmation(),
-            number_of_days_until_auto_confirm: 30,
-        }
+        Self::from_matrix_of_sources(MatrixOfFactorSources::sample())
     }
 
     fn sample_other() -> Self {
-        Self {
-            built: PhantomData,
-            primary_role: RoleWithFactorInstances::sample_primary_other(),
-            recovery_role: RoleWithFactorInstances::sample_recovery_other(),
-            confirmation_role: RoleWithFactorInstances::sample_confirmation_other(),
-            number_of_days_until_auto_confirm: 15,
-        }
+        Self::from_matrix_of_sources(MatrixOfFactorSources::sample_other())
     }
 }
 
@@ -54,20 +59,17 @@ impl MatrixOfFactorInstances {
         let instances = &consuming_instances.clone();
 
         let primary_role =
-            RoleWithFactorInstances::fulfilling_role_of_factor_sources_with_factor_instances(
-                RoleKind::Primary,
+            PrimaryRoleWithFactorInstances::fulfilling_role_of_factor_sources_with_factor_instances(
                 instances,
                 &matrix_of_factor_sources,
             )?;
         let recovery_role =
-            RoleWithFactorInstances::fulfilling_role_of_factor_sources_with_factor_instances(
-                RoleKind::Recovery,
+            RecoveryRoleWithFactorInstances::fulfilling_role_of_factor_sources_with_factor_instances(
                 instances,
                 &matrix_of_factor_sources,
             )?;
         let confirmation_role =
-            RoleWithFactorInstances::fulfilling_role_of_factor_sources_with_factor_instances(
-                RoleKind::Confirmation,
+            ConfirmationRoleWithFactorInstances::fulfilling_role_of_factor_sources_with_factor_instances(
                 instances,
                 &matrix_of_factor_sources,
             )?;
@@ -102,6 +104,7 @@ impl MatrixOfFactorInstances {
         Ok(matrix)
     }
 }
+
 #[cfg(test)]
 mod tests {
 
@@ -119,6 +122,10 @@ mod tests {
     #[test]
     fn inequality() {
         assert_ne!(SUT::sample(), SUT::sample_other());
+        assert_ne!(
+            SUT::sample().unique_factor_instances(),
+            SUT::sample_other().unique_factor_instances()
+        );
     }
 
     #[test]
@@ -153,10 +160,9 @@ mod tests {
             &sut,
             r#"
             {
-              "primary_role": {
-                "role": "primary",
-                "threshold": 1,
-                "threshold_factors": [
+              "primaryRole": {
+                "threshold": 2,
+                "thresholdFactors": [
                   {
                     "factorSourceID": {
                       "discriminator": "fromHash",
@@ -181,15 +187,13 @@ mod tests {
                         }
                       }
                     }
-                  }
-                ],
-                "override_factors": [
+                  },
                   {
                     "factorSourceID": {
                       "discriminator": "fromHash",
                       "fromHash": {
-                        "kind": "device",
-                        "body": "5255999c65076ce9ced5a1881f1a621bba1ce3f1f68a61df462d96822a5190cd"
+                        "kind": "ledgerHQHardwareWallet",
+                        "body": "ab59987eedd181fe98e512c1ba0f5ff059f11b5c7c56f15614dcc9fe03fec58b"
                       }
                     },
                     "badge": {
@@ -199,7 +203,7 @@ mod tests {
                         "hierarchicalDeterministicPublicKey": {
                           "publicKey": {
                             "curve": "curve25519",
-                            "compressedData": "e0293d4979bc303ea4fe361a62baf9c060c7d90267972b05c61eead9ef3eed3e"
+                            "compressedData": "92cd6838cd4e7b0523ed93d498e093f71139ffd5d632578189b39a26005be56b"
                           },
                           "derivationPath": {
                             "scheme": "cap26",
@@ -209,45 +213,13 @@ mod tests {
                       }
                     }
                   }
-                ]
+                ],
+                "overrideFactors": []
               },
-              "recovery_role": {
-                "role": "recovery",
+              "recoveryRole": {
                 "threshold": 0,
-                "threshold_factors": [],
-                "override_factors": [
-                  {
-                    "factorSourceID": {
-                      "discriminator": "fromHash",
-                      "fromHash": {
-                        "kind": "device",
-                        "body": "5255999c65076ce9ced5a1881f1a621bba1ce3f1f68a61df462d96822a5190cd"
-                      }
-                    },
-                    "badge": {
-                      "discriminator": "virtualSource",
-                      "virtualSource": {
-                        "discriminator": "hierarchicalDeterministicPublicKey",
-                        "hierarchicalDeterministicPublicKey": {
-                          "publicKey": {
-                            "curve": "curve25519",
-                            "compressedData": "23fa85f95c79684d2768f46ec4379b5e031757b727f76cfd01a50bd4cf8afcff"
-                          },
-                          "derivationPath": {
-                            "scheme": "cap26",
-                            "path": "m/44H/1022H/1H/525H/1460H/237S"
-                          }
-                        }
-                      }
-                    }
-                  }
-                ]
-              },
-              "confirmation_role": {
-                "role": "confirmation",
-                "threshold": 0,
-                "threshold_factors": [],
-                "override_factors": [
+                "thresholdFactors": [],
+                "overrideFactors": [
                   {
                     "factorSourceID": {
                       "discriminator": "fromHash",
@@ -263,11 +235,11 @@ mod tests {
                         "hierarchicalDeterministicPublicKey": {
                           "publicKey": {
                             "curve": "curve25519",
-                            "compressedData": "10ccd9b906660d49b3fe89651baa1284fc7b19ad2c3d423a7828ec350c0e5fe0"
+                            "compressedData": "427969814e15d74c3ff4d9971465cb709d210c8a7627af9466bdaa67bd0929b7"
                           },
                           "derivationPath": {
                             "scheme": "cap26",
-                            "path": "m/44H/1022H/1H/525H/1460H/1S"
+                            "path": "m/44H/1022H/1H/525H/1460H/0S"
                           }
                         }
                       }
@@ -277,8 +249,8 @@ mod tests {
                     "factorSourceID": {
                       "discriminator": "fromHash",
                       "fromHash": {
-                        "kind": "device",
-                        "body": "5255999c65076ce9ced5a1881f1a621bba1ce3f1f68a61df462d96822a5190cd"
+                        "kind": "ledgerHQHardwareWallet",
+                        "body": "ab59987eedd181fe98e512c1ba0f5ff059f11b5c7c56f15614dcc9fe03fec58b"
                       }
                     },
                     "badge": {
@@ -288,11 +260,11 @@ mod tests {
                         "hierarchicalDeterministicPublicKey": {
                           "publicKey": {
                             "curve": "curve25519",
-                            "compressedData": "6a92b3338dc74a50e8b3fff896a7e0f43c42742544af52de20353675d8bc7907"
+                            "compressedData": "92cd6838cd4e7b0523ed93d498e093f71139ffd5d632578189b39a26005be56b"
                           },
                           "derivationPath": {
                             "scheme": "cap26",
-                            "path": "m/44H/1022H/1H/525H/1460H/2S"
+                            "path": "m/44H/1022H/1H/525H/1460H/0S"
                           }
                         }
                       }
@@ -300,7 +272,38 @@ mod tests {
                   }
                 ]
               },
-              "number_of_days_until_auto_confirm": 30
+              "confirmationRole": {
+                "threshold": 0,
+                "thresholdFactors": [],
+                "overrideFactors": [
+                  {
+                    "factorSourceID": {
+                      "discriminator": "fromHash",
+                      "fromHash": {
+                        "kind": "passphrase",
+                        "body": "181ab662e19fac3ad9f08d5c673b286d4a5ed9cd3762356dc9831dc42427c1b9"
+                      }
+                    },
+                    "badge": {
+                      "discriminator": "virtualSource",
+                      "virtualSource": {
+                        "discriminator": "hierarchicalDeterministicPublicKey",
+                        "hierarchicalDeterministicPublicKey": {
+                          "publicKey": {
+                            "curve": "curve25519",
+                            "compressedData": "4af49eb56b1af579aaf03f1760ec526f56e2297651f7a067f4b362f685417a81"
+                          },
+                          "derivationPath": {
+                            "scheme": "cap26",
+                            "path": "m/44H/1022H/1H/525H/1460H/0S"
+                          }
+                        }
+                      }
+                    }
+                  }
+                ]
+              },
+              "numberOfDaysUntilAutoConfirm": 14
             }
             "#,
         );

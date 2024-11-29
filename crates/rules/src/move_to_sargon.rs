@@ -98,6 +98,7 @@ impl SampleValues for FactorSourceID {
 use assert_json_diff::assert_json_include;
 use core::fmt::Debug;
 use pretty_assertions::assert_eq;
+use sargon::{DerivationPath, FactorInstancesCache, NetworkID, NextDerivationEntityIndexAssigner};
 use serde::de::DeserializeOwned;
 use serde_json::Value;
 use std::str::FromStr;
@@ -261,4 +262,267 @@ pub fn assert_json_eq_ignore_whitespace(json1: &str, json2: &str) {
     let value1: Value = serde_json::from_str(json1).expect("Invalid JSON in json1");
     let value2: Value = serde_json::from_str(json2).expect("Invalid JSON in json2");
     assert_eq!(value1, value2, "JSON strings do not match");
+}
+
+pub trait MnemonicWithPassphraseSamples: Sized {
+    fn sample_device() -> Self;
+
+    fn sample_device_other() -> Self;
+
+    fn sample_device_12_words() -> Self;
+
+    fn sample_device_12_words_other() -> Self;
+
+    fn sample_ledger() -> Self;
+
+    fn sample_ledger_other() -> Self;
+
+    fn sample_off_device() -> Self;
+
+    fn sample_off_device_other() -> Self;
+
+    fn sample_arculus() -> Self;
+
+    fn sample_arculus_other() -> Self;
+
+    fn sample_security_questions() -> Self;
+
+    fn sample_security_questions_other() -> Self;
+
+    fn sample_passphrase() -> Self;
+
+    fn sample_passphrase_other() -> Self;
+
+    fn all_samples() -> Vec<Self> {
+        vec![
+            Self::sample_device(),
+            Self::sample_device_other(),
+            Self::sample_device_12_words(),
+            Self::sample_device_12_words_other(),
+            Self::sample_ledger(),
+            Self::sample_ledger_other(),
+            Self::sample_off_device(),
+            Self::sample_off_device_other(),
+            Self::sample_arculus(),
+            Self::sample_arculus_other(),
+            Self::sample_security_questions(),
+            Self::sample_security_questions_other(),
+            Self::sample_passphrase(),
+            Self::sample_passphrase_other(),
+        ]
+    }
+
+    fn derive_instances_for_factor_sources(
+        network_id: NetworkID,
+        quantity_per_factor: usize,
+        derivation_presets: impl IntoIterator<Item = DerivationPreset>,
+        sources: impl IntoIterator<Item = FactorSource>,
+    ) -> IndexMap<FactorSourceIDFromHash, FactorInstances> {
+        let next_index_assigner = NextDerivationEntityIndexAssigner::new(
+            network_id,
+            None,
+            FactorInstancesCache::default(),
+        );
+
+        let derivation_presets = derivation_presets.into_iter().collect::<Vec<_>>();
+
+        sources
+            .into_iter()
+            .map(|fs| {
+                let fsid = fs.id_from_hash();
+                let mwp = fsid.sample_associated_mnemonic();
+
+                let paths = derivation_presets
+                    .clone()
+                    .into_iter()
+                    .map(|dp| (dp, quantity_per_factor))
+                    .collect::<IndexMap<DerivationPreset, usize>>();
+
+                let paths = paths
+                    .into_iter()
+                    .flat_map(|(derivation_preset, qty)| {
+                        // `qty` many paths
+                        (0..qty)
+                            .map(|_| {
+                                let index_agnostic_path =
+                                    derivation_preset.index_agnostic_path_on_network(network_id);
+
+                                next_index_assigner
+                                    .next(fsid, index_agnostic_path)
+                                    .map(|index| DerivationPath::from((index_agnostic_path, index)))
+                                    .unwrap()
+                            })
+                            .collect::<IndexSet<DerivationPath>>()
+                    })
+                    .collect::<IndexSet<DerivationPath>>();
+
+                let instances = mwp
+                    .derive_public_keys(paths)
+                    .into_iter()
+                    .map(|public_key| {
+                        HierarchicalDeterministicFactorInstance::new(fsid, public_key)
+                    })
+                    .collect::<FactorInstances>();
+
+                (fsid, instances)
+            })
+            .collect::<IndexMap<FactorSourceIDFromHash, FactorInstances>>()
+    }
+}
+
+use once_cell::sync::Lazy;
+
+pub(crate) static MNEMONIC_BY_ID_MAP: Lazy<
+    IndexMap<FactorSourceIDFromHash, MnemonicWithPassphrase>,
+> = Lazy::new(|| {
+    IndexMap::from_iter([
+        (
+            FactorSourceIDFromHash::sample_device(),
+            MnemonicWithPassphrase::sample_device(),
+        ),
+        (
+            FactorSourceIDFromHash::sample_ledger(),
+            MnemonicWithPassphrase::sample_ledger(),
+        ),
+        (
+            FactorSourceIDFromHash::sample_ledger_other(),
+            MnemonicWithPassphrase::sample_ledger_other(),
+        ),
+        (
+            FactorSourceIDFromHash::sample_arculus(),
+            MnemonicWithPassphrase::sample_arculus(),
+        ),
+        (
+            FactorSourceIDFromHash::sample_arculus_other(),
+            MnemonicWithPassphrase::sample_arculus_other(),
+        ),
+        (
+            FactorSourceIDFromHash::sample_passphrase(),
+            MnemonicWithPassphrase::sample_passphrase(),
+        ),
+        (
+            FactorSourceIDFromHash::sample_passphrase_other(),
+            MnemonicWithPassphrase::sample_passphrase_other(),
+        ),
+        (
+            FactorSourceIDFromHash::sample_off_device(),
+            MnemonicWithPassphrase::sample_off_device(),
+        ),
+        (
+            FactorSourceIDFromHash::sample_off_device_other(),
+            MnemonicWithPassphrase::sample_off_device_other(),
+        ),
+        (
+            FactorSourceIDFromHash::sample_security_questions(),
+            MnemonicWithPassphrase::sample_security_questions(),
+        ),
+        (
+            FactorSourceIDFromHash::sample_security_questions_other(),
+            MnemonicWithPassphrase::sample_security_questions_other(),
+        ),
+        (
+            FactorSourceIDFromHash::sample_device_other(),
+            MnemonicWithPassphrase::sample_device_other(),
+        ),
+        (
+            FactorSourceIDFromHash::sample_device_12_words(),
+            MnemonicWithPassphrase::sample_device_12_words(),
+        ),
+        (
+            FactorSourceIDFromHash::sample_device_12_words_other(),
+            MnemonicWithPassphrase::sample_device_12_words_other(),
+        ),
+    ])
+});
+
+pub trait MnemonicLookup {
+    fn sample_associated_mnemonic(&self) -> MnemonicWithPassphrase;
+}
+
+impl MnemonicLookup for FactorSourceIDFromHash {
+    fn sample_associated_mnemonic(&self) -> MnemonicWithPassphrase {
+        MNEMONIC_BY_ID_MAP.get(self).cloned().unwrap()
+    }
+}
+
+impl MnemonicWithPassphraseSamples for MnemonicWithPassphrase {
+    fn sample_device() -> Self {
+        Self::with_passphrase(Mnemonic::sample_device(), BIP39Passphrase::default())
+    }
+
+    fn sample_device_other() -> Self {
+        Self::with_passphrase(Mnemonic::sample_device_other(), BIP39Passphrase::default())
+    }
+
+    fn sample_device_12_words() -> Self {
+        Self::with_passphrase(
+            Mnemonic::sample_device_12_words(),
+            BIP39Passphrase::default(),
+        )
+    }
+
+    fn sample_device_12_words_other() -> Self {
+        Self::with_passphrase(
+            Mnemonic::sample_device_12_words_other(),
+            BIP39Passphrase::new("Olympia rules!"),
+        )
+    }
+
+    fn sample_ledger() -> Self {
+        Self::with_passphrase(Mnemonic::sample_ledger(), BIP39Passphrase::default())
+    }
+
+    fn sample_ledger_other() -> Self {
+        Self::with_passphrase(
+            Mnemonic::sample_ledger_other(),
+            BIP39Passphrase::new("Mellon"),
+        )
+    }
+
+    fn sample_off_device() -> Self {
+        Self::with_passphrase(Mnemonic::sample_off_device(), BIP39Passphrase::default())
+    }
+
+    fn sample_off_device_other() -> Self {
+        Self::with_passphrase(
+            Mnemonic::sample_off_device_other(),
+            BIP39Passphrase::new("open sesame"),
+        )
+    }
+
+    fn sample_arculus() -> Self {
+        Self::with_passphrase(Mnemonic::sample_arculus(), BIP39Passphrase::default())
+    }
+
+    fn sample_arculus_other() -> Self {
+        Self::with_passphrase(
+            Mnemonic::sample_arculus_other(),
+            BIP39Passphrase::new("Leonidas"),
+        )
+    }
+
+    fn sample_security_questions() -> Self {
+        Self::with_passphrase(
+            Mnemonic::sample_security_questions(),
+            BIP39Passphrase::default(),
+        )
+    }
+
+    fn sample_security_questions_other() -> Self {
+        Self::with_passphrase(
+            Mnemonic::sample_security_questions_other(),
+            BIP39Passphrase::default(),
+        )
+    }
+
+    fn sample_passphrase() -> Self {
+        Self::with_passphrase(Mnemonic::sample_passphrase(), BIP39Passphrase::default())
+    }
+
+    fn sample_passphrase_other() -> Self {
+        Self::with_passphrase(
+            Mnemonic::sample_security_questions_other(),
+            BIP39Passphrase::new("Pass phrase"),
+        )
+    }
 }
