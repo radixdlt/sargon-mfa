@@ -11,6 +11,7 @@ use crate::prelude::*;
 #[derive(Debug, uniffi::Object)]
 pub struct SecurityShieldBuilder {
     wrapped: RwLock<Option<MatrixBuilder>>,
+    name: RwLock<String>,
 }
 
 #[derive(Debug, PartialEq, Eq, Hash, uniffi::Object)]
@@ -20,8 +21,8 @@ pub struct SecurityStructureOfFactorSourceIds {
 }
 
 impl SecurityShieldBuilder {
-    fn get<R>(&self, mut with_non_consumed_builder: impl FnMut(&MatrixBuilder) -> R) -> R {
-        let binding = self.wrapped.write().unwrap();
+    fn get<R>(&self, with_non_consumed_builder: impl Fn(&MatrixBuilder) -> R) -> R {
+        let binding = self.wrapped.read().unwrap();
 
         let Some(builder) = binding.as_ref() else {
             unreachable!("Already built, should not have happened.")
@@ -76,6 +77,19 @@ impl SecurityShieldBuilder {
     pub fn new() -> Arc<Self> {
         Arc::new(Self {
             wrapped: RwLock::new(Some(MatrixBuilder::new())),
+            name: RwLock::new("My Shield".to_owned()),
+        })
+    }
+}
+
+impl SecurityShieldBuilder {
+    fn get_factors(
+        &self,
+        access: impl Fn(&MatrixBuilder) -> &Vec<sargon::FactorSourceID>,
+    ) -> Vec<Arc<FactorSourceID>> {
+        self.get(|builder| {
+            let factors = access(builder);
+            factors.iter().map(FactorSourceID::new).collect::<Vec<_>>()
         })
     }
 }
@@ -88,8 +102,29 @@ impl SecurityShieldBuilder {
     pub fn get_primary_threshold(&self) -> u8 {
         self.get(|builder| builder.get_threshold())
     }
-    pub fn get_primary_threshold_facto(&self) -> u8 {
-        self.get(|builder| builder.get_threshold())
+
+    pub fn get_number_of_days_until_auto_confirm(&self) -> u16 {
+        self.get(|builder| builder.get_number_of_days_until_auto_confirm())
+    }
+
+    pub fn get_name(&self) -> String {
+        self.name.read().unwrap().clone()
+    }
+
+    pub fn get_primary_threshold_factors(&self) -> Vec<Arc<FactorSourceID>> {
+        self.get_factors(|builder| builder.get_primary_threshold_factors())
+    }
+
+    pub fn get_primary_override_factors(&self) -> Vec<Arc<FactorSourceID>> {
+        self.get_factors(|builder| builder.get_primary_override_factors())
+    }
+
+    pub fn get_recovery_factors(&self) -> Vec<Arc<FactorSourceID>> {
+        self.get_factors(|builder| builder.get_recovery_factors())
+    }
+
+    pub fn get_confirmation_factors(&self) -> Vec<Arc<FactorSourceID>> {
+        self.get_factors(|builder| builder.get_confirmation_factors())
     }
 }
 
@@ -98,6 +133,10 @@ impl SecurityShieldBuilder {
 // ====================
 #[uniffi::export]
 impl SecurityShieldBuilder {
+    pub fn set_name(&self, name: String) {
+        *self.name.write().unwrap() = name
+    }
+
     /// Adds the factor source to the primary role threshold list.
     pub fn add_factor_source_to_primary_threshold(
         &self,
@@ -240,10 +279,7 @@ impl SecurityShieldBuilder {
         )
     }
 
-    pub fn build(
-        self: Arc<Self>,
-        name: String,
-    ) -> Result<SecurityStructureOfFactorSourceIds, CommonError> {
+    pub fn build(self: Arc<Self>) -> Result<SecurityStructureOfFactorSourceIds, CommonError> {
         let mut binding = self
             .wrapped
             .write()
@@ -253,6 +289,7 @@ impl SecurityShieldBuilder {
             .build()
             .map_err(|e| CommonError::BuildError(format!("{:?}", e)))?;
 
+        let name = self.get_name();
         let display_name =
             sargon::DisplayName::new(name).map_err(|e| CommonError::Sargon(format!("{:?}", e)))?;
         let wrapped_shield =
@@ -277,6 +314,13 @@ mod tests {
     fn test() {
         let sut = SUT::new();
 
+        assert_eq!(sut.get_name(), "My Shield");
+        sut.set_name("S.H.I.E.L.D.".to_owned());
+
+        assert_eq!(sut.get_number_of_days_until_auto_confirm(), 14);
+        sut.set_number_of_days_until_auto_confirm(u16::MAX).unwrap();
+        assert_eq!(sut.get_number_of_days_until_auto_confirm(), u16::MAX);
+
         // Primary
         let sim_prim =
             sut.validation_for_addition_of_factor_source_to_primary_override_for_each(vec![
@@ -300,11 +344,24 @@ mod tests {
 
         sut.add_factor_source_to_primary_threshold(FactorSourceID::sample_device())
             .unwrap();
+        assert_eq!(
+            sut.get_primary_threshold_factors(),
+            vec![FactorSourceID::sample_device()]
+        );
         _ = sut.set_threshold(1);
+        assert_eq!(sut.get_primary_threshold(), 1);
         sut.add_factor_source_to_primary_override(FactorSourceID::sample_arculus())
             .unwrap();
         sut.add_factor_source_to_primary_override(FactorSourceID::sample_arculus_other())
             .unwrap();
+
+        assert_eq!(
+            sut.get_primary_override_factors(),
+            vec![
+                FactorSourceID::sample_arculus(),
+                FactorSourceID::sample_arculus_other()
+            ]
+        );
 
         // Recovery
         let sim_rec =
@@ -322,6 +379,14 @@ mod tests {
         sut.add_factor_source_to_recovery_override(FactorSourceID::sample_ledger_other())
             .unwrap();
 
+        assert_eq!(
+            sut.get_recovery_factors(),
+            vec![
+                FactorSourceID::sample_ledger(),
+                FactorSourceID::sample_ledger_other()
+            ]
+        );
+
         // Confirmation
         let sim_conf = sut
             .validation_for_addition_of_factor_source_to_confirmation_override_for_each(vec![
@@ -335,6 +400,11 @@ mod tests {
 
         sut.add_factor_source_to_confirmation_override(FactorSourceID::sample_device())
             .unwrap();
+
+        assert_eq!(
+            sut.get_confirmation_factors(),
+            vec![FactorSourceID::sample_device(),]
+        );
 
         assert_ne!(
             sim_prim,
@@ -397,7 +467,8 @@ mod tests {
         sut.remove_factor(FactorSourceID::sample_ledger_other())
             .unwrap();
 
-        let shield = sut.build("test".to_owned()).unwrap();
+        let shield = sut.build().unwrap();
+        assert_eq!(shield.wrapped.metadata.display_name.value, "S.H.I.E.L.D.");
         assert_eq!(
             shield
                 .wrapped

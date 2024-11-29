@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{borrow::Borrow, sync::Arc};
 
 #[cfg(test)]
 use rules::SampleValues;
@@ -34,8 +34,10 @@ pub struct FactorSourceID {
     pub inner: sargon::FactorSourceID,
 }
 impl FactorSourceID {
-    pub fn new(inner: sargon::FactorSourceID) -> Arc<Self> {
-        Arc::new(Self { inner })
+    pub fn new(inner: impl Borrow<sargon::FactorSourceID>) -> Arc<Self> {
+        Arc::new(Self {
+            inner: *inner.borrow(),
+        })
     }
 }
 
