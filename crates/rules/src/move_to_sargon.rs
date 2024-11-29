@@ -262,3 +262,244 @@ pub fn assert_json_eq_ignore_whitespace(json1: &str, json2: &str) {
     let value2: Value = serde_json::from_str(json2).expect("Invalid JSON in json2");
     assert_eq!(value1, value2, "JSON strings do not match");
 }
+
+pub trait MnemonicWithPassphraseSamples: Sized {
+    fn sample_device() -> Self;
+
+    fn sample_device_other() -> Self;
+
+    fn sample_device_12_words() -> Self;
+
+    fn sample_device_12_words_other() -> Self;
+
+    fn sample_ledger() -> Self;
+
+    fn sample_ledger_other() -> Self;
+
+    fn sample_off_device() -> Self;
+
+    fn sample_off_device_other() -> Self;
+
+    fn sample_arculus() -> Self;
+
+    fn sample_arculus_other() -> Self;
+
+    fn sample_security_questions() -> Self;
+
+    fn sample_security_questions_other() -> Self;
+
+    fn sample_passphrase() -> Self;
+
+    fn sample_passphrase_other() -> Self;
+
+    fn all_samples() -> Vec<Self> {
+        vec![
+            Self::sample_device(),
+            Self::sample_device_other(),
+            Self::sample_device_12_words(),
+            Self::sample_device_12_words_other(),
+            Self::sample_ledger(),
+            Self::sample_ledger_other(),
+            Self::sample_off_device(),
+            Self::sample_off_device_other(),
+            Self::sample_arculus(),
+            Self::sample_arculus_other(),
+            Self::sample_security_questions(),
+            Self::sample_security_questions_other(),
+            Self::sample_passphrase(),
+            Self::sample_passphrase_other(),
+        ]
+    }
+
+    fn derive_instances_for_factor_sources(
+        sources: impl IntoIterator<Item = FactorSource>,
+    ) -> IndexMap<FactorSourceIDFromHash, FactorInstances> {
+        let matrix = MatrixOfFactorSources::sample();
+        let mut consuming_instances = IndexMap::<FactorSourceIDFromHash, FactorInstances>::new();
+        sources.into_iter().map(|fs| {
+            let mwp = fs.id_from_hash().sample_associated_mnemonic();
+            let derivation_paths = (0..30)
+            mwp.derive_public_keys_vec(derivation_paths)
+        });
+        todo!()
+    }
+    fn derive_instances_for_all_factor_sources() -> IndexMap<FactorSourceIDFromHash, FactorInstances>
+    {
+        let factor_sources = FactorSources::sample_values_all();
+        Self::derive_instances_for_factor_sources(factor_sources)
+    }
+}
+
+use once_cell::sync::Lazy;
+pub(crate) static ALL_FACTOR_SOURCE_ID_SAMPLES: Lazy<[FactorSourceIDFromHash; 12]> =
+    Lazy::new(|| {
+        [
+            FactorSourceIDFromHash::sample_device(),
+            FactorSourceIDFromHash::sample_ledger(),
+            FactorSourceIDFromHash::sample_ledger_other(),
+            FactorSourceIDFromHash::sample_arculus(),
+            FactorSourceIDFromHash::sample_arculus_other(),
+            FactorSourceIDFromHash::sample_passphrase(),
+            FactorSourceIDFromHash::sample_passphrase_other(),
+            FactorSourceIDFromHash::sample_off_device(),
+            FactorSourceIDFromHash::sample_off_device_other(),
+            FactorSourceIDFromHash::sample_security_questions(),
+            FactorSourceIDFromHash::sample_device_other(),
+            FactorSourceIDFromHash::sample_security_questions_other(),
+        ]
+    });
+
+pub(crate) static MNEMONIC_BY_ID_MAP: Lazy<
+    IndexMap<FactorSourceIDFromHash, MnemonicWithPassphrase>,
+> = Lazy::new(|| {
+    IndexMap::from_iter([
+        (
+            FactorSourceIDFromHash::sample_device(),
+            MnemonicWithPassphrase::sample_device(),
+        ),
+        (
+            FactorSourceIDFromHash::sample_ledger(),
+            MnemonicWithPassphrase::sample_ledger(),
+        ),
+        (
+            FactorSourceIDFromHash::sample_ledger_other(),
+            MnemonicWithPassphrase::sample_ledger_other(),
+        ),
+        (
+            FactorSourceIDFromHash::sample_arculus(),
+            MnemonicWithPassphrase::sample_arculus(),
+        ),
+        (
+            FactorSourceIDFromHash::sample_arculus_other(),
+            MnemonicWithPassphrase::sample_arculus_other(),
+        ),
+        (
+            FactorSourceIDFromHash::sample_passphrase(),
+            MnemonicWithPassphrase::sample_passphrase(),
+        ),
+        (
+            FactorSourceIDFromHash::sample_passphrase_other(),
+            MnemonicWithPassphrase::sample_passphrase_other(),
+        ),
+        (
+            FactorSourceIDFromHash::sample_off_device(),
+            MnemonicWithPassphrase::sample_off_device(),
+        ),
+        (
+            FactorSourceIDFromHash::sample_off_device_other(),
+            MnemonicWithPassphrase::sample_off_device_other(),
+        ),
+        (
+            FactorSourceIDFromHash::sample_security_questions(),
+            MnemonicWithPassphrase::sample_security_questions(),
+        ),
+        (
+            FactorSourceIDFromHash::sample_security_questions_other(),
+            MnemonicWithPassphrase::sample_security_questions_other(),
+        ),
+        (
+            FactorSourceIDFromHash::sample_device_other(),
+            MnemonicWithPassphrase::sample_device_other(),
+        ),
+        (
+            FactorSourceIDFromHash::sample_device_12_words(),
+            MnemonicWithPassphrase::sample_device_12_words(),
+        ),
+        (
+            FactorSourceIDFromHash::sample_device_12_words_other(),
+            MnemonicWithPassphrase::sample_device_12_words_other(),
+        ),
+    ])
+});
+
+pub trait MnemonicLookup {
+    fn sample_associated_mnemonic(&self) -> MnemonicWithPassphrase;
+}
+
+impl MnemonicLookup for FactorSourceIDFromHash {
+    fn sample_associated_mnemonic(&self) -> MnemonicWithPassphrase {
+        MNEMONIC_BY_ID_MAP.get(self).cloned().unwrap()
+    }
+}
+
+impl MnemonicWithPassphraseSamples for MnemonicWithPassphrase {
+    fn sample_device() -> Self {
+        Self::with_passphrase(Mnemonic::sample_device(), BIP39Passphrase::default())
+    }
+
+    fn sample_device_other() -> Self {
+        Self::with_passphrase(Mnemonic::sample_device_other(), BIP39Passphrase::default())
+    }
+
+    fn sample_device_12_words() -> Self {
+        Self::with_passphrase(
+            Mnemonic::sample_device_12_words(),
+            BIP39Passphrase::default(),
+        )
+    }
+
+    fn sample_device_12_words_other() -> Self {
+        Self::with_passphrase(
+            Mnemonic::sample_device_12_words_other(),
+            BIP39Passphrase::new("Olympia rules!"),
+        )
+    }
+
+    fn sample_ledger() -> Self {
+        Self::with_passphrase(Mnemonic::sample_ledger(), BIP39Passphrase::default())
+    }
+
+    fn sample_ledger_other() -> Self {
+        Self::with_passphrase(
+            Mnemonic::sample_ledger_other(),
+            BIP39Passphrase::new("Mellon"),
+        )
+    }
+
+    fn sample_off_device() -> Self {
+        Self::with_passphrase(Mnemonic::sample_off_device(), BIP39Passphrase::default())
+    }
+
+    fn sample_off_device_other() -> Self {
+        Self::with_passphrase(
+            Mnemonic::sample_off_device_other(),
+            BIP39Passphrase::new("open sesame"),
+        )
+    }
+
+    fn sample_arculus() -> Self {
+        Self::with_passphrase(Mnemonic::sample_arculus(), BIP39Passphrase::default())
+    }
+
+    fn sample_arculus_other() -> Self {
+        Self::with_passphrase(
+            Mnemonic::sample_arculus_other(),
+            BIP39Passphrase::new("Leonidas"),
+        )
+    }
+
+    fn sample_security_questions() -> Self {
+        Self::with_passphrase(
+            Mnemonic::sample_security_questions(),
+            BIP39Passphrase::default(),
+        )
+    }
+
+    fn sample_security_questions_other() -> Self {
+        Self::with_passphrase(
+            Mnemonic::sample_security_questions_other(),
+            BIP39Passphrase::default(),
+        )
+    }
+
+    fn sample_passphrase() -> Self {
+        Self::with_passphrase(Mnemonic::sample_passphrase(), BIP39Passphrase::default())
+    }
+
+    fn sample_passphrase_other() -> Self {
+        Self::with_passphrase(
+            Mnemonic::sample_security_questions_other(),
+            BIP39Passphrase::new("Pass phrase"),
+        )
+    }
+}

@@ -102,6 +102,10 @@ impl MatrixOfFactorInstances {
 #[cfg(test)]
 mod tests {
 
+    use std::sync::Arc;
+
+    use sargon::{indexmap::IndexSet, FactorInstancesCacheClient, FactorInstancesProvider, FileSystemClient, HostId, HostInfo, InMemoryFileSystemDriver, Mnemonic, MnemonicWithPassphrase, Profile};
+
     use super::*;
 
     #[allow(clippy::upper_case_acronyms)]
@@ -299,4 +303,12 @@ mod tests {
             "#,
         );
     }
+
+    #[test]
+    fn fulfilling_role_of_factor_sources_with_factor_instances() {
+        let matrix = MatrixOfFactorSources::sample();
+        let mut consuming_instances = MnemonicWithPassphrase::derive_instances_for_all_factor_sources();
+        let sut = SUT::fulfilling_matrix_of_factor_sources_with_instances(&mut consuming_instances, matrix).unwrap();
+    }
+
 }
