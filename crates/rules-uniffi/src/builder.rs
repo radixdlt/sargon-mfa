@@ -248,16 +248,84 @@ mod tests {
     #[test]
     fn test() {
         let sut = SUT::new();
+
+        // Primary
+        let sim_prim = sut
+            .validation_for_addition_of_factor_source_to_primary_override_for_each(vec![
+                FactorSourceID::sample_arculus(),
+            ])
+            .unwrap();
+
+
+            let sim_kind_prim = sut
+            .validation_for_addition_of_factor_source_to_primary_override_for_each(vec![
+                FactorSourceID::sample_arculus(),
+            ])
+            .unwrap();
+
+        let sim_prim_threshold = sut
+            .validation_for_addition_of_factor_source_to_primary_threshold_for_each(vec![
+                FactorSourceID::sample_arculus(),
+            ])
+            .unwrap();
+
         sut.add_factor_source_to_primary_override(FactorSourceID::sample_arculus())
             .unwrap();
         sut.add_factor_source_to_primary_override(FactorSourceID::sample_arculus_other())
             .unwrap();
+
+        // Recovery
+        let sim_rec = sut
+            .validation_for_addition_of_factor_source_to_recovery_override_for_each(vec![
+                FactorSourceID::sample_ledger(),
+            ])
+            .unwrap();
+
         sut.add_factor_source_to_recovery_override(FactorSourceID::sample_ledger())
             .unwrap();
         sut.add_factor_source_to_recovery_override(FactorSourceID::sample_ledger_other())
             .unwrap();
+
+        // Confirmation
+        let sim_conf = sut
+            .validation_for_addition_of_factor_source_to_confirmation_override_for_each(vec![
+                FactorSourceID::sample_device(),
+            ])
+            .unwrap();
         sut.add_factor_source_to_confirmation_override(FactorSourceID::sample_device())
             .unwrap();
+
+        assert_ne!(
+            sim_prim,
+            sut.validation_for_addition_of_factor_source_to_primary_override_for_each(vec![
+                FactorSourceID::sample_arculus(),
+            ])
+            .unwrap()
+        );
+
+        assert_ne!(
+            sim_prim_threshold,
+            sut.validation_for_addition_of_factor_source_to_primary_threshold_for_each(vec![
+                FactorSourceID::sample_arculus()
+            ])
+            .unwrap()
+        );
+
+        assert_ne!(
+            sim_rec,
+            sut.validation_for_addition_of_factor_source_to_recovery_override_for_each(vec![
+                FactorSourceID::sample_ledger(),
+            ])
+            .unwrap()
+        );
+
+        assert_ne!(
+            sim_conf,
+            sut.validation_for_addition_of_factor_source_to_confirmation_override_for_each(vec![
+                FactorSourceID::sample_device(),
+            ])
+            .unwrap()
+        );
 
         sut.remove_factor(FactorSourceID::sample_arculus_other())
             .unwrap();
