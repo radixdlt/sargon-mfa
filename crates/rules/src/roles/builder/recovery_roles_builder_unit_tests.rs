@@ -15,7 +15,7 @@ fn empty_is_err_recovery() {
     let res = sut.build();
     assert_eq!(
         res,
-        RecoveryRoleBuilder::RoleBuilderBuildResult::not_yet_valid(
+        Result::not_yet_valid(
             NotYetValidReason::RoleMustHaveAtLeastOneFactor
         )
     );

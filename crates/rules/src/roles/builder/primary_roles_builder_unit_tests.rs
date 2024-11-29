@@ -20,7 +20,7 @@ fn empty_is_err_primary() {
     let res = sut.build();
     assert_eq!(
         res,
-        PrimaryRoleBuilder::RoleBuilderBuildResult::not_yet_valid(
+        Result::not_yet_valid(
             NotYetValidReason::RoleMustHaveAtLeastOneFactor
         )
     );
@@ -615,7 +615,7 @@ mod ledger {
             // Assert
             assert_eq!(
                 sut.build(),
-                SUT::RoleBuilderBuildResult::Err(RoleBuilderValidation::NotYetValid(
+                Err(RoleBuilderValidation::NotYetValid(
                     NotYetValidReason::PrimaryRoleWithThresholdCannotBeZeroWithFactors
                 ))
             );

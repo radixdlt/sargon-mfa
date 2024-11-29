@@ -1,5 +1,4 @@
 #![allow(incomplete_features)]
-#![feature(inherent_associated_types)]
 #![feature(generic_const_exprs)]
 
 mod matrices;

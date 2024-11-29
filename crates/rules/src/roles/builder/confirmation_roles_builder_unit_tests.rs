@@ -20,7 +20,7 @@ fn empty_is_err_confirmation() {
     let res = sut.build();
     assert_eq!(
         res,
-        ConfirmationRoleBuilder::RoleBuilderBuildResult::not_yet_valid(
+        Result::not_yet_valid(
             NotYetValidReason::RoleMustHaveAtLeastOneFactor
         )
     );

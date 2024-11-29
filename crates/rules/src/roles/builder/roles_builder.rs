@@ -328,9 +328,7 @@ impl<const R: u8> RoleBuilder<R> {
 }
 
 impl<const R: u8> RoleBuilder<R> {
-    pub type RoleBuilderBuildResult = Result<RoleWithFactorSourceIds<R>, RoleBuilderValidation>;
-
-    pub(crate) fn build(self) -> Self::RoleBuilderBuildResult {
+    pub(crate) fn build(self) -> Result<RoleWithFactorSourceIds<R>, RoleBuilderValidation> {
         self.validate().map(|_| {
             RoleWithFactorSourceIds::with_factors(
                 self.get_threshold(),
