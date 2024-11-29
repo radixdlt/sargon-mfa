@@ -500,6 +500,36 @@ impl MatrixOfFactorSourceIds {
         assert!(builder.validate().is_ok());
         builder.build().unwrap()
     }
+
+    pub fn sample_config_90() -> Self {
+        let mut builder = MatrixBuilder::new();
+
+        // Primary
+        builder
+            .add_factor_source_to_primary_threshold(FactorSourceID::sample_device())
+            .unwrap();
+        let _ = builder.set_threshold(2);
+        builder
+            .add_factor_source_to_primary_threshold(FactorSourceID::sample_ledger())
+            .unwrap();
+
+        // Recovery
+        builder
+            .add_factor_source_to_recovery_override(FactorSourceID::sample_trusted_contact())
+            .unwrap();
+        builder
+            .add_factor_source_to_recovery_override(FactorSourceID::sample_device())
+            .unwrap();
+
+        // Confirmation
+        builder
+            .add_factor_source_to_confirmation_override(FactorSourceID::sample_security_questions())
+            .unwrap();
+
+        // Build
+        assert!(builder.validate().is_ok());
+        builder.build().unwrap()
+    }
 }
 
 impl HasSampleValues for MatrixOfFactorSourceIds {
@@ -556,6 +586,7 @@ mod tests {
                 SUT::sample_config_60(),
                 SUT::sample_config_70(),
                 SUT::sample_config_80(),
+                SUT::sample_config_90(),
                 // Duplicates should be removed
                 SUT::sample_config_11(),
                 SUT::sample_config_12(),
@@ -573,9 +604,10 @@ mod tests {
                 SUT::sample_config_60(),
                 SUT::sample_config_70(),
                 SUT::sample_config_80(),
+                SUT::sample_config_90(),
             ])
             .len(),
-            16
+            17
         );
     }
 
