@@ -187,11 +187,31 @@ impl MatrixBuilder {
             .into_matrix_err(RoleKind::Confirmation)
     }
 
+    pub fn get_confirmation_factors(&self) -> &Vec<FactorSourceID> {
+        self.confirmation_role.get_override_factors()
+    }
+
+    pub fn get_recovery_factors(&self) -> &Vec<FactorSourceID> {
+        self.recovery_role.get_override_factors()
+    }
+
+    pub fn get_primary_threshold_factors(&self) -> &Vec<FactorSourceID> {
+        self.primary_role.get_threshold_factors()
+    }
+
+    pub fn get_primary_override_factors(&self) -> &Vec<FactorSourceID> {
+        self.primary_role.get_override_factors()
+    }
+
     /// Sets the threshold on the primary role builder.
     pub fn set_threshold(&mut self, threshold: u8) -> MatrixBuilderMutateResult {
         self.primary_role
             .set_threshold(threshold)
             .into_matrix_err(RoleKind::Primary)
+    }
+
+    pub fn get_threshold(&self) -> u8 {
+        self.primary_role.get_threshold()
     }
 
     pub fn set_number_of_days_until_auto_confirm(
@@ -201,6 +221,10 @@ impl MatrixBuilder {
         self.number_of_days_until_auto_confirm = number_of_days;
 
         self.validate_number_of_days_until_auto_confirm()
+    }
+
+    pub fn get_number_of_days_until_auto_confirm(&self) -> u16 {
+        self.number_of_days_until_auto_confirm
     }
 
     /// Removes `factor_source_id` from all three roles, if not found in any an error

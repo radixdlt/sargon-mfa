@@ -20,6 +20,15 @@ pub struct SecurityStructureOfFactorSourceIds {
 }
 
 impl SecurityShieldBuilder {
+    fn get<R>(&self, mut with_non_consumed_builder: impl FnMut(&MatrixBuilder) -> R) -> R {
+        let binding = self.wrapped.write().unwrap();
+
+        let Some(builder) = binding.as_ref() else {
+            unreachable!("Already built, should not have happened.")
+        };
+        with_non_consumed_builder(builder)
+    }
+
     fn with<R, E: Into<CommonError>>(
         &self,
         mut with_non_consumed_builder: impl FnMut(&mut MatrixBuilder) -> Result<R, E>,
@@ -69,7 +78,26 @@ impl SecurityShieldBuilder {
             wrapped: RwLock::new(Some(MatrixBuilder::new())),
         })
     }
+}
 
+// ====================
+// ==== GET / READ ====
+// ====================
+#[uniffi::export]
+impl SecurityShieldBuilder {
+    pub fn get_primary_threshold(&self) -> u8 {
+        self.get(|builder| builder.get_threshold())
+    }
+    pub fn get_primary_threshold_facto(&self) -> u8 {
+        self.get(|builder| builder.get_threshold())
+    }
+}
+
+// ====================
+// ===== MUTATION =====
+// ====================
+#[uniffi::export]
+impl SecurityShieldBuilder {
     /// Adds the factor source to the primary role threshold list.
     pub fn add_factor_source_to_primary_threshold(
         &self,
