@@ -20,9 +20,7 @@ fn empty_is_err_primary() {
     let res = sut.build();
     assert_eq!(
         res,
-        Result::not_yet_valid(
-            NotYetValidReason::RoleMustHaveAtLeastOneFactor
-        )
+        Result::not_yet_valid(NotYetValidReason::RoleMustHaveAtLeastOneFactor)
     );
 }
 

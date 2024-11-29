@@ -8,11 +8,11 @@ mod security_structure_of_factors;
 
 pub mod prelude {
     pub(crate) use sargon::{
-        BIP39Passphrase, BaseIsFactorSource, CommonError, DisplayName, FactorInstance,
-        FactorInstances, FactorSource, FactorSourceID, FactorSourceIDFromHash, FactorSourceKind,
-        FactorSources, HasSampleValues, HierarchicalDeterministicFactorInstance, Identifiable,
-        IndexMap, IndexSet, IsMaybeKeySpaceAware, KeySpace, Mnemonic, MnemonicWithPassphrase,
-        RoleKind,
+        BIP39Passphrase, BaseIsFactorSource, CommonError, DerivationPreset, DisplayName,
+        FactorInstance, FactorInstances, FactorSource, FactorSourceID, FactorSourceIDFromHash,
+        FactorSourceKind, FactorSources, HasSampleValues, HierarchicalDeterministicFactorInstance,
+        Identifiable, IndexMap, IndexSet, IsMaybeKeySpaceAware, KeySpace, Mnemonic,
+        MnemonicWithPassphrase, RoleKind,
     };
 
     #[cfg(test)]

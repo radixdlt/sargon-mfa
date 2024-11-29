@@ -98,6 +98,7 @@ impl SampleValues for FactorSourceID {
 use assert_json_diff::assert_json_include;
 use core::fmt::Debug;
 use pretty_assertions::assert_eq;
+use sargon::{DerivationPath, FactorInstancesCache, NetworkID, NextDerivationEntityIndexAssigner};
 use serde::de::DeserializeOwned;
 use serde_json::Value;
 use std::str::FromStr;
@@ -312,42 +313,64 @@ pub trait MnemonicWithPassphraseSamples: Sized {
     }
 
     fn derive_instances_for_factor_sources(
+        network_id: NetworkID,
+        quantity_per_factor: usize,
+        derivation_presets: impl IntoIterator<Item = DerivationPreset>,
         sources: impl IntoIterator<Item = FactorSource>,
     ) -> IndexMap<FactorSourceIDFromHash, FactorInstances> {
-        let matrix = MatrixOfFactorSources::sample();
-        let mut consuming_instances = IndexMap::<FactorSourceIDFromHash, FactorInstances>::new();
-        sources.into_iter().map(|fs| {
-            let mwp = fs.id_from_hash().sample_associated_mnemonic();
-            let derivation_paths = (0..30)
-            mwp.derive_public_keys_vec(derivation_paths)
-        });
-        todo!()
-    }
-    fn derive_instances_for_all_factor_sources() -> IndexMap<FactorSourceIDFromHash, FactorInstances>
-    {
-        let factor_sources = FactorSources::sample_values_all();
-        Self::derive_instances_for_factor_sources(factor_sources)
+        let next_index_assigner = NextDerivationEntityIndexAssigner::new(
+            network_id,
+            None,
+            FactorInstancesCache::default(),
+        );
+
+        let derivation_presets = derivation_presets.into_iter().collect::<Vec<_>>();
+
+        sources
+            .into_iter()
+            .map(|fs| {
+                let fsid = fs.id_from_hash();
+                let mwp = fsid.sample_associated_mnemonic();
+
+                let paths = derivation_presets
+                    .clone()
+                    .into_iter()
+                    .map(|dp| (dp, quantity_per_factor))
+                    .collect::<IndexMap<DerivationPreset, usize>>();
+
+                let paths = paths
+                    .into_iter()
+                    .flat_map(|(derivation_preset, qty)| {
+                        // `qty` many paths
+                        (0..qty)
+                            .map(|_| {
+                                let index_agnostic_path =
+                                    derivation_preset.index_agnostic_path_on_network(network_id);
+
+                                next_index_assigner
+                                    .next(fsid, index_agnostic_path)
+                                    .map(|index| DerivationPath::from((index_agnostic_path, index)))
+                                    .unwrap()
+                            })
+                            .collect::<IndexSet<DerivationPath>>()
+                    })
+                    .collect::<IndexSet<DerivationPath>>();
+
+                let instances = mwp
+                    .derive_public_keys(paths)
+                    .into_iter()
+                    .map(|public_key| {
+                        HierarchicalDeterministicFactorInstance::new(fsid, public_key)
+                    })
+                    .collect::<FactorInstances>();
+
+                (fsid, instances)
+            })
+            .collect::<IndexMap<FactorSourceIDFromHash, FactorInstances>>()
     }
 }
 
 use once_cell::sync::Lazy;
-pub(crate) static ALL_FACTOR_SOURCE_ID_SAMPLES: Lazy<[FactorSourceIDFromHash; 12]> =
-    Lazy::new(|| {
-        [
-            FactorSourceIDFromHash::sample_device(),
-            FactorSourceIDFromHash::sample_ledger(),
-            FactorSourceIDFromHash::sample_ledger_other(),
-            FactorSourceIDFromHash::sample_arculus(),
-            FactorSourceIDFromHash::sample_arculus_other(),
-            FactorSourceIDFromHash::sample_passphrase(),
-            FactorSourceIDFromHash::sample_passphrase_other(),
-            FactorSourceIDFromHash::sample_off_device(),
-            FactorSourceIDFromHash::sample_off_device_other(),
-            FactorSourceIDFromHash::sample_security_questions(),
-            FactorSourceIDFromHash::sample_device_other(),
-            FactorSourceIDFromHash::sample_security_questions_other(),
-        ]
-    });
 
 pub(crate) static MNEMONIC_BY_ID_MAP: Lazy<
     IndexMap<FactorSourceIDFromHash, MnemonicWithPassphrase>,
