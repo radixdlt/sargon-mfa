@@ -214,7 +214,6 @@ impl<const R: u8> RoleBuilder<R> {
     pub(crate) fn build(self) -> Self::RoleBuilderBuildResult {
         self.validate().map(|_| {
             RoleWithFactorSourceIds::with_factors(
-                // self.role(),
                 self.get_threshold(),
                 self.get_threshold_factors().clone(),
                 self.get_override_factors().clone(),
