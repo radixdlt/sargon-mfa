@@ -350,6 +350,156 @@ impl MatrixOfFactorSourceIds {
         assert!(builder.validate().is_ok());
         builder.build().unwrap()
     }
+
+    pub fn sample_config_51() -> Self {
+        let mut builder = MatrixBuilder::new();
+
+        // Primary
+        builder
+            .add_factor_source_to_primary_threshold(FactorSourceID::sample_device())
+            .unwrap();
+        let _ = builder.set_threshold(2);
+        builder
+            .add_factor_source_to_primary_threshold(FactorSourceID::sample_password())
+            .unwrap();
+
+        // Recovery
+        builder
+            .add_factor_source_to_recovery_override(FactorSourceID::sample_trusted_contact())
+            .unwrap();
+
+        // Confirmation
+        builder
+            .add_factor_source_to_confirmation_override(FactorSourceID::sample_password())
+            .unwrap();
+
+        // Build
+        assert!(builder.validate().is_ok());
+        builder.build().unwrap()
+    }
+
+    pub fn sample_config_52() -> Self {
+        let mut builder = MatrixBuilder::new();
+
+        // Primary
+        builder
+            .add_factor_source_to_primary_threshold(FactorSourceID::sample_device())
+            .unwrap();
+        let _ = builder.set_threshold(2);
+        builder
+            .add_factor_source_to_primary_threshold(FactorSourceID::sample_password())
+            .unwrap();
+
+        // Recovery
+        builder
+            .add_factor_source_to_recovery_override(FactorSourceID::sample_trusted_contact())
+            .unwrap();
+        builder
+            .add_factor_source_to_recovery_override(FactorSourceID::sample_trusted_contact_other())
+            .unwrap();
+        builder
+            .add_factor_source_to_recovery_override(FactorSourceID::sample_device())
+            .unwrap();
+
+        // Confirmation
+        builder
+            .add_factor_source_to_confirmation_override(FactorSourceID::sample_password())
+            .unwrap();
+        builder
+            .add_factor_source_to_confirmation_override(FactorSourceID::sample_password_other())
+            .unwrap();
+        builder
+            .add_factor_source_to_confirmation_override(FactorSourceID::sample_passphrase())
+            .unwrap();
+
+        // Build
+        assert!(builder.validate().is_ok());
+        builder.build().unwrap()
+    }
+
+    pub fn sample_config_60() -> Self {
+        let mut builder = MatrixBuilder::new();
+
+        // Primary
+        builder
+            .add_factor_source_to_primary_threshold(FactorSourceID::sample_device())
+            .unwrap();
+        let _ = builder.set_threshold(1);
+
+        // Recovery
+        builder
+            .add_factor_source_to_recovery_override(FactorSourceID::sample_trusted_contact())
+            .unwrap();
+
+        // Confirmation
+        builder
+            .add_factor_source_to_confirmation_override(FactorSourceID::sample_security_questions())
+            .unwrap();
+
+        // Build
+        assert!(builder.validate().is_ok());
+        builder.build().unwrap()
+    }
+
+    pub fn sample_config_70() -> Self {
+        let mut builder = MatrixBuilder::new();
+
+        // Primary
+        builder
+            .add_factor_source_to_primary_threshold(FactorSourceID::sample_device())
+            .unwrap();
+        let _ = builder.set_threshold(2);
+        builder
+            .add_factor_source_to_primary_threshold(FactorSourceID::sample_ledger())
+            .unwrap();
+
+        // Recovery
+        builder
+            .add_factor_source_to_recovery_override(FactorSourceID::sample_trusted_contact())
+            .unwrap();
+        builder
+            .add_factor_source_to_recovery_override(FactorSourceID::sample_ledger())
+            .unwrap();
+
+        // Confirmation
+        builder
+            .add_factor_source_to_confirmation_override(FactorSourceID::sample_device())
+            .unwrap();
+
+        // Build
+        assert!(builder.validate().is_ok());
+        builder.build().unwrap()
+    }
+
+    pub fn sample_config_80() -> Self {
+        let mut builder = MatrixBuilder::new();
+
+        // Primary
+        builder
+            .add_factor_source_to_primary_threshold(FactorSourceID::sample_device())
+            .unwrap();
+        let _ = builder.set_threshold(2);
+        builder
+            .add_factor_source_to_primary_threshold(FactorSourceID::sample_ledger())
+            .unwrap();
+
+        // Recovery
+        builder
+            .add_factor_source_to_recovery_override(FactorSourceID::sample_ledger())
+            .unwrap();
+        builder
+            .add_factor_source_to_recovery_override(FactorSourceID::sample_device())
+            .unwrap();
+
+        // Confirmation
+        builder
+            .add_factor_source_to_confirmation_override(FactorSourceID::sample_security_questions())
+            .unwrap();
+
+        // Build
+        assert!(builder.validate().is_ok());
+        builder.build().unwrap()
+    }
 }
 
 impl HasSampleValues for MatrixOfFactorSourceIds {
@@ -401,6 +551,11 @@ mod tests {
                 SUT::sample_config_24(),
                 SUT::sample_config_30(),
                 SUT::sample_config_40(),
+                SUT::sample_config_51(),
+                SUT::sample_config_52(),
+                SUT::sample_config_60(),
+                SUT::sample_config_70(),
+                SUT::sample_config_80(),
                 // Duplicates should be removed
                 SUT::sample_config_11(),
                 SUT::sample_config_12(),
@@ -413,9 +568,14 @@ mod tests {
                 SUT::sample_config_24(),
                 SUT::sample_config_30(),
                 SUT::sample_config_40(),
+                SUT::sample_config_51(),
+                SUT::sample_config_52(),
+                SUT::sample_config_60(),
+                SUT::sample_config_70(),
+                SUT::sample_config_80(),
             ])
             .len(),
-            11
+            16
         );
     }
 
