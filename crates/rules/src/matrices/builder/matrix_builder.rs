@@ -14,6 +14,9 @@ pub type MatrixBuilder = AbstractMatrixBuilderOrBuilt<
     Built, // this is HACKY
 >;
 
+pub type MatrixTemplate = AbstractMatrixBuilt<FactorSourceTemplate>;
+
+
 // ==================
 // ===== PUBLIC =====
 // ==================

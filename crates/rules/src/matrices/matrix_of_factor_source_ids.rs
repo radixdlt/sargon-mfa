@@ -1,3 +1,5 @@
+use std::vec;
+
 use crate::prelude::*;
 
 pub type MatrixOfFactorSourceIds = AbstractMatrixBuilt<FactorSourceID>;
@@ -532,6 +534,132 @@ impl MatrixOfFactorSourceIds {
     }
 }
 
+#[cfg(test)]
+mod test_templates {
+    use super::*;
+
+    #[test]
+    fn temp() {
+        let c = MatrixTemplate::config_90();
+        let m = c
+            .fulfill(vec![
+                FactorSourceID::sample_device(),
+                FactorSourceID::sample_device_other(),
+                FactorSourceID::sample_ledger(),
+                FactorSourceID::sample_ledger_other(),
+                FactorSourceID::sample_arculus(),
+                FactorSourceID::sample_arculus_other(),
+                FactorSourceID::sample_passphrase(),
+                FactorSourceID::sample_passphrase_other(),
+                FactorSourceID::sample_security_questions(),
+                FactorSourceID::sample_security_questions_other(),
+                FactorSourceID::sample_trusted_contact(),
+                FactorSourceID::sample_trusted_contact_other(),
+            ])
+            .unwrap();
+        pretty_assertions::assert_eq!(m, MatrixOfFactorSourceIds::sample_config_90());
+    }
+}
+
+impl MatrixTemplate {
+    pub fn config_90() -> Self {
+        Self {
+            built: PhantomData,
+            primary_role: PrimaryRoleTemplate::with_factors(
+                2,
+                vec![
+                    FactorSourceTemplate::device(0),
+                    FactorSourceTemplate::ledger(0),
+                ],
+                vec![],
+            ),
+            recovery_role: RecoveryRoleTemplate::with_factors(
+                0,
+                vec![],
+                vec![
+                    FactorSourceTemplate::trusted_contact(0),
+                    FactorSourceTemplate::device(0),
+                ],
+            ),
+            confirmation_role: ConfirmationRoleTemplate::with_factors(
+                0,
+                vec![],
+                vec![FactorSourceTemplate::security_questions(0)],
+            ),
+            number_of_days_until_auto_confirm: Self::DEFAULT_NUMBER_OF_DAYS_UNTIL_AUTO_CONFIRM,
+        }
+    }
+}
+
+impl<const R: u8> AbstractBuiltRoleWithFactor<R, FactorSourceTemplate> {
+    pub(crate) fn fulfill(
+        self,
+        factor_source_id_assigner: &mut FactorSourceIdAssigner,
+    ) -> Result<RoleWithFactorSourceIds<R>, CommonError> {
+        let mut fulfill =
+            |xs: &Vec<FactorSourceTemplate>| -> Result<Vec<FactorSourceID>, CommonError> {
+                xs.into_iter()
+                    .map(|f| factor_source_id_assigner.next(f))
+                    .collect::<Result<Vec<_>, CommonError>>()
+            };
+        Ok(RoleWithFactorSourceIds::with_factors(
+            self.get_threshold(),
+            fulfill(self.get_threshold_factors())?,
+            fulfill(self.get_override_factors())?,
+        ))
+    }
+}
+pub(crate) struct FactorSourceIdAssigner {
+    factor_source_ids: Vec<FactorSourceID>,
+    map: IndexMap<FactorSourceTemplate, FactorSourceID>,
+}
+impl FactorSourceIdAssigner {
+    fn new(factor_source_ids: impl IntoIterator<Item = FactorSourceID>) -> Self {
+        Self {
+            factor_source_ids: factor_source_ids.into_iter().collect_vec(),
+            map: IndexMap::new(),
+        }
+    }
+    fn next(&mut self, template: &FactorSourceTemplate) -> Result<FactorSourceID, CommonError> {
+        if let Some(existing) = self.map.get(template) {
+            println!("🎭 existing for ID={:?}, using: {:?}", template, *existing);
+            Ok(*existing)
+        } else if let Some(index_of_next) = self
+        .factor_source_ids
+        .iter()
+        .position(|f| f.get_factor_source_kind() == template.kind)
+        {
+            let next = self.factor_source_ids.remove(index_of_next);
+            println!("🎭 Consuming and using new: for template={:?}, next: {:?}", template, next);
+            self.map.insert(template.clone(), next);
+            Ok(next)
+        } else {
+            Err(CommonError::Unknown)
+        }
+    }
+}
+
+impl MatrixTemplate {
+    pub fn fulfill(
+        self,
+        factor_source_ids: impl IntoIterator<Item = FactorSourceID>,
+    ) -> Result<MatrixOfFactorSourceIds, CommonError> {
+        let mut assigner = FactorSourceIdAssigner::new(factor_source_ids);
+        let primary_role = self.primary_role.fulfill(&mut assigner)?;
+        let recovery_role = self.recovery_role.fulfill(&mut assigner)?;
+        let confirmation_role = self.confirmation_role.fulfill(&mut assigner)?;
+
+        Ok(MatrixOfFactorSourceIds {
+            built: PhantomData,
+            primary_role,
+            recovery_role,
+            confirmation_role,
+            number_of_days_until_auto_confirm:
+                MatrixOfFactorSourceIds::DEFAULT_NUMBER_OF_DAYS_UNTIL_AUTO_CONFIRM,
+        })
+    }
+}
+
 impl HasSampleValues for MatrixOfFactorSourceIds {
     fn sample() -> Self {
         Self::sample_config_11()
@@ -547,6 +675,9 @@ mod tests {
     use super::*;
     #[allow(clippy::upper_case_acronyms)]
     type SUT = MatrixOfFactorSourceIds;
+
+    #[test]
+    fn template() {}
 
     #[test]
     fn equality() {
