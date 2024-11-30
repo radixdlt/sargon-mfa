@@ -1,9 +1,17 @@
 use crate::prelude::*;
 
+/// A Matrix of FactorSourceTemplates, can be used to create template
+/// "SecurityShields", mostly useful for coding/tests, but theoretically
+/// we could UniFFI export these and use them in the hosts wallets, which would
+/// pre-populate SecurityShield-builder flow screens - if hosts/Sargon manages
+/// to assign each template "slot" with a concrete FactorSourceID, known as
+/// materialization.
 pub type MatrixTemplate = AbstractMatrixBuilt<FactorSourceTemplate>;
 
 impl<const R: u8> AbstractBuiltRoleWithFactor<R, FactorSourceTemplate> {
-    pub(crate) fn fulfill(
+    /// Tries to materialize a RoleWithFactorSourceIds from a RoleTemplate by
+    /// assigning each template with a concrete FactorSourceID using the FactorSourceIdAssigner.
+    pub(crate) fn assign(
         self,
         factor_source_id_assigner: &mut FactorSourceIdAssigner,
     ) -> Result<RoleWithFactorSourceIds<R>, CommonError> {
@@ -20,6 +28,9 @@ impl<const R: u8> AbstractBuiltRoleWithFactor<R, FactorSourceTemplate> {
         ))
     }
 }
+
+/// A helper which assigns FactorSourceIDs to FactorSourceTemplates, used for
+/// materializing a MatrixTemplate into a MatrixOfFactorSourceIds.
 pub(crate) struct FactorSourceIdAssigner {
     factor_source_ids: Vec<FactorSourceID>,
     map: IndexMap<FactorSourceTemplate, FactorSourceID>,
@@ -51,22 +62,24 @@ impl FactorSourceIdAssigner {
 }
 
 impl MatrixTemplate {
-    pub fn fulfill(
+    /// Tries to materialize a MatrixOfFactorSourceIds from a MatrixTemplate by
+    /// assigning each template with a concrete FactorSourceID using the `factor_source_ids`.`
+    pub fn materialize(
         self,
         factor_source_ids: impl IntoIterator<Item = FactorSourceID>,
     ) -> Result<MatrixOfFactorSourceIds, CommonError> {
+        let number_of_days_until_auto_confirm = self.number_of_days_until_auto_confirm;
         let mut assigner = FactorSourceIdAssigner::new(factor_source_ids);
-        let primary_role = self.primary_role.fulfill(&mut assigner)?;
-        let recovery_role = self.recovery_role.fulfill(&mut assigner)?;
-        let confirmation_role = self.confirmation_role.fulfill(&mut assigner)?;
+        let primary_role = self.primary_role.assign(&mut assigner)?;
+        let recovery_role = self.recovery_role.assign(&mut assigner)?;
+        let confirmation_role = self.confirmation_role.assign(&mut assigner)?;
 
         Ok(MatrixOfFactorSourceIds {
             built: PhantomData,
             primary_role,
             recovery_role,
             confirmation_role,
-            number_of_days_until_auto_confirm:
-                MatrixOfFactorSourceIds::DEFAULT_NUMBER_OF_DAYS_UNTIL_AUTO_CONFIRM,
+            number_of_days_until_auto_confirm,
         })
     }
 }
@@ -311,7 +324,7 @@ mod test_templates {
 
     fn test_template(template: MatrixTemplate, expected: MatrixOfFactorSourceIds) {
         let m = template
-            .fulfill(*ALL_FACTOR_SOURCE_ID_SAMPLES_INC_NON_HD)
+            .materialize(*ALL_FACTOR_SOURCE_ID_SAMPLES_INC_NON_HD)
             .unwrap();
         pretty_assertions::assert_eq!(m, expected);
     }

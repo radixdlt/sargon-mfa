@@ -39,7 +39,7 @@ impl MatrixOfFactorSourceIds {
 impl MatrixOfFactorSourceIds {
     fn sample_from_template(template: MatrixTemplate) -> Self {
         template
-            .fulfill(*ALL_FACTOR_SOURCE_ID_SAMPLES_INC_NON_HD)
+            .materialize(*ALL_FACTOR_SOURCE_ID_SAMPLES_INC_NON_HD)
             .unwrap()
     }
 

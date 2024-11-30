@@ -1,13 +1,24 @@
 use crate::prelude::*;
 
+/// A "template" FactorSourceID/FactorSource to be used in a RoleTemplate is
+/// FactorSourceKind with some placeholder ID, to distinguish between two different
+/// FactorSourceIDs of some kind, e.g. `FactorSourceID::sample()` and `FactorSourceID::sample_other()`.
+/// but exactly which FactorSourceID values are not yet known, since this is a template.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct FactorSourceTemplate {
+    /// The kind of FactorSource, e.g. Device, LedgerHQHardwareWallet, Password, etc.
     pub kind: FactorSourceKind,
+
+    /// Some placeholder ID to distinguish between two different FactorSourceIDs
+    /// to be concretely defined later.
     pub id: u8,
 }
 
-pub(crate) type PrimaryRoleTemplate =
-    AbstractBuiltRoleWithFactor<{ ROLE_PRIMARY }, FactorSourceTemplate>;
+pub(crate) type RoleTemplate<const R: u8> = AbstractBuiltRoleWithFactor<R, FactorSourceTemplate>;
+
+pub(crate) type PrimaryRoleTemplate = RoleTemplate<{ ROLE_PRIMARY }>;
+pub(crate) type RecoveryRoleTemplate = RoleTemplate<{ ROLE_RECOVERY }>;
+pub(crate) type ConfirmationRoleTemplate = RoleTemplate<{ ROLE_CONFIRMATION }>;
 
 impl PrimaryRoleTemplate {
     pub(crate) fn new(threshold_factors: impl IntoIterator<Item = FactorSourceTemplate>) -> Self {
@@ -16,17 +27,11 @@ impl PrimaryRoleTemplate {
     }
 }
 
-pub(crate) type RecoveryRoleTemplate =
-    AbstractBuiltRoleWithFactor<{ ROLE_RECOVERY }, FactorSourceTemplate>;
-
 impl RecoveryRoleTemplate {
     pub(crate) fn new(override_factors: impl IntoIterator<Item = FactorSourceTemplate>) -> Self {
         Self::with_factors(0, [], override_factors)
     }
 }
-
-pub(crate) type ConfirmationRoleTemplate =
-    AbstractBuiltRoleWithFactor<{ ROLE_CONFIRMATION }, FactorSourceTemplate>;
 
 impl ConfirmationRoleTemplate {
     pub(crate) fn new(override_factors: impl IntoIterator<Item = FactorSourceTemplate>) -> Self {
