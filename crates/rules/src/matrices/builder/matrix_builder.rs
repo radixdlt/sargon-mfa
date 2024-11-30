@@ -16,7 +16,6 @@ pub type MatrixBuilder = AbstractMatrixBuilderOrBuilt<
 
 pub type MatrixTemplate = AbstractMatrixBuilt<FactorSourceTemplate>;
 
-
 // ==================
 // ===== PUBLIC =====
 // ==================

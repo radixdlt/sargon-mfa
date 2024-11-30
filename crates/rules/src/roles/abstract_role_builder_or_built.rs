@@ -42,6 +42,11 @@ impl FactorSourceTemplate {
         Self::new(FactorSourceKind::Password, id)
     }
 
+    /// Radix Wallet (UI) calls this "Passphrase"
+    pub fn off_device_mnemonic(id: u8) -> Self {
+        Self::new(FactorSourceKind::OffDeviceMnemonic, id)
+    }
+
     pub fn trusted_contact(id: u8) -> Self {
         Self::new(FactorSourceKind::TrustedContact, id)
     }

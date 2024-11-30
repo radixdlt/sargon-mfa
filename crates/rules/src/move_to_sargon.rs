@@ -371,6 +371,27 @@ pub trait MnemonicWithPassphraseSamples: Sized {
 
 use once_cell::sync::Lazy;
 
+#[allow(dead_code)]
+pub(crate) static ALL_FACTOR_SOURCE_ID_SAMPLES_INC_NON_HD: Lazy<[FactorSourceID; 14]> =
+    Lazy::new(|| {
+        [
+            FactorSourceID::sample_device(),
+            FactorSourceID::sample_ledger(),
+            FactorSourceID::sample_ledger_other(),
+            FactorSourceID::sample_arculus(),
+            FactorSourceID::sample_arculus_other(),
+            FactorSourceID::sample_password(),
+            FactorSourceID::sample_password_other(),
+            FactorSourceID::sample_passphrase(),
+            FactorSourceID::sample_passphrase_other(),
+            FactorSourceID::sample_security_questions(),
+            FactorSourceID::sample_device_other(),
+            FactorSourceID::sample_security_questions_other(),
+            FactorSourceID::sample_trusted_contact(),
+            FactorSourceID::sample_trusted_contact_other(),
+        ]
+    });
+
 pub(crate) static MNEMONIC_BY_ID_MAP: Lazy<
     IndexMap<FactorSourceIDFromHash, MnemonicWithPassphrase>,
 > = Lazy::new(|| {

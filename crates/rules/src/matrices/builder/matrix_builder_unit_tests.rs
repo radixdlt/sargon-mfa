@@ -1566,9 +1566,9 @@ mod shield_configs {
             let mut sut = make();
 
             // Primary
-            // TODO: Ask Matt about this, does he mean Threshold(1) or Override?
-            sut.add_factor_source_to_primary_override(FactorSourceID::sample_ledger())
+            sut.add_factor_source_to_primary_threshold(FactorSourceID::sample_ledger())
                 .unwrap();
+            sut.set_threshold(1).unwrap();
 
             // Recovery
             sut.add_factor_source_to_recovery_override(FactorSourceID::sample_ledger_other())
@@ -1585,9 +1585,9 @@ mod shield_configs {
                 built,
                 MatrixOfFactorSourceIds::with_roles(
                     RoleWithFactorSourceIds::primary_with_factors(
-                        0,
-                        [],
+                        1,
                         [FactorSourceID::sample_ledger(),],
+                        [],
                     ),
                     RoleWithFactorSourceIds::recovery_with_factors([
                         FactorSourceID::sample_ledger_other(),
@@ -1606,9 +1606,9 @@ mod shield_configs {
             let mut sut = make();
 
             // Primary
-            // TODO: Ask Matt about this, does he mean Threshold(1) or Override?
-            sut.add_factor_source_to_primary_override(FactorSourceID::sample_device())
+            sut.add_factor_source_to_primary_threshold(FactorSourceID::sample_device())
                 .unwrap();
+            sut.set_threshold(1).unwrap();
 
             // Recovery
             sut.add_factor_source_to_recovery_override(FactorSourceID::sample_ledger())
@@ -1625,9 +1625,9 @@ mod shield_configs {
                 built,
                 MatrixOfFactorSourceIds::with_roles(
                     RoleWithFactorSourceIds::primary_with_factors(
-                        0,
-                        [],
+                        1,
                         [FactorSourceID::sample_device(),],
+                        [],
                     ),
                     RoleWithFactorSourceIds::recovery_with_factors([
                         FactorSourceID::sample_ledger(),
