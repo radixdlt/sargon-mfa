@@ -72,459 +72,236 @@ impl MatrixTemplate {
 }
 
 impl MatrixTemplate {
-    pub fn config_11() -> Self {
+    fn new(
+        primary_role: PrimaryRoleTemplate,
+        recovery_role: RecoveryRoleTemplate,
+        confirmation_role: ConfirmationRoleTemplate,
+    ) -> Self {
         Self {
             built: PhantomData,
-            primary_role: PrimaryRoleTemplate::with_factors(
-                2,
-                vec![
-                    FactorSourceTemplate::device(0),
-                    FactorSourceTemplate::ledger(0),
-                ],
-                vec![],
-            ),
-            recovery_role: RecoveryRoleTemplate::with_factors(
-                0,
-                vec![],
-                vec![
-                    FactorSourceTemplate::device(0),
-                    FactorSourceTemplate::ledger(0),
-                ],
-            ),
-            confirmation_role: ConfirmationRoleTemplate::with_factors(
-                0,
-                vec![],
-                vec![FactorSourceTemplate::password(0)],
-            ),
-            number_of_days_until_auto_confirm: Self::DEFAULT_NUMBER_OF_DAYS_UNTIL_AUTO_CONFIRM,
+            primary_role,
+            recovery_role,
+            confirmation_role,
+            number_of_days_until_auto_confirm:
+                MatrixOfFactorSourceIds::DEFAULT_NUMBER_OF_DAYS_UNTIL_AUTO_CONFIRM,
         }
+    }
+
+    pub fn config_11() -> Self {
+        Self::new(
+            PrimaryRoleTemplate::new([
+                FactorSourceTemplate::device(),
+                FactorSourceTemplate::ledger(),
+            ]),
+            RecoveryRoleTemplate::new([
+                FactorSourceTemplate::device(),
+                FactorSourceTemplate::ledger(),
+            ]),
+            ConfirmationRoleTemplate::new([FactorSourceTemplate::password()]),
+        )
     }
 
     pub fn config_12() -> Self {
-        Self {
-            built: PhantomData,
-            primary_role: PrimaryRoleTemplate::with_factors(
-                2,
-                vec![
-                    FactorSourceTemplate::ledger(0),
-                    FactorSourceTemplate::password(0),
-                ],
-                vec![],
-            ),
-            recovery_role: RecoveryRoleTemplate::with_factors(
-                0,
-                vec![],
-                vec![
-                    FactorSourceTemplate::device(0),
-                    FactorSourceTemplate::ledger(0),
-                ],
-            ),
-            confirmation_role: ConfirmationRoleTemplate::with_factors(
-                0,
-                vec![],
-                vec![FactorSourceTemplate::password(0)],
-            ),
-            number_of_days_until_auto_confirm: Self::DEFAULT_NUMBER_OF_DAYS_UNTIL_AUTO_CONFIRM,
-        }
+        Self::new(
+            PrimaryRoleTemplate::new([
+                FactorSourceTemplate::ledger(),
+                FactorSourceTemplate::password(),
+            ]),
+            RecoveryRoleTemplate::new([
+                FactorSourceTemplate::device(),
+                FactorSourceTemplate::ledger(),
+            ]),
+            ConfirmationRoleTemplate::new([FactorSourceTemplate::password()]),
+        )
     }
 
     pub fn config_13() -> Self {
-        Self {
-            built: PhantomData,
-            primary_role: PrimaryRoleTemplate::with_factors(
-                2,
-                vec![
-                    FactorSourceTemplate::device(0),
-                    FactorSourceTemplate::password(0),
-                ],
-                vec![],
-            ),
-            recovery_role: RecoveryRoleTemplate::with_factors(
-                0,
-                vec![],
-                vec![
-                    FactorSourceTemplate::device(0),
-                    FactorSourceTemplate::ledger(0),
-                ],
-            ),
-            confirmation_role: ConfirmationRoleTemplate::with_factors(
-                0,
-                vec![],
-                vec![FactorSourceTemplate::password(0)],
-            ),
-            number_of_days_until_auto_confirm: Self::DEFAULT_NUMBER_OF_DAYS_UNTIL_AUTO_CONFIRM,
-        }
+        Self::new(
+            PrimaryRoleTemplate::new([
+                FactorSourceTemplate::device(),
+                FactorSourceTemplate::password(),
+            ]),
+            RecoveryRoleTemplate::new([
+                FactorSourceTemplate::device(),
+                FactorSourceTemplate::ledger(),
+            ]),
+            ConfirmationRoleTemplate::new([FactorSourceTemplate::password()]),
+        )
     }
 
     pub fn config_14() -> Self {
-        Self {
-            built: PhantomData,
-            primary_role: PrimaryRoleTemplate::with_factors(
-                1,
-                vec![FactorSourceTemplate::device(0)],
-                vec![],
-            ),
-            recovery_role: RecoveryRoleTemplate::with_factors(
-                0,
-                vec![],
-                vec![FactorSourceTemplate::ledger(0)],
-            ),
-            confirmation_role: ConfirmationRoleTemplate::with_factors(
-                0,
-                vec![],
-                vec![FactorSourceTemplate::password(0)],
-            ),
-            number_of_days_until_auto_confirm: Self::DEFAULT_NUMBER_OF_DAYS_UNTIL_AUTO_CONFIRM,
-        }
+        Self::new(
+            PrimaryRoleTemplate::new([FactorSourceTemplate::device()]),
+            RecoveryRoleTemplate::new([FactorSourceTemplate::ledger()]),
+            ConfirmationRoleTemplate::new([FactorSourceTemplate::password()]),
+        )
     }
 
     pub fn config_15() -> Self {
-        Self {
-            built: PhantomData,
-            primary_role: PrimaryRoleTemplate::with_factors(
-                1,
-                vec![FactorSourceTemplate::ledger(0)],
-                vec![],
-            ),
-            recovery_role: RecoveryRoleTemplate::with_factors(
-                0,
-                vec![],
-                vec![FactorSourceTemplate::device(0)],
-            ),
-            confirmation_role: ConfirmationRoleTemplate::with_factors(
-                0,
-                vec![],
-                vec![FactorSourceTemplate::password(0)],
-            ),
-            number_of_days_until_auto_confirm: Self::DEFAULT_NUMBER_OF_DAYS_UNTIL_AUTO_CONFIRM,
-        }
+        Self::new(
+            PrimaryRoleTemplate::new([FactorSourceTemplate::ledger()]),
+            RecoveryRoleTemplate::new([FactorSourceTemplate::device()]),
+            ConfirmationRoleTemplate::new([FactorSourceTemplate::password()]),
+        )
     }
 
     pub fn config_21() -> Self {
-        Self {
-            built: PhantomData,
-            primary_role: PrimaryRoleTemplate::with_factors(
-                2,
-                vec![
-                    FactorSourceTemplate::device(0),
-                    FactorSourceTemplate::ledger(0),
-                ],
-                vec![],
-            ),
-            recovery_role: RecoveryRoleTemplate::with_factors(
-                0,
-                vec![],
-                vec![
-                    FactorSourceTemplate::ledger(0),
-                    FactorSourceTemplate::ledger(1),
-                ],
-            ),
-            confirmation_role: ConfirmationRoleTemplate::with_factors(
-                0,
-                vec![],
-                vec![FactorSourceTemplate::device(0)],
-            ),
-            number_of_days_until_auto_confirm: Self::DEFAULT_NUMBER_OF_DAYS_UNTIL_AUTO_CONFIRM,
-        }
+        Self::new(
+            PrimaryRoleTemplate::new([
+                FactorSourceTemplate::device(),
+                FactorSourceTemplate::ledger(),
+            ]),
+            RecoveryRoleTemplate::new([
+                FactorSourceTemplate::ledger(),
+                FactorSourceTemplate::ledger_other(),
+            ]),
+            ConfirmationRoleTemplate::new([FactorSourceTemplate::device()]),
+        )
     }
 
     pub fn config_22() -> Self {
-        Self {
-            built: PhantomData,
-            primary_role: PrimaryRoleTemplate::with_factors(
-                2,
-                vec![
-                    FactorSourceTemplate::ledger(0),
-                    FactorSourceTemplate::ledger(1),
-                ],
-                vec![],
-            ),
-            recovery_role: RecoveryRoleTemplate::with_factors(
-                0,
-                vec![],
-                vec![
-                    FactorSourceTemplate::ledger(0),
-                    FactorSourceTemplate::ledger(1),
-                ],
-            ),
-            confirmation_role: ConfirmationRoleTemplate::with_factors(
-                0,
-                vec![],
-                vec![FactorSourceTemplate::device(0)],
-            ),
-            number_of_days_until_auto_confirm: Self::DEFAULT_NUMBER_OF_DAYS_UNTIL_AUTO_CONFIRM,
-        }
+        Self::new(
+            PrimaryRoleTemplate::new([
+                FactorSourceTemplate::ledger(),
+                FactorSourceTemplate::ledger_other(),
+            ]),
+            RecoveryRoleTemplate::new([
+                FactorSourceTemplate::ledger(),
+                FactorSourceTemplate::ledger_other(),
+            ]),
+            ConfirmationRoleTemplate::new([FactorSourceTemplate::device()]),
+        )
     }
 
     pub fn config_23() -> Self {
-        Self {
-            built: PhantomData,
-            primary_role: PrimaryRoleTemplate::with_factors(
-                1,
-                vec![FactorSourceTemplate::ledger(0)],
-                vec![],
-            ),
-            recovery_role: RecoveryRoleTemplate::with_factors(
-                0,
-                vec![],
-                vec![FactorSourceTemplate::ledger(1)],
-            ),
-            confirmation_role: ConfirmationRoleTemplate::with_factors(
-                0,
-                vec![],
-                vec![FactorSourceTemplate::device(0)],
-            ),
-            number_of_days_until_auto_confirm: Self::DEFAULT_NUMBER_OF_DAYS_UNTIL_AUTO_CONFIRM,
-        }
+        Self::new(
+            PrimaryRoleTemplate::new([FactorSourceTemplate::ledger()]),
+            RecoveryRoleTemplate::new([FactorSourceTemplate::ledger_other()]),
+            ConfirmationRoleTemplate::new([FactorSourceTemplate::device()]),
+        )
     }
 
     pub fn config_24() -> Self {
-        Self {
-            built: PhantomData,
-            primary_role: PrimaryRoleTemplate::with_factors(
-                1,
-                vec![FactorSourceTemplate::device(0)],
-                vec![],
-            ),
-            recovery_role: RecoveryRoleTemplate::with_factors(
-                0,
-                vec![],
-                vec![FactorSourceTemplate::ledger(0)],
-            ),
-            confirmation_role: ConfirmationRoleTemplate::with_factors(
-                0,
-                vec![],
-                vec![FactorSourceTemplate::ledger(1)],
-            ),
-            number_of_days_until_auto_confirm: Self::DEFAULT_NUMBER_OF_DAYS_UNTIL_AUTO_CONFIRM,
-        }
+        Self::new(
+            PrimaryRoleTemplate::new([FactorSourceTemplate::device()]),
+            RecoveryRoleTemplate::new([FactorSourceTemplate::ledger()]),
+            ConfirmationRoleTemplate::new([FactorSourceTemplate::ledger_other()]),
+        )
     }
 
     pub fn config_30() -> Self {
-        Self {
-            built: PhantomData,
-            primary_role: PrimaryRoleTemplate::with_factors(
-                2,
-                vec![
-                    FactorSourceTemplate::device(0),
-                    FactorSourceTemplate::ledger(0),
-                ],
-                vec![],
-            ),
-            recovery_role: RecoveryRoleTemplate::with_factors(
-                0,
-                vec![],
-                vec![
-                    FactorSourceTemplate::ledger(0),
-                    FactorSourceTemplate::ledger(1),
-                ],
-            ),
-            confirmation_role: ConfirmationRoleTemplate::with_factors(
-                0,
-                vec![],
-                vec![
-                    FactorSourceTemplate::device(0),
-                    FactorSourceTemplate::password(0),
-                ],
-            ),
-            number_of_days_until_auto_confirm: Self::DEFAULT_NUMBER_OF_DAYS_UNTIL_AUTO_CONFIRM,
-        }
+        Self::new(
+            PrimaryRoleTemplate::new([
+                FactorSourceTemplate::device(),
+                FactorSourceTemplate::ledger(),
+            ]),
+            RecoveryRoleTemplate::new([
+                FactorSourceTemplate::ledger(),
+                FactorSourceTemplate::ledger_other(),
+            ]),
+            ConfirmationRoleTemplate::new([
+                FactorSourceTemplate::device(),
+                FactorSourceTemplate::password(),
+            ]),
+        )
     }
 
     pub fn config_40() -> Self {
-        Self {
-            built: PhantomData,
-            primary_role: PrimaryRoleTemplate::with_factors(
-                2,
-                vec![
-                    FactorSourceTemplate::device(0),
-                    FactorSourceTemplate::ledger(0),
-                ],
-                vec![],
-            ),
-            recovery_role: RecoveryRoleTemplate::with_factors(
-                0,
-                vec![],
-                vec![
-                    FactorSourceTemplate::device(0),
-                    FactorSourceTemplate::ledger(0),
-                ],
-            ),
-            confirmation_role: ConfirmationRoleTemplate::with_factors(
-                0,
-                vec![],
-                vec![
-                    FactorSourceTemplate::password(0),
-                    FactorSourceTemplate::password(1),
-                    FactorSourceTemplate::off_device_mnemonic(0),
-                ],
-            ),
-            number_of_days_until_auto_confirm: Self::DEFAULT_NUMBER_OF_DAYS_UNTIL_AUTO_CONFIRM,
-        }
+        Self::new(
+            PrimaryRoleTemplate::new([
+                FactorSourceTemplate::device(),
+                FactorSourceTemplate::ledger(),
+            ]),
+            RecoveryRoleTemplate::new([
+                FactorSourceTemplate::device(),
+                FactorSourceTemplate::ledger(),
+            ]),
+            ConfirmationRoleTemplate::new([
+                FactorSourceTemplate::password(),
+                FactorSourceTemplate::password_other(),
+                FactorSourceTemplate::off_device_mnemonic(),
+            ]),
+        )
     }
 
     pub fn config_51() -> Self {
-        Self {
-            built: PhantomData,
-            primary_role: PrimaryRoleTemplate::with_factors(
-                2,
-                vec![
-                    FactorSourceTemplate::device(0),
-                    FactorSourceTemplate::password(0),
-                ],
-                vec![],
-            ),
-            recovery_role: RecoveryRoleTemplate::with_factors(
-                0,
-                vec![],
-                vec![FactorSourceTemplate::trusted_contact(0)],
-            ),
-            confirmation_role: ConfirmationRoleTemplate::with_factors(
-                0,
-                vec![],
-                vec![FactorSourceTemplate::password(0)],
-            ),
-            number_of_days_until_auto_confirm: Self::DEFAULT_NUMBER_OF_DAYS_UNTIL_AUTO_CONFIRM,
-        }
+        Self::new(
+            PrimaryRoleTemplate::new([
+                FactorSourceTemplate::device(),
+                FactorSourceTemplate::password(),
+            ]),
+            RecoveryRoleTemplate::new([FactorSourceTemplate::trusted_contact()]),
+            ConfirmationRoleTemplate::new([FactorSourceTemplate::password()]),
+        )
     }
 
     pub fn config_52() -> Self {
-        Self {
-            built: PhantomData,
-            primary_role: PrimaryRoleTemplate::with_factors(
-                2,
-                vec![
-                    FactorSourceTemplate::device(0),
-                    FactorSourceTemplate::password(0),
-                ],
-                vec![],
-            ),
-            recovery_role: RecoveryRoleTemplate::with_factors(
-                0,
-                vec![],
-                vec![
-                    FactorSourceTemplate::trusted_contact(0),
-                    FactorSourceTemplate::trusted_contact(1),
-                    FactorSourceTemplate::device(0),
-                ],
-            ),
-            confirmation_role: ConfirmationRoleTemplate::with_factors(
-                0,
-                vec![],
-                vec![
-                    FactorSourceTemplate::password(0),
-                    FactorSourceTemplate::password(1),
-                    FactorSourceTemplate::off_device_mnemonic(0),
-                ],
-            ),
-            number_of_days_until_auto_confirm: Self::DEFAULT_NUMBER_OF_DAYS_UNTIL_AUTO_CONFIRM,
-        }
+        Self::new(
+            PrimaryRoleTemplate::new([
+                FactorSourceTemplate::device(),
+                FactorSourceTemplate::password(),
+            ]),
+            RecoveryRoleTemplate::new([
+                FactorSourceTemplate::trusted_contact(),
+                FactorSourceTemplate::trusted_contact_other(),
+                FactorSourceTemplate::device(),
+            ]),
+            ConfirmationRoleTemplate::new([
+                FactorSourceTemplate::password(),
+                FactorSourceTemplate::password_other(),
+                FactorSourceTemplate::off_device_mnemonic(),
+            ]),
+        )
     }
 
     pub fn config_60() -> Self {
-        Self {
-            built: PhantomData,
-            primary_role: PrimaryRoleTemplate::with_factors(
-                1,
-                vec![FactorSourceTemplate::device(0)],
-                vec![],
-            ),
-            recovery_role: RecoveryRoleTemplate::with_factors(
-                0,
-                vec![],
-                vec![FactorSourceTemplate::trusted_contact(0)],
-            ),
-            confirmation_role: ConfirmationRoleTemplate::with_factors(
-                0,
-                vec![],
-                vec![FactorSourceTemplate::security_questions(0)],
-            ),
-            number_of_days_until_auto_confirm: Self::DEFAULT_NUMBER_OF_DAYS_UNTIL_AUTO_CONFIRM,
-        }
+        Self::new(
+            PrimaryRoleTemplate::new([FactorSourceTemplate::device()]),
+            RecoveryRoleTemplate::new([FactorSourceTemplate::trusted_contact()]),
+            ConfirmationRoleTemplate::new([FactorSourceTemplate::security_questions()]),
+        )
     }
 
     pub fn config_70() -> Self {
-        Self {
-            built: PhantomData,
-            primary_role: PrimaryRoleTemplate::with_factors(
-                2,
-                vec![
-                    FactorSourceTemplate::device(0),
-                    FactorSourceTemplate::ledger(0),
-                ],
-                vec![],
-            ),
-            recovery_role: RecoveryRoleTemplate::with_factors(
-                0,
-                vec![],
-                vec![
-                    FactorSourceTemplate::trusted_contact(0),
-                    FactorSourceTemplate::ledger(0),
-                ],
-            ),
-            confirmation_role: ConfirmationRoleTemplate::with_factors(
-                0,
-                vec![],
-                vec![FactorSourceTemplate::device(0)],
-            ),
-            number_of_days_until_auto_confirm: Self::DEFAULT_NUMBER_OF_DAYS_UNTIL_AUTO_CONFIRM,
-        }
+        Self::new(
+            PrimaryRoleTemplate::new([
+                FactorSourceTemplate::device(),
+                FactorSourceTemplate::ledger(),
+            ]),
+            RecoveryRoleTemplate::new([
+                FactorSourceTemplate::trusted_contact(),
+                FactorSourceTemplate::ledger(),
+            ]),
+            ConfirmationRoleTemplate::new([FactorSourceTemplate::device()]),
+        )
     }
 
     pub fn config_80() -> Self {
-        Self {
-            built: PhantomData,
-            primary_role: PrimaryRoleTemplate::with_factors(
-                2,
-                vec![
-                    FactorSourceTemplate::device(0),
-                    FactorSourceTemplate::ledger(0),
-                ],
-                vec![],
-            ),
-            recovery_role: RecoveryRoleTemplate::with_factors(
-                0,
-                vec![],
-                vec![
-                    FactorSourceTemplate::ledger(0),
-                    FactorSourceTemplate::device(0),
-                ],
-            ),
-            confirmation_role: ConfirmationRoleTemplate::with_factors(
-                0,
-                vec![],
-                vec![FactorSourceTemplate::security_questions(0)],
-            ),
-            number_of_days_until_auto_confirm: Self::DEFAULT_NUMBER_OF_DAYS_UNTIL_AUTO_CONFIRM,
-        }
+        Self::new(
+            PrimaryRoleTemplate::new([
+                FactorSourceTemplate::device(),
+                FactorSourceTemplate::ledger(),
+            ]),
+            RecoveryRoleTemplate::new([
+                FactorSourceTemplate::ledger(),
+                FactorSourceTemplate::device(),
+            ]),
+            ConfirmationRoleTemplate::new([FactorSourceTemplate::security_questions()]),
+        )
     }
 
     pub fn config_90() -> Self {
-        Self {
-            built: PhantomData,
-            primary_role: PrimaryRoleTemplate::with_factors(
-                2,
-                vec![
-                    FactorSourceTemplate::device(0),
-                    FactorSourceTemplate::ledger(0),
-                ],
-                vec![],
-            ),
-            recovery_role: RecoveryRoleTemplate::with_factors(
-                0,
-                vec![],
-                vec![
-                    FactorSourceTemplate::trusted_contact(0),
-                    FactorSourceTemplate::device(0),
-                ],
-            ),
-            confirmation_role: ConfirmationRoleTemplate::with_factors(
-                0,
-                vec![],
-                vec![FactorSourceTemplate::security_questions(0)],
-            ),
-            number_of_days_until_auto_confirm: Self::DEFAULT_NUMBER_OF_DAYS_UNTIL_AUTO_CONFIRM,
-        }
+        Self::new(
+            PrimaryRoleTemplate::new([
+                FactorSourceTemplate::device(),
+                FactorSourceTemplate::ledger(),
+            ]),
+            RecoveryRoleTemplate::new([
+                FactorSourceTemplate::trusted_contact(),
+                FactorSourceTemplate::device(),
+            ]),
+            ConfirmationRoleTemplate::new([FactorSourceTemplate::security_questions()]),
+        )
     }
 }
 
