@@ -1238,7 +1238,7 @@ mod shield_configs {
         use super::*;
 
         #[test]
-        fn config_1_1() {
+        fn config_11() {
             let mut sut = make();
 
             // Primary
@@ -1285,7 +1285,7 @@ mod shield_configs {
         }
 
         #[test]
-        fn config_1_2() {
+        fn config_12() {
             let mut sut = make();
 
             // Primary
@@ -1335,7 +1335,7 @@ mod shield_configs {
         }
 
         #[test]
-        fn config_1_3() {
+        fn config_13() {
             let mut sut = make();
 
             // Primary
@@ -1386,7 +1386,7 @@ mod shield_configs {
         }
 
         #[test]
-        fn config_1_4() {
+        fn config_14() {
             let mut sut = make();
 
             // Primary
@@ -1426,7 +1426,7 @@ mod shield_configs {
         }
 
         #[test]
-        fn config_1_5() {
+        fn config_15() {
             let mut sut = make();
 
             // Primary
@@ -1466,7 +1466,7 @@ mod shield_configs {
         }
 
         #[test]
-        fn config_2_1() {
+        fn config_21() {
             let mut sut = make();
 
             // Primary
@@ -1514,7 +1514,7 @@ mod shield_configs {
         }
 
         #[test]
-        fn config_2_2() {
+        fn config_22() {
             let mut sut = make();
 
             // Primary
@@ -1562,13 +1562,13 @@ mod shield_configs {
         }
 
         #[test]
-        fn config_2_3() {
+        fn config_23() {
             let mut sut = make();
 
             // Primary
-            // TODO: Ask Matt about this, does he mean Threshold(1) or Override?
-            sut.add_factor_source_to_primary_override(FactorSourceID::sample_ledger())
+            sut.add_factor_source_to_primary_threshold(FactorSourceID::sample_ledger())
                 .unwrap();
+            sut.set_threshold(1).unwrap();
 
             // Recovery
             sut.add_factor_source_to_recovery_override(FactorSourceID::sample_ledger_other())
@@ -1585,9 +1585,9 @@ mod shield_configs {
                 built,
                 MatrixOfFactorSourceIds::with_roles(
                     RoleWithFactorSourceIds::primary_with_factors(
-                        0,
-                        [],
+                        1,
                         [FactorSourceID::sample_ledger(),],
+                        [],
                     ),
                     RoleWithFactorSourceIds::recovery_with_factors([
                         FactorSourceID::sample_ledger_other(),
@@ -1602,13 +1602,13 @@ mod shield_configs {
         }
 
         #[test]
-        fn config_2_4() {
+        fn config_24() {
             let mut sut = make();
 
             // Primary
-            // TODO: Ask Matt about this, does he mean Threshold(1) or Override?
-            sut.add_factor_source_to_primary_override(FactorSourceID::sample_device())
+            sut.add_factor_source_to_primary_threshold(FactorSourceID::sample_device())
                 .unwrap();
+            sut.set_threshold(1).unwrap();
 
             // Recovery
             sut.add_factor_source_to_recovery_override(FactorSourceID::sample_ledger())
@@ -1625,9 +1625,9 @@ mod shield_configs {
                 built,
                 MatrixOfFactorSourceIds::with_roles(
                     RoleWithFactorSourceIds::primary_with_factors(
-                        0,
-                        [],
+                        1,
                         [FactorSourceID::sample_device(),],
+                        [],
                     ),
                     RoleWithFactorSourceIds::recovery_with_factors([
                         FactorSourceID::sample_ledger(),
@@ -1642,7 +1642,7 @@ mod shield_configs {
         }
 
         #[test]
-        fn config_3() {
+        fn config_30() {
             let mut sut = make();
 
             // Primary
@@ -1693,7 +1693,7 @@ mod shield_configs {
         }
 
         #[test]
-        fn config_4() {
+        fn config_40() {
             let mut sut = make();
 
             // Primary

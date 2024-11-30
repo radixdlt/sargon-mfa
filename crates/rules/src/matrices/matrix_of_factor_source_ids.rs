@@ -37,498 +37,78 @@ impl MatrixOfFactorSourceIds {
 }
 
 impl MatrixOfFactorSourceIds {
+    fn sample_from_template(template: MatrixTemplate) -> Self {
+        template
+            .materialize(*ALL_FACTOR_SOURCE_ID_SAMPLES_INC_NON_HD)
+            .unwrap()
+    }
+
     pub fn sample_config_11() -> Self {
-        let mut builder = MatrixBuilder::new();
-
-        // Primary
-        builder
-            .add_factor_source_to_primary_threshold(FactorSourceID::sample_device())
-            .unwrap();
-        builder
-            .add_factor_source_to_primary_threshold(FactorSourceID::sample_ledger())
-            .unwrap();
-        builder.set_threshold(2).unwrap();
-
-        // Recovery
-        builder
-            .add_factor_source_to_recovery_override(FactorSourceID::sample_device())
-            .unwrap();
-        builder
-            .add_factor_source_to_recovery_override(FactorSourceID::sample_ledger())
-            .unwrap();
-
-        // Confirmation
-        builder
-            .add_factor_source_to_confirmation_override(FactorSourceID::sample_password())
-            .unwrap();
-
-        // Build
-        assert!(builder.validate().is_ok());
-        builder.build().unwrap()
+        Self::sample_from_template(MatrixTemplate::config_11())
     }
 
     pub fn sample_config_12() -> Self {
-        let mut builder = MatrixBuilder::new();
-        // Primary
-        builder
-            .add_factor_source_to_primary_threshold(FactorSourceID::sample_ledger())
-            .unwrap();
-        _ = builder.add_factor_source_to_primary_threshold(FactorSourceID::sample_password());
-
-        _ = builder.set_threshold(2);
-
-        // Recovery
-        builder
-            .add_factor_source_to_recovery_override(FactorSourceID::sample_device())
-            .unwrap();
-        builder
-            .add_factor_source_to_recovery_override(FactorSourceID::sample_ledger())
-            .unwrap();
-
-        // Confirmation
-        builder
-            .add_factor_source_to_confirmation_override(FactorSourceID::sample_password())
-            .unwrap();
-
-        assert!(builder.validate().is_ok());
-        builder.build().unwrap()
+        Self::sample_from_template(MatrixTemplate::config_12())
     }
 
     pub fn sample_config_13() -> Self {
-        let mut builder = MatrixBuilder::new();
-
-        // Primary
-        builder
-            .add_factor_source_to_primary_threshold(FactorSourceID::sample_device())
-            .unwrap();
-        let res = builder.add_factor_source_to_primary_threshold(FactorSourceID::sample_password());
-
-        assert_eq!(
-                    res,
-                    Err(MatrixBuilderValidation::RoleInIsolation { role: RoleKind::Primary, violation: RoleBuilderValidation::NotYetValid(NotYetValidReason::PrimaryRoleWithPasswordInThresholdListMustThresholdGreaterThanOne)}
-                ));
-        builder.set_threshold(2).unwrap();
-
-        // Recovery
-        builder
-            .add_factor_source_to_recovery_override(FactorSourceID::sample_device())
-            .unwrap();
-        builder
-            .add_factor_source_to_recovery_override(FactorSourceID::sample_ledger())
-            .unwrap();
-
-        // Confirmation
-        builder
-            .add_factor_source_to_confirmation_override(FactorSourceID::sample_password())
-            .unwrap();
-
-        // Build
-        assert!(builder.validate().is_ok());
-        builder.build().unwrap()
+        Self::sample_from_template(MatrixTemplate::config_13())
     }
 
     pub fn sample_config_14() -> Self {
-        let mut builder = MatrixBuilder::new();
-
-        // Primary
-        builder
-            .add_factor_source_to_primary_threshold(FactorSourceID::sample_device())
-            .unwrap();
-        builder.set_threshold(1).unwrap();
-
-        // Recovery
-        builder
-            .add_factor_source_to_recovery_override(FactorSourceID::sample_ledger())
-            .unwrap();
-
-        // Confirmation
-        builder
-            .add_factor_source_to_confirmation_override(FactorSourceID::sample_password())
-            .unwrap();
-
-        // Build
-        assert!(builder.validate().is_ok());
-        builder.build().unwrap()
+        Self::sample_from_template(MatrixTemplate::config_14())
     }
 
     pub fn sample_config_15() -> Self {
-        let mut builder = MatrixBuilder::new();
-
-        // Primary
-        builder
-            .add_factor_source_to_primary_threshold(FactorSourceID::sample_ledger())
-            .unwrap();
-        builder.set_threshold(1).unwrap();
-
-        // Recovery
-        builder
-            .add_factor_source_to_recovery_override(FactorSourceID::sample_device())
-            .unwrap();
-
-        // Confirmation
-        builder
-            .add_factor_source_to_confirmation_override(FactorSourceID::sample_password())
-            .unwrap();
-
-        // Build
-        assert!(builder.validate().is_ok());
-        builder.build().unwrap()
+        Self::sample_from_template(MatrixTemplate::config_15())
     }
 
     pub fn sample_config_21() -> Self {
-        let mut builder = MatrixBuilder::new();
-
-        // Primary
-        builder
-            .add_factor_source_to_primary_threshold(FactorSourceID::sample_device())
-            .unwrap();
-        builder
-            .add_factor_source_to_primary_threshold(FactorSourceID::sample_ledger())
-            .unwrap();
-        builder.set_threshold(2).unwrap();
-
-        // Recovery
-        builder
-            .add_factor_source_to_recovery_override(FactorSourceID::sample_ledger())
-            .unwrap();
-        builder
-            .add_factor_source_to_recovery_override(FactorSourceID::sample_ledger_other())
-            .unwrap();
-
-        // Confirmation
-        builder
-            .add_factor_source_to_confirmation_override(FactorSourceID::sample_device())
-            .unwrap();
-
-        // Build
-        assert!(builder.validate().is_ok());
-        builder.build().unwrap()
+        Self::sample_from_template(MatrixTemplate::config_21())
     }
 
     pub fn sample_config_22() -> Self {
-        let mut builder = MatrixBuilder::new();
-
-        // Primary
-        builder
-            .add_factor_source_to_primary_threshold(FactorSourceID::sample_ledger())
-            .unwrap();
-        builder
-            .add_factor_source_to_primary_threshold(FactorSourceID::sample_ledger_other())
-            .unwrap();
-        builder.set_threshold(2).unwrap();
-
-        // Recovery
-        builder
-            .add_factor_source_to_recovery_override(FactorSourceID::sample_ledger())
-            .unwrap();
-        builder
-            .add_factor_source_to_recovery_override(FactorSourceID::sample_ledger_other())
-            .unwrap();
-
-        // Confirmation
-        builder
-            .add_factor_source_to_confirmation_override(FactorSourceID::sample_device())
-            .unwrap();
-
-        // Build
-        assert!(builder.validate().is_ok());
-        builder.build().unwrap()
+        Self::sample_from_template(MatrixTemplate::config_22())
     }
 
     pub fn sample_config_23() -> Self {
-        let mut builder = MatrixBuilder::new();
-
-        // Primary
-        // TODO: Ask Matt about this, does he mean Threshold(1) or Override?
-        builder
-            .add_factor_source_to_primary_override(FactorSourceID::sample_ledger())
-            .unwrap();
-
-        // Recovery
-        builder
-            .add_factor_source_to_recovery_override(FactorSourceID::sample_ledger_other())
-            .unwrap();
-
-        // Confirmation
-        builder
-            .add_factor_source_to_confirmation_override(FactorSourceID::sample_device())
-            .unwrap();
-
-        // Build
-        assert!(builder.validate().is_ok());
-        builder.build().unwrap()
+        Self::sample_from_template(MatrixTemplate::config_23())
     }
 
     pub fn sample_config_24() -> Self {
-        let mut builder = MatrixBuilder::new();
-
-        // Primary
-        // TODO: Ask Matt about this, does he mean Threshold(1) or Override?
-        builder
-            .add_factor_source_to_primary_override(FactorSourceID::sample_device())
-            .unwrap();
-
-        // Recovery
-        builder
-            .add_factor_source_to_recovery_override(FactorSourceID::sample_ledger())
-            .unwrap();
-
-        // Confirmation
-        builder
-            .add_factor_source_to_confirmation_override(FactorSourceID::sample_ledger_other())
-            .unwrap();
-
-        // Build
-        builder.build().unwrap()
+        Self::sample_from_template(MatrixTemplate::config_24())
     }
 
     pub fn sample_config_30() -> Self {
-        let mut builder = MatrixBuilder::new();
-
-        // Primary
-        builder
-            .add_factor_source_to_primary_threshold(FactorSourceID::sample_device())
-            .unwrap();
-        builder
-            .add_factor_source_to_primary_threshold(FactorSourceID::sample_ledger())
-            .unwrap();
-        builder.set_threshold(2).unwrap();
-
-        // Recovery
-        builder
-            .add_factor_source_to_recovery_override(FactorSourceID::sample_ledger())
-            .unwrap();
-        builder
-            .add_factor_source_to_recovery_override(FactorSourceID::sample_ledger_other())
-            .unwrap();
-
-        // Confirmation
-        builder
-            .add_factor_source_to_confirmation_override(FactorSourceID::sample_device())
-            .unwrap();
-        builder
-            .add_factor_source_to_confirmation_override(FactorSourceID::sample_password())
-            .unwrap();
-
-        // Build
-        assert!(builder.validate().is_ok());
-        builder.build().unwrap()
+        Self::sample_from_template(MatrixTemplate::config_30())
     }
 
     pub fn sample_config_40() -> Self {
-        let mut builder = MatrixBuilder::new();
-
-        // Primary
-        builder
-            .add_factor_source_to_primary_threshold(FactorSourceID::sample_device())
-            .unwrap();
-        builder
-            .add_factor_source_to_primary_threshold(FactorSourceID::sample_ledger())
-            .unwrap();
-        builder.set_threshold(2).unwrap();
-
-        // Recovery
-        builder
-            .add_factor_source_to_recovery_override(FactorSourceID::sample_device())
-            .unwrap();
-        builder
-            .add_factor_source_to_recovery_override(FactorSourceID::sample_ledger())
-            .unwrap();
-
-        // Confirmation
-        builder
-            .add_factor_source_to_confirmation_override(FactorSourceID::sample_password())
-            .unwrap();
-        builder
-            .add_factor_source_to_confirmation_override(FactorSourceID::sample_password_other())
-            .unwrap();
-        builder
-            .add_factor_source_to_confirmation_override(FactorSourceID::sample_passphrase())
-            .unwrap();
-
-        // Build
-        assert!(builder.validate().is_ok());
-        builder.build().unwrap()
+        Self::sample_from_template(MatrixTemplate::config_40())
     }
 
     pub fn sample_config_51() -> Self {
-        let mut builder = MatrixBuilder::new();
-
-        // Primary
-        builder
-            .add_factor_source_to_primary_threshold(FactorSourceID::sample_device())
-            .unwrap();
-        let _ = builder.set_threshold(2);
-        builder
-            .add_factor_source_to_primary_threshold(FactorSourceID::sample_password())
-            .unwrap();
-
-        // Recovery
-        builder
-            .add_factor_source_to_recovery_override(FactorSourceID::sample_trusted_contact())
-            .unwrap();
-
-        // Confirmation
-        builder
-            .add_factor_source_to_confirmation_override(FactorSourceID::sample_password())
-            .unwrap();
-
-        // Build
-        assert!(builder.validate().is_ok());
-        builder.build().unwrap()
+        Self::sample_from_template(MatrixTemplate::config_51())
     }
 
     pub fn sample_config_52() -> Self {
-        let mut builder = MatrixBuilder::new();
-
-        // Primary
-        builder
-            .add_factor_source_to_primary_threshold(FactorSourceID::sample_device())
-            .unwrap();
-        let _ = builder.set_threshold(2);
-        builder
-            .add_factor_source_to_primary_threshold(FactorSourceID::sample_password())
-            .unwrap();
-
-        // Recovery
-        builder
-            .add_factor_source_to_recovery_override(FactorSourceID::sample_trusted_contact())
-            .unwrap();
-        builder
-            .add_factor_source_to_recovery_override(FactorSourceID::sample_trusted_contact_other())
-            .unwrap();
-        builder
-            .add_factor_source_to_recovery_override(FactorSourceID::sample_device())
-            .unwrap();
-
-        // Confirmation
-        builder
-            .add_factor_source_to_confirmation_override(FactorSourceID::sample_password())
-            .unwrap();
-        builder
-            .add_factor_source_to_confirmation_override(FactorSourceID::sample_password_other())
-            .unwrap();
-        builder
-            .add_factor_source_to_confirmation_override(FactorSourceID::sample_passphrase())
-            .unwrap();
-
-        // Build
-        assert!(builder.validate().is_ok());
-        builder.build().unwrap()
+        Self::sample_from_template(MatrixTemplate::config_52())
     }
 
     pub fn sample_config_60() -> Self {
-        let mut builder = MatrixBuilder::new();
-
-        // Primary
-        builder
-            .add_factor_source_to_primary_threshold(FactorSourceID::sample_device())
-            .unwrap();
-        let _ = builder.set_threshold(1);
-
-        // Recovery
-        builder
-            .add_factor_source_to_recovery_override(FactorSourceID::sample_trusted_contact())
-            .unwrap();
-
-        // Confirmation
-        builder
-            .add_factor_source_to_confirmation_override(FactorSourceID::sample_security_questions())
-            .unwrap();
-
-        // Build
-        assert!(builder.validate().is_ok());
-        builder.build().unwrap()
+        Self::sample_from_template(MatrixTemplate::config_60())
     }
 
     pub fn sample_config_70() -> Self {
-        let mut builder = MatrixBuilder::new();
-
-        // Primary
-        builder
-            .add_factor_source_to_primary_threshold(FactorSourceID::sample_device())
-            .unwrap();
-        let _ = builder.set_threshold(2);
-        builder
-            .add_factor_source_to_primary_threshold(FactorSourceID::sample_ledger())
-            .unwrap();
-
-        // Recovery
-        builder
-            .add_factor_source_to_recovery_override(FactorSourceID::sample_trusted_contact())
-            .unwrap();
-        builder
-            .add_factor_source_to_recovery_override(FactorSourceID::sample_ledger())
-            .unwrap();
-
-        // Confirmation
-        builder
-            .add_factor_source_to_confirmation_override(FactorSourceID::sample_device())
-            .unwrap();
-
-        // Build
-        assert!(builder.validate().is_ok());
-        builder.build().unwrap()
+        Self::sample_from_template(MatrixTemplate::config_70())
     }
 
     pub fn sample_config_80() -> Self {
-        let mut builder = MatrixBuilder::new();
-
-        // Primary
-        builder
-            .add_factor_source_to_primary_threshold(FactorSourceID::sample_device())
-            .unwrap();
-        let _ = builder.set_threshold(2);
-        builder
-            .add_factor_source_to_primary_threshold(FactorSourceID::sample_ledger())
-            .unwrap();
-
-        // Recovery
-        builder
-            .add_factor_source_to_recovery_override(FactorSourceID::sample_ledger())
-            .unwrap();
-        builder
-            .add_factor_source_to_recovery_override(FactorSourceID::sample_device())
-            .unwrap();
-
-        // Confirmation
-        builder
-            .add_factor_source_to_confirmation_override(FactorSourceID::sample_security_questions())
-            .unwrap();
-
-        // Build
-        assert!(builder.validate().is_ok());
-        builder.build().unwrap()
+        Self::sample_from_template(MatrixTemplate::config_80())
     }
 
     pub fn sample_config_90() -> Self {
-        let mut builder = MatrixBuilder::new();
-
-        // Primary
-        builder
-            .add_factor_source_to_primary_threshold(FactorSourceID::sample_device())
-            .unwrap();
-        let _ = builder.set_threshold(2);
-        builder
-            .add_factor_source_to_primary_threshold(FactorSourceID::sample_ledger())
-            .unwrap();
-
-        // Recovery
-        builder
-            .add_factor_source_to_recovery_override(FactorSourceID::sample_trusted_contact())
-            .unwrap();
-        builder
-            .add_factor_source_to_recovery_override(FactorSourceID::sample_device())
-            .unwrap();
-
-        // Confirmation
-        builder
-            .add_factor_source_to_confirmation_override(FactorSourceID::sample_security_questions())
-            .unwrap();
-
-        // Build
-        assert!(builder.validate().is_ok());
-        builder.build().unwrap()
+        Self::sample_from_template(MatrixTemplate::config_90())
     }
 }
 
@@ -547,6 +127,9 @@ mod tests {
     use super::*;
     #[allow(clippy::upper_case_acronyms)]
     type SUT = MatrixOfFactorSourceIds;
+
+    #[test]
+    fn template() {}
 
     #[test]
     fn equality() {
@@ -684,19 +267,19 @@ mod tests {
         assert_eq_after_json_roundtrip(
             &sut,
             r#"
-                        {
+            {
               "primaryRole": {
-                "threshold": 0,
-                "thresholdFactors": [],
-                "overrideFactors": [
-                  {
+                "threshold": 1,
+                "thresholdFactors": [
+                    {
                     "discriminator": "fromHash",
                     "fromHash": {
-                      "kind": "device",
-                      "body": "f1a93d324dd0f2bff89963ab81ed6e0c2ee7e18c0827dc1d3576b2d9f26bbd0a"
+                        "kind": "device",
+                        "body": "f1a93d324dd0f2bff89963ab81ed6e0c2ee7e18c0827dc1d3576b2d9f26bbd0a"
+                        }
                     }
-                  }
-                ]
+                ],
+                "overrideFactors": []
               },
               "recoveryRole": {
                 "threshold": 0,
