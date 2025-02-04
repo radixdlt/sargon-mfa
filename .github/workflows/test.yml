@@ -68,6 +68,15 @@ jobs:
     steps:
       - uses: RDXWorks-actions/checkout@main
 
+      - uses: radixdlt/public-iac-resuable-artifacts/fetch-secrets@main
+        with:
+          role_name: 'arn:aws:iam::${{ secrets.SECRETS_ACCOUNT_ID }}:role/gh-common-secrets-read-access'
+          app_name: 'sargon-mfa'
+          step_name: 'sargon-mfa-code-cov-token'
+          prefix: GH_CODECOV
+          secret_name: 'arn:aws:secretsmanager:eu-west-2:${{ secrets.SECRETS_ACCOUNT_ID }}:secret:github-actions/common/codecov-o1ImFr'
+          parse_json: true
+
       - name: Install Rust Toolchain
         uses: RDXWorks-actions/toolchain@master
         with:
@@ -87,5 +96,5 @@ jobs:
       - name: Code Coverage - Upload to CodeCov.io
         uses: RDXWorks-actions/codecov-action@main
         with:
-          token: ${{ secrets.CODECOV }}
+          token: ${{ env.GH_CODECOV_TOKEN }}
           fail_ci_if_error: true
